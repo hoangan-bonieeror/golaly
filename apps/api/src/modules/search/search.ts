@@ -1,5 +1,6 @@
 import { Controller, Delete, Get, Injectable, Module, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import {
+  normalizeSearch,
   searchQuerySchema,
   type DestinationPage,
   type DestinationView,
@@ -13,13 +14,15 @@ import { Errors, ZodPipe } from "../../common/http";
 import { placeInclude, postInclude, toPlaceView, toPostView, toTripSummary, tripSummaryInclude, userSummarySelect, toUserSummary } from "../../common/presenters";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { Prisma } from "../../generated/prisma/client";
+import { TrigramRanker, byRank } from "./ranker";
 
 /** Only PUBLIC, non-deleted trips are ever discoverable (LINK_ONLY is unlisted — spec §34). */
 export const DISCOVERABLE: Prisma.TripWhereInput = { visibility: "PUBLIC", deletedAt: null };
 
 /**
- * SearchService abstraction (spec §33). The Postgres implementation uses case-insensitive
- * matching; swap in Elasticsearch/OpenSearch/Algolia by implementing the same interface.
+ * SearchService abstraction (spec §33). The Postgres implementation ranks with pg_trgm over
+ * accent-free `search_text` columns (typo-tolerant, "hoi an" finds "Hội An"); swap in
+ * Elasticsearch/OpenSearch/Algolia by implementing the same interface.
  */
 export interface SearchProvider {
   search(q: string, type: "all" | "trips" | "places" | "people" | "destinations", limit: number, viewerId: string | null): Promise<SearchResults>;
@@ -27,21 +30,23 @@ export interface SearchProvider {
 
 @Injectable()
 export class PostgresSearchProvider implements SearchProvider {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly rank: TrigramRanker;
+  constructor(private readonly prisma: PrismaService) {
+    this.rank = new TrigramRanker(prisma);
+  }
 
   async search(q: string, type: "all" | "trips" | "places" | "people" | "destinations", limit: number, viewerId: string | null): Promise<SearchResults> {
-    const s = q.trim();
-    const ci = (v: string) => ({ contains: v, mode: "insensitive" as const });
+    const s = normalizeSearch(q);
     const want = (t: string) => type === "all" || type === t;
+    const [tripIds, placeIds, peopleIds] = await Promise.all([
+      want("trips") && s ? this.rank.trips(s, limit) : null,
+      want("places") && s ? this.rank.places(s, limit) : null,
+      want("people") && s ? this.rank.people(s, limit) : null,
+    ]);
     const [trips, places, people, destinations] = await Promise.all([
       want("trips")
         ? this.prisma.trip.findMany({
-            where: {
-              ...DISCOVERABLE,
-              ...(s
-                ? { OR: [{ title: ci(s) }, { description: ci(s) }, { destinations: { some: { destination: { OR: [{ name: ci(s) }, { country: ci(s) }] } } } }] }
-                : {}),
-            },
+            where: { ...DISCOVERABLE, ...(tripIds ? { id: { in: tripIds } } : {}) },
             orderBy: [{ saveCount: "desc" }, { updatedAt: "desc" }],
             take: limit,
             include: tripSummaryInclude(viewerId),
@@ -49,7 +54,7 @@ export class PostgresSearchProvider implements SearchProvider {
         : [],
       want("places")
         ? this.prisma.place.findMany({
-            where: s ? { OR: [{ name: ci(s) }, { address: ci(s) }, { destination: { name: ci(s) } }] } : {},
+            where: placeIds ? { id: { in: placeIds } } : {},
             orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { name: "asc" }],
             take: limit,
             include: placeInclude(viewerId),
@@ -57,32 +62,31 @@ export class PostgresSearchProvider implements SearchProvider {
         : [],
       want("people")
         ? this.prisma.user.findMany({
-            where: { deletedAt: null, ...(s ? { OR: [{ username: ci(s) }, { profile: { displayName: ci(s) } }, { profile: { homeBase: ci(s) } }] } : {}) },
+            where: { deletedAt: null, ...(peopleIds ? { id: { in: peopleIds } } : {}) },
             take: limit,
             orderBy: { createdAt: "asc" },
             select: { ...userSummarySelect, profile: { select: { displayName: true, avatarHue: true, homeBase: true, avatar: { select: { storageKey: true, thumbKey: true } } } } },
           })
         : [],
-      want("destinations") ? this.destinations(s, limit) : [],
+      want("destinations") ? this.destinations(q, limit) : [],
     ]);
     return {
-      trips: trips.map((t) => toTripSummary(t, viewerId)),
-      places: places.map(toPlaceView),
-      people: people.map((u) => ({ ...toUserSummary(u), homeBase: u.profile?.homeBase ?? null })),
+      trips: byRank(trips, tripIds).map((t) => toTripSummary(t, viewerId)),
+      places: byRank(places, placeIds).map(toPlaceView),
+      people: byRank(people, peopleIds).map((u) => ({ ...toUserSummary(u), homeBase: u.profile?.homeBase ?? null })),
       destinations,
     };
   }
 
   async destinations(q: string, limit: number): Promise<DestinationView[]> {
-    const ci = (v: string) => ({ contains: v, mode: "insensitive" as const });
+    const s = normalizeSearch(q);
+    const ids = s ? await this.rank.destinations(s, limit) : null;
     const rows = await this.prisma.destination.findMany({
-      where: q ? { OR: [{ name: ci(q) }, { country: ci(q) }] } : {},
+      where: ids ? { id: { in: ids } } : {},
       include: { _count: { select: { trips: { where: { trip: DISCOVERABLE } } } } },
     });
-    return rows
-      .map((d) => ({ id: d.id, slug: d.slug, name: d.name, country: d.country, lat: d.lat, lng: d.lng, blurb: d.blurb, palette: [d.paletteA, d.paletteB] as [string, string], tripCount: d._count.trips }))
-      .sort((a, b) => b.tripCount - a.tripCount || a.name.localeCompare(b.name))
-      .slice(0, limit);
+    const views = rows.map((d) => ({ id: d.id, slug: d.slug, name: d.name, country: d.country, lat: d.lat, lng: d.lng, blurb: d.blurb, palette: [d.paletteA, d.paletteB] as [string, string], tripCount: d._count.trips }));
+    return (ids ? byRank(views, ids) : views.sort((a, b) => b.tripCount - a.tripCount || a.name.localeCompare(b.name))).slice(0, limit);
   }
 }
 
@@ -128,19 +132,22 @@ export class ExploreService {
 
   /** Place search for the itinerary editor — boosts places in the trip's destinations. */
   async places(q: string, viewerId: string | null, opts: { destinationIds?: string[]; limit: number }): Promise<PlaceView[]> {
-    const s = q.trim();
-    const ci = (v: string) => ({ contains: v, mode: "insensitive" as const });
+    const s = normalizeSearch(q);
+    const ids = s ? await new TrigramRanker(this.prisma).places(s, 50) : null;
     const rows = await this.prisma.place.findMany({
-      where: s ? { OR: [{ name: ci(s) }, { address: ci(s) }] } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {},
+      where: ids ? { id: { in: ids } } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {},
       take: 50,
       orderBy: [{ rating: { sort: "desc", nulls: "last" } }],
       include: placeInclude(viewerId),
     });
     const boost = new Set(opts.destinationIds ?? []);
-    return rows
-      .sort((a, b) => Number(boost.has(b.destinationId)) - Number(boost.has(a.destinationId)))
+    const ranked = ids ? byRank(rows, ids) : rows;
+    // Stable sort: places in the trip's own destinations first, then by relevance/rating.
+    return ranked
+      .map((p, i) => ({ p, i }))
+      .sort((a, b) => Number(boost.has(b.p.destinationId)) - Number(boost.has(a.p.destinationId)) || a.i - b.i)
       .slice(0, opts.limit)
-      .map(toPlaceView);
+      .map(({ p }) => toPlaceView(p));
   }
 
   async place(id: string, viewerId: string | null) {

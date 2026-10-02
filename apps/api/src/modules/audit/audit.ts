@@ -11,7 +11,8 @@ export type AuditAction =
   | "trip.visibility_changed"
   | "trip.deleted"
   | "user.deleted"
-  | "user.password_reset";
+  | "user.password_reset"
+  | "user.password_changed";
 
 /** Append-only log of sensitive permission changes (spec §42). Never stores tokens or passwords. */
 @Injectable()

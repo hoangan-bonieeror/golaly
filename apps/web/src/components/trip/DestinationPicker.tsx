@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeSearch } from "@triply/shared";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
 import { useDestinations } from "@/lib/api/queries";
@@ -9,7 +10,9 @@ export function DestinationPicker({ value, onChange }: { value: string[]; onChan
   const all = useDestinations().data ?? [];
   const [q, setQ] = useState("");
   const selected = value.map((id) => all.find((d) => d.id === id)).filter((d): d is NonNullable<typeof d> => !!d);
-  const options = all.filter((d) => !value.includes(d.id) && (q ? `${d.name} ${d.country}`.toLowerCase().includes(q.toLowerCase()) : true));
+  // Accent-insensitive, same normalisation as the API ("hoi an" → Hội An).
+  const nq = normalizeSearch(q);
+  const options = all.filter((d) => !value.includes(d.id) && (nq ? normalizeSearch(`${d.name} ${d.country}`).includes(nq) : true));
   return (
     <div className="space-y-2">
       {selected.length > 0 && (

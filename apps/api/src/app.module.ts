@@ -7,7 +7,7 @@ import { AllExceptionsFilter } from "./common/http";
 import { env } from "./config/env";
 import { PrismaModule, PrismaService } from "./prisma/prisma.service";
 import { AuditModule } from "./modules/audit/audit";
-import { AuthModule } from "./modules/auth/auth";
+import { AuthModule } from "./modules/auth/auth.module";
 import { ItineraryModule } from "./modules/itinerary/itinerary.controller";
 import { MailModule } from "./modules/mail/mail";
 import { MediaModule } from "./modules/media/media";
@@ -15,6 +15,7 @@ import { MembersModule } from "./modules/members/members.controller";
 import { NotificationsModule } from "./modules/notifications/notifications";
 import { RealtimeModule } from "./modules/realtime/realtime";
 import { SearchModule } from "./modules/search/search";
+import { SearchIndexModule } from "./modules/search/search-index";
 import { SocialModule } from "./modules/social/social.controller";
 import { TripsModule } from "./modules/trips/trips.controller";
 import { UsersModule } from "./modules/users/users.controller";
@@ -40,6 +41,7 @@ class HealthController {
     NotificationsModule,
     AuditModule,
     MailModule,
+    SearchIndexModule,
     UsersModule,
     AuthModule,
     TripsModule,

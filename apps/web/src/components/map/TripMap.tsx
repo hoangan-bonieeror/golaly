@@ -2,15 +2,20 @@
 
 import { ITEM_TYPE_LABEL, type ItemView, type PlaceView, type TripDetail } from "@triply/shared";
 import { Navigation, Star } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { Chip, cx } from "../ui";
+
+const TileMap = dynamic(() => import("./TileMap").then((m) => m.TileMap), { ssr: false });
+const TILES_ENABLED = process.env.NEXT_PUBLIC_MAP_STYLE_URL !== "off";
 
 /**
  * Trip map (spec §14) — markers, day filter, selected place, simple A→B→C route.
  *
- * MapAdapter boundary: <MapCanvas> is an offline, dependency-free SVG projection
- * (no API key, works anywhere). Swap it for MapLibre/Mapbox tiles and a RouteProvider
- * (straight lines today → routing API later) without changing TripMap's props.
+ * Renders real tiles with MapLibre (<TileMap>) and falls back to <MapCanvas>, an offline,
+ * dependency-free SVG projection, when WebGL/tiles are unavailable or
+ * NEXT_PUBLIC_MAP_STYLE_URL=off. Routes are straight lines between stops; a RouteProvider
+ * (routing API) can replace them later without changing TripMap's props.
  */
 export interface MapStop {
   item: ItemView;
@@ -36,6 +41,7 @@ export function TripMap({
   const multiCity = trip.destinations.length > 1;
   // Multi-city trips start on Day 1 so markers aren't squeezed into far-apart clusters.
   const [dayFilter, setDayFilter] = useState<number | "all">(multiCity ? 1 : "all");
+  const [tiles, setTiles] = useState(TILES_ENABLED);
 
   const stops: MapStop[] = useMemo(() => {
     const out: MapStop[] = [];
@@ -70,7 +76,11 @@ export function TripMap({
           </Chip>
         ))}
       </div>
-      <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
+      {tiles ? (
+        <TileMap stops={visible} colors={DAY_COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
+      ) : (
+        <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
+      )}
       {selected ? (
         <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3">
           <span className="flex size-10 items-center justify-center rounded-xl text-white" style={{ background: DAY_COLORS[(selected.dayNumber - 1) % DAY_COLORS.length] }}>

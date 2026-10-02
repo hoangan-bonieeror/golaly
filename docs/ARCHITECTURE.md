@@ -28,6 +28,8 @@ Browser ◄── Socket.IO (direct to :4000, same cookie) ── "trip.event" �
 - **CSRF:** every non-GET request must send `X-Requested-With: triply`. Browsers can't add that header cross-site without a CORS preflight, and only `WEB_ORIGIN` passes the preflight. This sits on top of SameSite=Lax.
 - **Login:** unknown email and wrong password take the same time and return the same message.
 - **Forgot password** always returns `200`, so it can't be used to discover which emails have accounts.
+- **Google sign-in** (`GET /auth/google/start` → Google → `GET /auth/google/callback`): authorization-code flow with PKCE (S256) and a random `state`. Both live in a short-lived signed cookie (`triply_oauth`, 10 min, path `/api/v1/auth/google`), so no server-side state is needed. The ID token is verified with `google-auth-library` (audience = our client id). User resolution: linked `oauth_accounts` row → existing user with the same **verified** email (linked) → new user without a password (sent to onboarding). Errors redirect to `/login?error=google_*`.
+- **Change password:** `POST /auth/password` requires the current password when one exists (Google-only users can set one) and revokes every other session.
 
 ## Authorization (spec §28)
 
@@ -48,7 +50,7 @@ Friendly failure messages: `"This trip is private."`, `"Only the trip owner can 
 ## Data model
 
 ```
-users ─1:1─ user_profiles            sessions, password_reset_tokens (hashed)
+users ─1:1─ user_profiles            sessions, password_reset_tokens (hashed), oauth_accounts (provider, provider_account_id)
   │  └─ follows (follower, following)
   ├──< trips (owner_id) ──< trip_destinations >── destinations ──< places
   │       ├──< trip_members (trip_id,user_id unique, role)
@@ -59,7 +61,7 @@ users ─1:1─ user_profiles            sessions, password_reset_tokens (hashed
   ├──< saved_trips, saved_places
   ├──< notifications (recipient, actor, type, refs, read_at)
   ├──< reports (reporter, target, target_id unique)
-  ├──< media (storage_key, thumb_key, mime, size, width, height)
+  ├──< media (storage_key, medium_key, thumb_key, dominant_color, mime, size, width, height)
   └──< audit_logs (actor, action, entity, meta)
 ```
 
@@ -73,8 +75,8 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 
 | Area | Endpoints |
 |---|---|
-| Auth | `POST /auth/register` `/auth/login` `/auth/logout` `/auth/refresh` `/auth/forgot-password` `/auth/reset-password` |
-| Users | `GET/PATCH/DELETE /users/me` · `GET /users/:handle` `/users/:handle/trips` `/users/:handle/posts` · `POST/DELETE /users/:handle/follow` |
+| Auth | `POST /auth/register` `/auth/login` `/auth/logout` `/auth/refresh` `/auth/forgot-password` `/auth/reset-password` `/auth/password` · `GET /auth/providers` `/auth/google/start?next` `/auth/google/callback` |
+| Users | `GET/PATCH/DELETE /users/me` · `GET /users/:handle` `/users/:handle/trips` `/users/:handle/posts` `/users/:handle/followers` `/users/:handle/following` · `POST/DELETE /users/:handle/follow` |
 | Trips | `POST/GET /trips` (`?filter=all\|mine\|shared\|past`) · `GET /trips/saved` · `GET/PATCH/DELETE /trips/:id` · `POST /trips/:id/fork` · `POST/DELETE /trips/:id/save` |
 | Days | `GET/POST /trips/:id/days` · `PATCH/DELETE /trips/:id/days/:dayId` |
 | Items | `POST /days/:dayId/items` · `PATCH/DELETE /items/:id` · `POST /items/:id/reorder` `{dayId,index}` · `POST /items/:id/duplicate` |
@@ -99,14 +101,15 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
 
 | Interface | Today | Later |
 |---|---|---|
-| `SearchProvider` (`modules/search`) | Postgres case-insensitive match | OpenSearch / Algolia |
+| `SearchProvider` (`modules/search`) | Postgres `pg_trgm` over an accent-free `search_text` column | OpenSearch / Algolia / Meilisearch |
 | `StorageDriver` (`modules/media`) | Local disk + static `/media` | S3/R2 + signed URLs |
 | `MailService` (`modules/mail`) | Dev outbox files | SMTP / Resend / SES |
-| `MapCanvas` (`web/components/map`) | Offline SVG projection | MapLibre tiles + routing API |
+| `TripMap` (`web/components/map`) | MapLibre tiles (OpenFreeMap) with SVG fallback | Routing API for real travel paths |
 | AI (spec §49) | — | Suggests structured operations; the user confirms; the API validates and applies them through the same services and permission checks |
 
 ## Known trade-offs
 
-- **Search** uses `ILIKE`. That's fine at MVP scale; add `pg_trgm` or a search engine behind `SearchProvider` once data grows.
+- **Search** uses `pg_trgm`. Each searchable row keeps a denormalised, lower-cased, accent-free `search_text` (title, description, destinations, …) with a GIN trigram index; it's rewritten whenever the source fields change and back-filled at boot. A query matches when **every word** is a substring of `search_text` or has `word_similarity ≥ 0.4`; exact phrase matches rank first. Good up to hundreds of thousands of rows; past that, or for relevance tuning/facets, swap in a search engine behind `SearchProvider`.
+- **Map routes** are straight lines between stops in visit order, not real road/transit paths.
 - **Concurrent edits are last-write-wins per field.** Realtime refetch makes conflicts visible right away; there's no collaborative text editing (as the spec says).
 - **Access tokens are stateless for up to 15 minutes**, so after logout on another device (or account deletion) an already-issued access token keeps authenticating until it expires. Trip access is unaffected: membership and roles are re-read from the database on every request, and a removed member's socket leaves the trip room immediately.

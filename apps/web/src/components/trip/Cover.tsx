@@ -3,6 +3,7 @@
  * place of user photos in the prototype. Deterministic per seed, so every
  * trip/post keeps its own look. When a photo was uploaded, it's layered on top.
  */
+import type { ImageView } from "@triply/shared";
 import { cx } from "@/lib/utils";
 
 function rng(seed: string) {
@@ -34,8 +35,15 @@ export function Cover({
   children,
   rounded = true,
   imageUrl,
+  image,
+  sizes = "(min-width: 1024px) 50vw, 100vw",
+  priority,
 }: {
   imageUrl?: string | null;
+  /** Responsive uploaded image (thumb/medium/full) — preferred over imageUrl. */
+  image?: ImageView | null;
+  sizes?: string;
+  priority?: boolean;
   palette: [string, string];
   seed: string;
   className?: string;
@@ -72,11 +80,26 @@ export function Cover({
           <path d={ridge(r, 262, 40)} fill={a} opacity="0.9" />
         )}
       </svg>
-      {imageUrl && (
-        // Uploaded photo (served from /media, already resized + EXIF-stripped by the API)
+      {image ? (
+        // Uploaded photo: browser picks 640/1280/2400px; average colour shows instantly.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />
-      )}
+        <img
+          src={image.url}
+          srcSet={`${image.thumbUrl} 640w, ${image.url} ${Math.min(1280, image.width)}w, ${image.fullUrl} ${image.width}w`}
+          sizes={sizes}
+          width={image.width}
+          height={image.height}
+          alt=""
+          decoding="async"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
+          className="absolute inset-0 size-full object-cover"
+          style={{ backgroundColor: image.color ?? undefined }}
+        />
+      ) : imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" decoding="async" />
+      ) : null}
       <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
       {children && <div className="relative h-full">{children}</div>}
     </div>

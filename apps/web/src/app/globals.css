@@ -103,3 +103,30 @@ body {
     animation: none;
   }
 }
+
+/* Map pins (MapLibre markers) */
+.triply-pin {
+  --pin: var(--color-lagoon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--pin);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  color: #fff;
+  font: 700 11px/1 var(--font-sans);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.triply-pin > * {
+  transform: rotate(45deg);
+}
+.triply-pin.is-selected {
+  transform: rotate(-45deg) scale(1.25);
+  z-index: 2;
+  outline: 3px solid color-mix(in srgb, var(--pin) 35%, transparent);
+}

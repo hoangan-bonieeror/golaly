@@ -1,6 +1,6 @@
 "use client";
 
-import { updateProfileSchema, type MediaView, type Me } from "@triply/shared";
+import { passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
 import { Camera, LogOut, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -89,6 +89,8 @@ export default function SettingsPage() {
         </Button>
       </form>
 
+      <PasswordCard hasPassword={me.hasPassword} providers={me.providers} />
+
       <section className="space-y-2">
         <Button
           variant="secondary"
@@ -111,7 +113,7 @@ export default function SettingsPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             try {
-              await api.delete("/users/me", { password });
+              await api.delete("/users/me", me.hasPassword ? { password } : { username: password });
               await logout();
               router.push("/welcome");
             } catch (err) {
@@ -122,14 +124,69 @@ export default function SettingsPage() {
           <p className="text-sm text-ink-2">
             This logs you out everywhere, removes you from shared trips and deletes your trips, posts and comments. Trips others remixed from yours stay with them.
           </p>
-          <Field label="Confirm with your password" error={deleteError}>
-            <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </Field>
+          {me.hasPassword ? (
+            <Field label="Confirm with your password" error={deleteError}>
+              <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+          ) : (
+            <Field label={`Type your username (${me.username}) to confirm`} error={deleteError}>
+              <input className={inputCls} autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+          )}
           <Button type="submit" className="w-full !bg-danger" disabled={!password}>
             Delete my account
           </Button>
         </form>
       </Sheet>
     </div>
+  );
+}
+
+function PasswordCard({ hasPassword, providers }: { hasPassword: boolean; providers: string[] }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [error, setError] = useState<string>();
+  const change = useAction((body: object) => api.post("/auth/password", body), {
+    invalidate: [keys.me],
+    success: hasPassword ? "Password changed — other devices were signed out" : "Password set",
+    silentErrors: true,
+  });
+  return (
+    <form
+      noValidate
+      className="space-y-4 rounded-[var(--radius-card)] border border-line bg-surface p-5"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const parsed = passwordSchema.safeParse(next);
+        if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+        setError(undefined);
+        try {
+          await change.mutateAsync(hasPassword ? { currentPassword: current, newPassword: next } : { newPassword: next });
+          setCurrent("");
+          setNext("");
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+        }
+      }}
+    >
+      <div>
+        <h2 className="font-semibold">{hasPassword ? "Change password" : "Set a password"}</h2>
+        <p className="text-sm text-muted">
+          {providers.includes("google") ? "Google sign-in is connected. " : ""}
+          {hasPassword ? "Changing it signs you out on other devices." : "Add a password so you can also log in with your email."}
+        </p>
+      </div>
+      {hasPassword && (
+        <Field label="Current password">
+          <input className={inputCls} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+        </Field>
+      )}
+      <Field label="New password" hint="At least 8 characters." error={error}>
+        <input className={inputCls} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+      </Field>
+      <Button type="submit" variant="secondary" disabled={!next || change.isPending}>
+        {hasPassword ? "Change password" : "Set password"}
+      </Button>
+    </form>
   );
 }

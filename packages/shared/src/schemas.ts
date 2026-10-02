@@ -38,6 +38,7 @@ const dateRangeMsg = { message: "End date can't be before the start date.", path
 export const registerSchema = z.object({ email: emailSchema, username: usernameSchema, password: passwordSchema });
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password.").max(128) });
 export const forgotPasswordSchema = z.object({ email: emailSchema });
+export const changePasswordSchema = z.object({ currentPassword: z.string().max(128).optional(), newPassword: passwordSchema });
 export const resetPasswordSchema = z.object({ token: z.string().min(20).max(200), password: passwordSchema });
 
 // ── Users ───────────────────────────────────────────────────────────────

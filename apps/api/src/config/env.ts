@@ -19,6 +19,11 @@ const schema = z.object({
   MEDIA_MAX_BYTES: z.coerce.number().int().default(8 * 1024 * 1024),
   MAIL_DRIVER: z.enum(["dev-outbox", "disabled"]).default("dev-outbox"),
   MAIL_OUTBOX_DIR: z.string().default("./storage/outbox"),
+  /** Google sign-in (optional). Leave empty to hide the Google button. */
+  GOOGLE_CLIENT_ID: z.string().optional().transform((v) => v || undefined),
+  GOOGLE_CLIENT_SECRET: z.string().optional().transform((v) => v || undefined),
+  /** Defaults to `${WEB_ORIGIN}/api/v1/auth/google/callback` — register exactly this URL in Google Cloud Console. */
+  GOOGLE_REDIRECT_URI: z.string().url().optional().or(z.literal("").transform(() => undefined)),
   /** Requests per minute per IP for the general limiter. Auth routes use a stricter limit. */
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(300),
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().default(10),

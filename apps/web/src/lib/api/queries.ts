@@ -9,6 +9,7 @@ import type {
   CommentView,
   DestinationPage,
   DestinationView,
+  FollowListItem,
   HomeFeed,
   InvitationLookup,
   Me,
@@ -42,6 +43,7 @@ export const keys = {
   profile: (handle: string) => ["profile", handle] as const,
   userTrips: (handle: string) => ["profile", handle, "trips"] as const,
   userPosts: (handle: string) => ["profile", handle, "posts"] as const,
+  follows: (handle: string, which: string) => ["profile", handle, which] as const,
   notifications: ["notifications"] as const,
   unread: ["notifications", "unread"] as const,
   invitation: (by: string) => ["invitation", by] as const,
@@ -82,6 +84,8 @@ export const useSavedPosts = () => useQuery({ queryKey: keys.savedPosts, queryFn
 export const useProfile = (handle: string) => useQuery({ queryKey: keys.profile(handle), queryFn: () => api.get<ProfileView>(`/users/${handle}`), retry: false });
 export const useUserTrips = (handle: string) => useQuery({ queryKey: keys.userTrips(handle), queryFn: () => api.get<TripSummary[]>(`/users/${handle}/trips`) });
 export const useUserPosts = (handle: string) => useQuery({ queryKey: keys.userPosts(handle), queryFn: () => api.get<PostView[]>(`/users/${handle}/posts`) });
+export const useFollowList = (handle: string, which: "followers" | "following" | null) =>
+  useQuery({ queryKey: keys.follows(handle, which ?? ""), queryFn: () => api.get<FollowListItem[]>(`/users/${handle}/${which}`), enabled: !!which });
 export const useUnreadCount = (enabled: boolean) =>
   useQuery({ queryKey: keys.unread, queryFn: () => api.get<{ count: number }>("/notifications/unread-count").then((r) => r.count), enabled, refetchInterval: 60_000 });
 export const useInvitation = (by: { token: string } | { id: string }) =>

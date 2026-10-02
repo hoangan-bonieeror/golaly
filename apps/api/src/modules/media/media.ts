@@ -7,7 +7,7 @@ import sharp from "sharp";
 import { ViewerId, requireUser } from "../../common/auth";
 import { randomToken } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
-import { mediaUrl } from "../../common/presenters";
+import { toImage } from "../../common/presenters";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -39,6 +39,7 @@ const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MIN_DIM = 64;
 const MAX_DIM = 10_000;
 const MAX_STORED_DIM = 2400;
+const MEDIUM_DIM = 1280;
 const THUMB_DIM = 640;
 
 @Injectable()
@@ -70,24 +71,29 @@ export class MediaService {
 
     const base = sharp(file.buffer).rotate();
     const main = await base.clone().resize({ width: MAX_STORED_DIM, height: MAX_STORED_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer({ resolveWithObject: true });
+    const medium = await base.clone().resize({ width: MEDIUM_DIM, height: MEDIUM_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
     const thumb = await base.clone().resize({ width: THUMB_DIM, height: THUMB_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+    // Average colour → instant placeholder while the real image loads (no layout shift, no blank box).
+    const { dominant } = await sharp(thumb).stats();
+    const dominantColor = `#${[dominant.r, dominant.g, dominant.b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
     const stem = `${ownerId.slice(0, 8)}/${randomToken(12)}`;
     const key = `${stem}.webp`;
+    const mediumKey = `${stem}_1280.webp`;
     const thumbKey = `${stem}_thumb.webp`;
     await this.storage.put(key, main.data);
+    await this.storage.put(mediumKey, medium);
     await this.storage.put(thumbKey, thumb);
     const m = await this.prisma.media.create({
-      data: { ownerId, storageKey: key, thumbKey, mimeType: "image/webp", sizeBytes: main.info.size, width: main.info.width, height: main.info.height },
+      data: { ownerId, storageKey: key, mediumKey, thumbKey, dominantColor, mimeType: "image/webp", sizeBytes: main.info.size, width: main.info.width, height: main.info.height },
     });
-    return { id: m.id, url: mediaUrl(m.storageKey)!, thumbUrl: mediaUrl(m.thumbKey), width: m.width, height: m.height, mimeType: m.mimeType };
+    return toImage(m) as MediaView;
   }
 
   async remove(ownerId: string, id: string) {
     const m = await this.prisma.media.findFirst({ where: { id, ownerId } });
     if (!m) throw Errors.notFound("That photo");
     await this.prisma.media.delete({ where: { id } });
-    await this.storage.delete(m.storageKey);
-    if (m.thumbKey) await this.storage.delete(m.thumbKey);
+    for (const k of [m.storageKey, m.mediumKey, m.thumbKey]) if (k) await this.storage.delete(k);
     return { ok: true };
   }
 }

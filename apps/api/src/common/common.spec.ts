@@ -51,3 +51,13 @@ describe("shared validation (same schemas the web forms use)", () => {
     expect(createInvitationSchema.safeParse({ role: "OWNER" }).success).toBe(false);
   });
 });
+
+describe("search normalisation", () => {
+  it("strips accents (incl. Vietnamese đ) and splits words safely", () => {
+    const { normalizeSearch } = jest.requireActual("@triply/shared");
+    const { queryWords } = jest.requireActual("../modules/search/ranker");
+    expect(normalizeSearch("  Đà Lạt — Hội An  ")).toBe("da lat — hoi an");
+    expect(queryWords(normalizeSearch("Sensō-ji, Tokyo!! a"))).toEqual(["senso", "ji", "tokyo"]);
+    expect(queryWords("%_%")).toEqual([]);
+  });
+});

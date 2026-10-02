@@ -14,6 +14,7 @@ import { PrismaService, type Tx } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
 import { RealtimeService } from "../realtime/realtime";
+import { SearchIndexService } from "../search/search-index";
 import { TripAccessService } from "./trip-access.service";
 
 const FALLBACK_COVER: [string, string] = ["#0e6e6a", "#f26b4e"];
@@ -26,6 +27,7 @@ export class TripsService {
     private readonly notifications: NotificationsService,
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
+    private readonly searchIndex: SearchIndexService,
   ) {}
 
   // ── Reads ──────────────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ export class TripsService {
         },
       },
     });
+    await this.searchIndex.trip(trip.id);
     return this.summary(trip.id, ownerId);
   }
 
@@ -161,6 +164,7 @@ export class TripsService {
       if (startDate !== undefined || endDate !== undefined) await this.reconcileDays(tx, tripId, start, end);
       if (input.visibility && input.visibility !== trip.visibility)
         await this.audit.log(viewerId, "trip.visibility_changed", "trip", tripId, { from: trip.visibility, to: input.visibility }, tx);
+      if (input.title !== undefined || input.description !== undefined || destinationIds) await this.searchIndex.trip(tripId, tx);
     });
     this.realtime.trip(tripId, viewerId, "trip.updated");
     return this.summary(tripId, viewerId);
@@ -249,6 +253,7 @@ export class TripsService {
           forkedFromId: source.id,
           forkedFromTitle: source.title,
           forkedFromOwner: source.owner.username,
+          searchText: source.searchText,
           members: { create: { userId: viewerId, role: "OWNER" } },
           destinations: { create: source.destinations.map((d) => ({ destinationId: d.destinationId, position: d.position })) },
         },

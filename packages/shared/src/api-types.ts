@@ -29,13 +29,26 @@ export interface Me extends UserSummary {
   travelerType: TravelerType | null;
   interests: Interest[];
   onboarded: boolean;
+  /** False for accounts created with Google that haven't set a password yet. */
+  hasPassword: boolean;
+  providers: string[];
 }
 
 export interface ProfileView {
-  user: UserSummary & { bio: string; homeBase: string | null };
+  user: UserSummary & { bio: string; homeBase: string | null; travelerType: TravelerType | null; interests: Interest[]; joinedAt: string };
   followers: number;
   following: number;
   trips: number;
+  /** Distinct countries across the trips this viewer can see. */
+  countries: number;
+  followedByMe: boolean;
+  /** The profile owner follows the viewer. */
+  followsMe: boolean;
+  isMe: boolean;
+}
+
+export interface FollowListItem extends UserSummary {
+  homeBase: string | null;
   followedByMe: boolean;
   isMe: boolean;
 }
@@ -53,6 +66,17 @@ export interface PlaceView {
   savedByMe: boolean;
 }
 
+/** An uploaded image in three widths: thumb (640px), url (1280px), fullUrl (≤2400px). */
+export interface ImageView {
+  url: string;
+  thumbUrl: string;
+  fullUrl: string;
+  /** Average colour, used as a placeholder while loading. */
+  color: string | null;
+  width: number;
+  height: number;
+}
+
 export interface TripStats {
   days: number;
   items: number;
@@ -67,6 +91,7 @@ export interface TripSummary {
   visibility: TripVisibility;
   cover: [string, string];
   coverUrl: string | null;
+  coverImage: ImageView | null;
   startDate: string | null;
   endDate: string | null;
   destinations: Pick<Destination, "id" | "slug" | "name" | "country">[];
@@ -150,7 +175,7 @@ export interface PostView {
   title: string;
   body: string;
   visibility: "PUBLIC" | "FOLLOWERS" | "DRAFT";
-  photos: { palette: [string, string]; url: string | null }[];
+  photos: { palette: [string, string]; url: string | null; image: ImageView | null }[];
   author: UserSummary;
   destination: Pick<Destination, "id" | "slug" | "name" | "country"> | null;
   /** Null when the post has no trip OR the viewer can't see it. */
@@ -206,12 +231,8 @@ export interface HomeFeed {
   nextCursor: string | null;
 }
 
-export interface MediaView {
+export interface MediaView extends ImageView {
   id: string;
-  url: string;
-  thumbUrl: string | null;
-  width: number;
-  height: number;
   mimeType: string;
 }
 

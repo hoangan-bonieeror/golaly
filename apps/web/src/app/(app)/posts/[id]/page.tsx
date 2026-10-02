@@ -41,7 +41,7 @@ function PostDetail({ post }: { post: PostView }) {
   const delComment = useAction((cid: string) => api.delete(`/comments/${cid}`), { invalidate, success: "Comment deleted" });
   const delPost = useAction(() => api.delete(`/posts/${post.id}`), { invalidate: [["feed"], ["profile"]], success: "Post deleted" });
   const requireLogin = (fn: () => void) => (me ? fn() : router.push(`/login?next=/posts/${post.id}`));
-  const current = post.photos[photo] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null };
+  const current = post.photos[photo] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null, image: null };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -77,7 +77,7 @@ function PostDetail({ post }: { post: PostView }) {
       </div>
 
       <div>
-        <Cover palette={current.palette} imageUrl={current.url} seed={`${post.id}-${photo}`} className="aspect-[4/3] w-full md:aspect-[16/10]" />
+        <Cover palette={current.palette} image={current.image} imageUrl={current.url} priority sizes="(min-width: 768px) 768px, 100vw" seed={`${post.id}-${photo}`} className="aspect-[4/3] w-full md:aspect-[16/10]" />
         {post.photos.length > 1 && (
           <div className="mt-2 flex justify-center gap-1.5">
             {post.photos.map((_, i) => (

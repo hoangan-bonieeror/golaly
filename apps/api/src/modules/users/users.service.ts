@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { Me, PostView, ProfileView, TripSummary, UpdateProfileInput } from "@triply/shared";
+import type { FollowListItem, Me, PostView, ProfileView, TripSummary, UpdateProfileInput } from "@triply/shared";
 import { verifyPassword } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import {
@@ -14,6 +14,7 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
+import { SearchIndexService } from "../search/search-index";
 
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
@@ -23,12 +24,13 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
+    private readonly searchIndex: SearchIndexService,
   ) {}
 
   async me(userId: string): Promise<Me> {
     const u = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
-      include: { profile: { include: { avatar: { select: { storageKey: true, thumbKey: true } } } } },
+      include: { profile: { include: { avatar: { select: { storageKey: true, thumbKey: true } } } }, oauthAccounts: { select: { provider: true } } },
     });
     if (!u) throw Errors.unauthorized();
     return {
@@ -43,6 +45,8 @@ export class UsersService {
       travelerType: u.profile?.travelerType ?? null,
       interests: (u.profile?.interests ?? []) as Me["interests"],
       onboarded: !!u.profile?.onboardedAt,
+      hasPassword: !!u.passwordHash,
+      providers: u.oauthAccounts.map((a) => a.provider),
     };
   }
 
@@ -56,13 +60,18 @@ export class UsersService {
       where: { userId },
       data: { ...input, ...(onboarding ? { onboardedAt: new Date() } : {}) },
     });
+    if (input.displayName !== undefined || input.homeBase !== undefined) await this.searchIndex.profile(userId);
     return this.me(userId);
   }
 
   async findByHandle(handle: string) {
     const u = await this.prisma.user.findFirst({
       where: { deletedAt: null, ...(isUuid(handle) ? { id: handle } : { username: handle.toLowerCase() }) },
-      select: { ...userSummarySelect, profile: { select: { displayName: true, avatarHue: true, bio: true, homeBase: true, avatar: { select: { storageKey: true, thumbKey: true } } } } },
+      select: {
+        ...userSummarySelect,
+        createdAt: true,
+        profile: { select: { displayName: true, avatarHue: true, bio: true, homeBase: true, travelerType: true, interests: true, avatar: { select: { storageKey: true, thumbKey: true } } } },
+      },
     });
     if (!u) throw Errors.notFound("That traveler");
     return u;
@@ -71,18 +80,30 @@ export class UsersService {
   async profile(handle: string, viewerId: string | null): Promise<ProfileView> {
     const u = await this.findByHandle(handle);
     const isMe = u.id === viewerId;
-    const [followers, following, trips, followedByMe] = await Promise.all([
+    const tripWhere = { ownerId: u.id, deletedAt: null, ...(isMe ? {} : { visibility: "PUBLIC" as const }) };
+    const [followers, following, trips, followedByMe, followsMe, countries] = await Promise.all([
       this.prisma.follow.count({ where: { followingId: u.id } }),
       this.prisma.follow.count({ where: { followerId: u.id } }),
-      this.prisma.trip.count({ where: { ownerId: u.id, deletedAt: null, ...(isMe ? {} : { visibility: "PUBLIC" }) } }),
+      this.prisma.trip.count({ where: tripWhere }),
       viewerId ? this.prisma.follow.count({ where: { followerId: viewerId, followingId: u.id } }).then(Boolean) : false,
+      viewerId && !isMe ? this.prisma.follow.count({ where: { followerId: u.id, followingId: viewerId } }).then(Boolean) : false,
+      this.prisma.destination.findMany({ where: { trips: { some: { trip: tripWhere } } }, select: { country: true }, distinct: ["country"] }).then((r) => r.length),
     ]);
     return {
-      user: { ...toUserSummary(u), bio: u.profile?.bio ?? "", homeBase: u.profile?.homeBase ?? null },
+      user: {
+        ...toUserSummary(u),
+        bio: u.profile?.bio ?? "",
+        homeBase: u.profile?.homeBase ?? null,
+        travelerType: u.profile?.travelerType ?? null,
+        interests: (u.profile?.interests ?? []) as ProfileView["user"]["interests"],
+        joinedAt: u.createdAt.toISOString(),
+      },
       followers,
       following,
       trips,
+      countries,
       followedByMe,
+      followsMe,
       isMe,
     };
   }
@@ -115,6 +136,20 @@ export class UsersService {
     return rows.map((p) => toPostView(p, viewerId));
   }
 
+  /** Followers / following lists, newest first. */
+  async followList(handle: string, which: "followers" | "following", viewerId: string | null): Promise<FollowListItem[]> {
+    const u = await this.findByHandle(handle);
+    const personSelect = { select: { ...userSummarySelect, profile: { select: { displayName: true, avatarHue: true, homeBase: true, avatar: { select: { storageKey: true, thumbKey: true } } } } } };
+    const people =
+      which === "followers"
+        ? (await this.prisma.follow.findMany({ where: { followingId: u.id, follower: { deletedAt: null } }, orderBy: { createdAt: "desc" }, take: 200, select: { follower: personSelect } })).map((r) => r.follower)
+        : (await this.prisma.follow.findMany({ where: { followerId: u.id, following: { deletedAt: null } }, orderBy: { createdAt: "desc" }, take: 200, select: { following: personSelect } })).map((r) => r.following);
+    const mine = viewerId
+      ? new Set((await this.prisma.follow.findMany({ where: { followerId: viewerId, followingId: { in: people.map((p) => p.id) } }, select: { followingId: true } })).map((f) => f.followingId))
+      : new Set<string>();
+    return people.map((p) => ({ ...toUserSummary(p), homeBase: p.profile?.homeBase ?? null, followedByMe: mine.has(p.id), isMe: p.id === viewerId }));
+  }
+
   async follow(viewerId: string, handle: string, on: boolean) {
     const target = await this.findByHandle(handle);
     if (target.id === viewerId) throw Errors.invalid("You can't follow yourself.");
@@ -134,10 +169,12 @@ export class UsersService {
    * Account deletion (spec §42): requires the password, revokes every session, removes
    * memberships, soft-deletes owned trips & posts, and anonymises the account row.
    */
-  async deleteAccount(userId: string, password: string) {
+  async deleteAccount(userId: string, confirm: { password?: string; username?: string }) {
     const u = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!u || u.deletedAt) throw Errors.unauthorized();
-    if (!(await verifyPassword(u.passwordHash, password))) throw new AppError(403, "That password isn't right.");
+    // Password accounts confirm with their password; Google-only accounts type their username.
+    if (u.passwordHash ? !(await verifyPassword(u.passwordHash, confirm.password ?? "")) : confirm.username?.trim().toLowerCase() !== u.username)
+      throw new AppError(403, u.passwordHash ? "That password isn't right." : "Type your username exactly to confirm.");
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
@@ -145,6 +182,7 @@ export class UsersService {
       await tx.trip.updateMany({ where: { ownerId: userId, deletedAt: null }, data: { deletedAt: now } });
       await tx.post.updateMany({ where: { userId, deletedAt: null }, data: { deletedAt: now } });
       await tx.postComment.updateMany({ where: { userId, deletedAt: null }, data: { deletedAt: now } });
+      await tx.oAuthAccount.deleteMany({ where: { userId } });
       await tx.follow.deleteMany({ where: { OR: [{ followerId: userId }, { followingId: userId }] } });
       await tx.notification.deleteMany({ where: { userId } });
       await tx.user.update({

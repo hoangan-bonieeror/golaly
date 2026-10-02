@@ -24,7 +24,7 @@ export function TripCard({ trip, compact, showRole }: { trip: TripSummary; compa
   return (
     <article className="group relative">
       <Link href={`/trips/${trip.id}`} className="block" aria-label={`${trip.title} — ${s.days} days, ${trip.route || "destination TBD"}`}>
-        <Cover palette={trip.cover} seed={trip.id} imageUrl={trip.coverUrl} className={cx("w-full transition-transform duration-300 group-hover:scale-[1.01]", compact ? "aspect-[4/3]" : "aspect-[5/4]")}>
+        <Cover palette={trip.cover} seed={trip.id} image={trip.coverImage} imageUrl={trip.coverUrl} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className={cx("w-full transition-transform duration-300 group-hover:scale-[1.01]", compact ? "aspect-[4/3]" : "aspect-[5/4]")}>
           <div className="flex h-full flex-col justify-between p-3.5">
             <div className="flex items-start justify-between gap-2">
               <span className="rounded-full bg-black/35 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">

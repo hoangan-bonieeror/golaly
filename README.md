@@ -76,6 +76,8 @@ CREATE DATABASE triply_test OWNER triply;
 ```
 If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `apps/api/.env`.
 
+> **Port 5432 already taken** (e.g. a native Postgres is running)? Put `TRIPLY_DB_PORT=5433` in a `.env` file next to `docker-compose.yml` and use `localhost:5433` in your `DATABASE_URL` / `TEST_DATABASE_URL`.
+
 ### 3. Create tables, load demo data, run
 
 ```bash
@@ -100,6 +102,24 @@ In development, a **flask button** (top bar on mobile, bottom-right on desktop) 
 
 Emails (invites, password resets) are written to `apps/api/storage/outbox/` in development, never to logs.
 
+### Optional: Google sign-in
+
+The "Continue with Google" button only appears when Google credentials are configured.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → **Create credentials → OAuth client ID** → type **Web application**.
+2. Authorised redirect URI: `http://localhost:3000/api/v1/auth/google/callback` (in production: `https://<your-web-domain>/api/v1/auth/google/callback`).
+3. Put the values in `apps/api/.env` and restart the API:
+   ```bash
+   GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=xxxx
+   ```
+
+Google accounts are matched by Google's account id, then by **verified** email (so an existing email/password user gets Google linked to the same account). Google-only users can add a password later in **Settings**.
+
+### Map tiles
+
+Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](https://openfreemap.org) style, so they need internet access. Set `NEXT_PUBLIC_MAP_STYLE_URL` in `apps/web/.env.local` to use another style (MapTiler, Stadia, your own), or `off` to always use the offline SVG map. If tiles fail to load (offline, no WebGL), the app falls back to the SVG map automatically.
+
 ### Useful commands
 
 | Command | What it does |
@@ -116,21 +136,21 @@ Emails (invites, password resets) are written to `apps/api/storage/outbox/` in d
 
 ---
 
-## What's implemented (MVP P0 + most of P1)
+## What's implemented (MVP P0 + P1)
 
 | Area | Details |
 |---|---|
-| **Auth** | Register, login, logout, refresh-token rotation (reuse is rejected), forgot/reset password (single-use, 30-min tokens; logs out other sessions), onboarding. Google OAuth is a P1 stub. |
-| **Users** | Profile, avatar upload, bio, home base, followers/following, public trips & posts, account deletion (password-confirmed, soft delete + anonymise). |
+| **Auth** | Register, login, logout, refresh-token rotation (reuse is rejected), forgot/reset password (single-use, 30-min tokens; logs out other sessions), onboarding, **Google sign-in** (authorization-code flow with PKCE + state, ID token verified, accounts linked by verified email), set/change password. |
+| **Users** | Profile with traveler type, interests, trips / countries / followers / following stats, "Follows you" badge and follower lists, avatar upload, bio, home base, public trips & posts, account deletion (confirmed with password, or username for Google-only accounts; soft delete + anonymise). |
 | **Trips** | CRUD, destinations (multi-stop route), dates that keep days in sync and **never silently delete plans**, cover upload, budget, visibility `PRIVATE` (default) / `LINK_ONLY` / `PUBLIC`, allow comments, allow fork, soft delete. |
 | **Itinerary** | Days (add, rename, delete with renumbering), items of 7 types, place search, times (chronological auto-ordering; untimed notes keep their slot), notes, duplicate, reorder within or across days (drag & drop or menu), "Edited by …" trail. |
 | **Collaboration** | Owner / Editor / Viewer enforced **server-side on every request**. Invite by email (bound to that address, single-use) or link (reusable until expiry/revoke). Tokens are 256-bit, stored as SHA-256 hashes, expire in 7 days and are revocable. Owners change roles and remove members; members can leave. Audit log for every permission change. |
 | **Realtime** | Socket.IO rooms per trip (joining re-checks permission). Item, day and member events refresh collaborators' screens; removed members are kicked from the room. Notifications are pushed live. |
 | **Fork / Remix** | Copies title, description, dates, destinations, days, items and places. Does **not** copy members, invites, comments, media or counters. New owner = forker; copy starts Private; "Based on … by @…" attribution survives even if the source is deleted. |
 | **Social** | Feed (For You / Following, cursor pagination), posts linked to trips (public post of a private trip is refused), drafts, photos, likes, comments (author can moderate), saves, follows, share, reports (5 reasons, one per user per target). |
-| **Discovery** | Search across trips, places, people and destinations (behind a `SearchProvider` interface, so it can move to OpenSearch/Algolia later), destination pages, explore. |
+| **Discovery** | Search across trips, places, people and destinations: **accent-insensitive and typo-tolerant** (`hoi an` → Hội An, `tokio` → Tokyo) using `pg_trgm` trigram indexes, every word must match, best matches first (behind a `SearchProvider` interface, so it can move to OpenSearch/Algolia later), destination pages, explore, recent searches. Interactive **MapLibre** trip maps with numbered pins and the day's route. |
 | **Privacy** | Private trips never appear in Explore, search, feeds or public profiles. Non-members of public trips don't see the member list or invites. Posts drop out of feeds when their trip goes private. |
-| **Media** | JPEG/PNG/WebP validated by content, size and dimensions; re-encoded to WebP (**strips EXIF/GPS**); 640px thumbnails. The storage driver interface keeps local disk now and S3/R2 later. |
+| **Media** | JPEG/PNG/WebP validated by content, size and dimensions; re-encoded to WebP (**strips EXIF/GPS**) in three sizes (640 / 1280 / 2400px) served with `srcset`, plus a dominant-colour placeholder while loading. The storage driver interface keeps local disk now and S3/R2 later. |
 | **Notifications** | All 9 spec types, unread badge, mark one or all as read, deep links, coalescing of rapid item edits. |
 | **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; CORS locked to the web origin; Helmet; rate limits (stricter on auth); validated env; friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
 

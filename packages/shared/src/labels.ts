@@ -40,3 +40,18 @@ export const INTERESTS: { value: Interest; label: string }[] = [
   { value: "SHOPPING", label: "Shopping" },
   { value: "PHOTOGRAPHY", label: "Photography" },
 ];
+
+/**
+ * Search normalisation shared by the API (indexing + queries): lower-case, strip
+ * accents/diacritics (incl. Vietnamese đ), collapse whitespace.
+ * "Hội An" → "hoi an", "Sensō-ji" → "senso-ji".
+ */
+export function normalizeSearch(input: string | null | undefined): string {
+  return (input ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}

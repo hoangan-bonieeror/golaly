@@ -4,6 +4,7 @@
  */
 import type {
   CommentView,
+  ImageView,
   DayView,
   ItemView,
   NotificationView,
@@ -17,6 +18,23 @@ import type { Prisma } from "../generated/prisma/client";
 import { fromDate } from "./dates";
 
 export const mediaUrl = (key: string | null | undefined) => (key ? `/media/${key}` : null);
+
+/** Every stored image comes in 3 widths so clients can pick via srcset. */
+export const imageSelect = { id: true, storageKey: true, mediumKey: true, thumbKey: true, dominantColor: true, width: true, height: true, mimeType: true } as const;
+type ImageRow = { id: string; storageKey: string; mediumKey: string | null; thumbKey: string | null; dominantColor: string | null; width: number; height: number; mimeType?: string };
+
+export function toImage(m: ImageRow): ImageView & { id: string; mimeType: string } {
+  return {
+    id: m.id,
+    url: mediaUrl(m.mediumKey ?? m.storageKey)!,
+    fullUrl: mediaUrl(m.storageKey)!,
+    thumbUrl: mediaUrl(m.thumbKey ?? m.storageKey)!,
+    color: m.dominantColor,
+    width: m.width,
+    height: m.height,
+    mimeType: m.mimeType ?? "image/webp",
+  };
+}
 
 // ── Users ────────────────────────────────────────────────────────────────
 export const userSummarySelect = {
@@ -67,7 +85,7 @@ const NO_USER = "00000000-0000-0000-0000-000000000000";
 export const tripSummaryInclude = (viewerId: string | null) =>
   ({
     owner: { select: userSummarySelect },
-    cover: { select: { storageKey: true, thumbKey: true } },
+    cover: { select: imageSelect },
     destinations: {
       orderBy: { position: "asc" },
       include: { destination: { select: { id: true, slug: true, name: true, country: true } } },
@@ -94,7 +112,8 @@ export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripS
     description: t.description,
     visibility: t.visibility,
     cover: [t.coverA, t.coverB],
-    coverUrl: mediaUrl(t.cover?.storageKey),
+    coverUrl: t.cover ? mediaUrl(t.cover.mediumKey ?? t.cover.storageKey) : null,
+    coverImage: t.cover ? toImage(t.cover) : null,
     startDate: fromDate(t.startDate),
     endDate: fromDate(t.endDate),
     destinations,
@@ -158,7 +177,7 @@ export const postInclude = (viewerId: string | null) =>
   ({
     user: { select: userSummarySelect },
     destination: { select: { id: true, slug: true, name: true, country: true } },
-    media: { orderBy: { position: "asc" }, include: { media: { select: { storageKey: true, thumbKey: true } } } },
+    media: { orderBy: { position: "asc" }, include: { media: { select: imageSelect } } },
     trip: { include: tripSummaryInclude(viewerId) },
     likes: { where: { userId: viewerId ?? NO_USER }, select: { userId: true } },
     savedBy: { where: { userId: viewerId ?? NO_USER }, select: { userId: true } },
@@ -174,7 +193,7 @@ export function toPostView(p: PostRow, viewerId: string | null): PostView {
     title: p.title,
     body: p.body,
     visibility: p.visibility,
-    photos: p.media.map((m) => ({ palette: [m.paletteA, m.paletteB], url: mediaUrl(m.media?.storageKey) })),
+    photos: p.media.map((m) => ({ palette: [m.paletteA, m.paletteB], url: m.media ? mediaUrl(m.media.mediumKey ?? m.media.storageKey) : null, image: m.media ? toImage(m.media) : null })),
     author: toUserSummary(p.user),
     destination: p.destination,
     trip,

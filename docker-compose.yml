@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: triply
       POSTGRES_DB: triply
     ports:
-      - "5433:5432"
+      # Host port is configurable (e.g. TRIPLY_DB_PORT=5433 in a .env next to this file
+      # when another PostgreSQL already uses 5432). Update DATABASE_URL to match.
+      - "${TRIPLY_DB_PORT:-5432}:5432"
     volumes:
       - triply-db:/var/lib/postgresql/data
       - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
@@ -25,9 +27,11 @@ services:
       db: { condition: service_healthy }
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://postgres:admin123@db:5432/triply
+      DATABASE_URL: postgresql://triply:triply@db:5432/triply
       # Only used by the optional "full" profile. The API refuses to start if this is empty or too short.
       JWT_SECRET: ${JWT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       MEDIA_DIR: /data/media

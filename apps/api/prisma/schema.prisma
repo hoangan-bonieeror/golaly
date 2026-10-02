@@ -81,13 +81,15 @@ model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
   username     String    @unique
-  passwordHash String    @map("password_hash")
+  /// Null for accounts created through Google sign-in until a password is set.
+  passwordHash String?   @map("password_hash")
   isDemo       Boolean   @default(false) @map("is_demo")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
   profile        UserProfile?
+  oauthAccounts  OAuthAccount[]
   sessions       Session[]
   resetTokens    PasswordResetToken[]
   ownedTrips     Trip[]               @relation("TripOwner")
@@ -121,12 +123,32 @@ model UserProfile {
   travelerType  TravelerType? @map("traveler_type")
   interests     String[]      @default([])
   onboardedAt   DateTime?     @map("onboarded_at")
+  /// Lower-cased, accent-free "display name username home base" for fuzzy search.
+  searchText    String        @default("") @map("search_text")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatar Media? @relation("Avatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+
   @@map("user_profiles")
+}
+
+/// External identity providers linked to a user (Google today).
+model OAuthAccount {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  email             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
 }
 
 /// Refresh-token sessions. Only a SHA-256 hash of the token is stored.
@@ -183,12 +205,15 @@ model Destination {
   blurb    String  @default("")
   paletteA String  @map("palette_a")
   paletteB String  @map("palette_b")
+  /// Accent-free "name country" for fuzzy search ("hoi an" finds "Hội An").
+  searchText String @default("") @map("search_text")
 
   places Place[]
   trips  TripDestination[]
   posts  Post[]
 
   @@index([name])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("destinations")
 }
 
@@ -201,6 +226,7 @@ model Place {
   lat           Float
   lng           Float
   rating        Float?
+  searchText    String   @default("") @map("search_text")
   createdAt     DateTime @default(now()) @map("created_at")
 
   destination Destination     @relation(fields: [destinationId], references: [id])
@@ -210,6 +236,7 @@ model Place {
   @@index([destinationId])
   @@index([lat, lng])
   @@index([name])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("places")
 }
 
@@ -235,6 +262,8 @@ model Trip {
   forkedFromOwner String?        @map("forked_from_owner")
   forkCount       Int            @default(0) @map("fork_count")
   saveCount       Int            @default(0) @map("save_count")
+  /// Accent-free "title description destinations" for fuzzy search.
+  searchText      String         @default("") @map("search_text")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
   deletedAt       DateTime?      @map("deleted_at")
@@ -253,6 +282,7 @@ model Trip {
   @@index([ownerId])
   @@index([visibility, deletedAt])
   @@index([updatedAt])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("trips")
 }
 
@@ -490,6 +520,9 @@ model Media {
   ownerId    String   @map("owner_id") @db.Uuid
   storageKey String   @unique @map("storage_key")
   thumbKey   String?  @map("thumb_key")
+  mediumKey  String?  @map("medium_key")
+  /// Average colour (#rrggbb) shown as a placeholder while the image loads.
+  dominantColor String? @map("dominant_color")
   mimeType   String   @map("mime_type")
   sizeBytes  Int      @map("size_bytes")
   width      Int

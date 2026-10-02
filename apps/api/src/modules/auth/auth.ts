@@ -1,7 +1,8 @@
-import { Body, Controller, HttpCode, Injectable, Module, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, HttpCode, Injectable, Post, Req, Res } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Throttle } from "@nestjs/throttler";
 import {
+  changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
@@ -11,9 +12,8 @@ import {
   type RegisterInput,
 } from "@triply/shared";
 import type { Request, Response } from "express";
-import { Public, REFRESH_COOKIE, ViewerId, type JwtPayload } from "../../common/auth";
+import { CurrentUser, Public, REFRESH_COOKIE, ViewerId, type AuthUser, type JwtPayload } from "../../common/auth";
 import { clearAuthCookies, setAuthCookies } from "../../common/cookies";
-import { UsersModule } from "../users/users.controller";
 import { hashPassword, randomToken, sha256, verifyPassword } from "../../common/crypto";
 import { AppError, Errors, ZodPipe } from "../../common/http";
 import { env } from "../../config/env";
@@ -21,6 +21,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { MailService } from "../mail/mail";
 import { UsersService } from "../users/users.service";
+import { SearchIndexService } from "../search/search-index";
 
 const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
 const RESET_TTL_MS = 30 * 60_000;
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly mail: MailService,
     private readonly audit: AuditService,
     private readonly users: UsersService,
+    private readonly searchIndex: SearchIndexService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -43,7 +45,7 @@ export class AuthService {
     if (taken) throw Errors.conflict(taken.email === input.email ? "An account with that email already exists." : "That username is taken.");
     const passwordHash = await hashPassword(input.password);
     const displayName = input.username.split(/[._]/)[0].replace(/^\w/, (c) => c.toUpperCase());
-    return this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: input.email,
         username: input.username,
@@ -52,6 +54,21 @@ export class AuthService {
       },
       select: { id: true },
     });
+    await this.searchIndex.profile(user.id);
+    return user;
+  }
+
+  /** Change password (or set a first one for Google-only accounts). Signs out every other session. */
+  async changePassword(userId: string, sessionId: string, input: { currentPassword?: string; newPassword: string }) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    if (!u) throw Errors.unauthorized();
+    if (u.passwordHash && !(await verifyPassword(u.passwordHash, input.currentPassword ?? "")))
+      throw new AppError(403, "Your current password isn't right.", { currentPassword: "Your current password isn't right." });
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(input.newPassword) } }),
+      this.prisma.session.updateMany({ where: { userId, revokedAt: null, id: { not: sessionId } }, data: { revokedAt: new Date() } }),
+    ]);
+    await this.audit.log(userId, "user.password_changed", "user", userId);
   }
 
   async login(input: LoginInput) {
@@ -74,7 +91,7 @@ export class AuthService {
     return this.jwt.signAsync({ sub: userId, sid: sessionId } satisfies JwtPayload, { secret: env.JWT_SECRET, expiresIn: env.ACCESS_TOKEN_TTL_SECONDS });
   }
 
-  /** Refresh-token rotation: each refresh token works once; reuse of a rotated token revokes the session. */
+  /** Refresh-token rotation: each refresh token works exactly once; a replayed (already rotated) token is rejected. */
   async refresh(refreshToken: string | undefined) {
     if (!refreshToken) throw Errors.unauthorized();
     const session = await this.prisma.session.findUnique({ where: { tokenHash: sha256(refreshToken) }, include: { user: { select: { deletedAt: true } } } });
@@ -165,6 +182,15 @@ export class AuthController {
     return { ok: true };
   }
 
+  @Throttle(AUTH_LIMIT)
+  @HttpCode(200)
+  @Post("password")
+  async password(@CurrentUser() user: AuthUser | null, @Body(new ZodPipe(changePasswordSchema)) body: { currentPassword?: string; newPassword: string }) {
+    if (!user) throw Errors.unauthorized();
+    await this.auth.changePassword(user.id, user.sessionId, body);
+    return { ok: true };
+  }
+
   @Public()
   @Throttle(AUTH_LIMIT)
   @HttpCode(200)
@@ -183,6 +209,3 @@ export class AuthController {
     return { ok: true };
   }
 }
-
-@Module({ imports: [UsersModule], controllers: [AuthController], providers: [AuthService], exports: [AuthService] })
-export class AuthModule {}

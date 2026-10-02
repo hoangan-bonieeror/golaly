@@ -7,7 +7,7 @@ import { ZodPipe } from "../../common/http";
 import { clearAuthCookies } from "../../common/cookies";
 import { UsersService } from "./users.service";
 
-const deleteAccountSchema = z.object({ password: z.string().min(1, "Enter your password to confirm.") });
+const deleteAccountSchema = z.object({ password: z.string().max(128).optional(), username: z.string().max(40).optional() });
 
 @Controller("users")
 export class UsersController {
@@ -25,8 +25,8 @@ export class UsersController {
 
   @Delete("me")
   @HttpCode(200)
-  async remove(@ViewerId() me: string | null, @Body(new ZodPipe(deleteAccountSchema)) body: { password: string }, @Res({ passthrough: true }) res: Response) {
-    await this.users.deleteAccount(requireUser(me), body.password);
+  async remove(@ViewerId() me: string | null, @Body(new ZodPipe(deleteAccountSchema)) body: { password?: string; username?: string }, @Res({ passthrough: true }) res: Response) {
+    await this.users.deleteAccount(requireUser(me), body);
     clearAuthCookies(res);
     return { ok: true };
   }
@@ -47,6 +47,18 @@ export class UsersController {
   @Get(":handle/posts")
   posts(@Param("handle") handle: string, @ViewerId() me: string | null) {
     return this.users.posts(handle, me);
+  }
+
+  @Public()
+  @Get(":handle/followers")
+  followers(@Param("handle") handle: string, @ViewerId() me: string | null) {
+    return this.users.followList(handle, "followers", me);
+  }
+
+  @Public()
+  @Get(":handle/following")
+  following(@Param("handle") handle: string, @ViewerId() me: string | null) {
+    return this.users.followList(handle, "following", me);
   }
 
   @Post(":handle/follow")

@@ -6,9 +6,11 @@ import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { TripCard } from "@/components/trip/TripCard";
-import { Avatar, Button, EmptyState, ErrorState, IconButton, PageLoader, Skeleton, Tabs } from "@/components/ui";
+import { INTERESTS, TRAVELER_TYPES } from "@triply/shared";
+import Link from "next/link";
+import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, Tabs } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { keys, useAction, useMe, useProfile, useUserPosts, useUserTrips } from "@/lib/api/queries";
+import { keys, useAction, useFollowList, useMe, useProfile, useUserPosts, useUserTrips } from "@/lib/api/queries";
 
 type Tab = "trips" | "posts" | "saved";
 
@@ -22,6 +24,7 @@ export default function ProfilePage() {
   const posts = useUserPosts(handle);
   const [tab, setTab] = useState<Tab>("trips");
   const [reportOpen, setReportOpen] = useState(false);
+  const [list, setList] = useState<"followers" | "following" | null>(null);
   const follow = useAction((on: boolean) => (on ? api.post(`/users/${handle}/follow`) : api.delete(`/users/${handle}/follow`)), {
     invalidate: [keys.profile(handle), ["feed"]],
   });
@@ -57,27 +60,31 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-          <p className="text-sm text-muted">@{u.username}</p>
+          <p className="flex items-center justify-center gap-2 text-sm text-muted md:justify-start">
+            @{u.username}
+            {p.followsMe && <span className="rounded-full bg-sand-2 px-2 py-0.5 text-[11px] font-semibold text-ink-2">Follows you</span>}
+          </p>
           {u.bio && <p className="mt-2 max-w-md text-[15px] text-ink-2">{u.bio}</p>}
           {u.homeBase && (
             <p className="mt-1 flex items-center justify-center gap-1 text-sm text-muted md:justify-start">
               <MapPin className="size-3.5" /> {u.homeBase}
             </p>
           )}
-          <dl className="mt-4 flex justify-center gap-8 md:justify-start">
-            {(
-              [
-                ["Trips", p.trips],
-                ["Followers", p.followers],
-                ["Following", p.following],
-              ] as const
-            ).map(([l, n]) => (
-              <div key={l}>
-                <dt className="text-xs text-muted">{l}</dt>
-                <dd className="text-lg font-semibold">{n}</dd>
-              </div>
-            ))}
+          {(u.travelerType || u.interests.length > 0) && (
+            <div className="mt-3 flex flex-wrap justify-center gap-1.5 md:justify-start">
+              {u.travelerType && <Badge tone="lagoon">{TRAVELER_TYPES.find((x) => x.value === u.travelerType)?.label} traveler</Badge>}
+              {u.interests.map((i) => (
+                <Badge key={i}>{INTERESTS.find((x) => x.value === i)?.label ?? i}</Badge>
+              ))}
+            </div>
+          )}
+          <dl className="mt-4 flex justify-center gap-6 md:justify-start">
+            <Stat label="Trips" value={p.trips} />
+            <Stat label="Countries" value={p.countries} />
+            <Stat label="Followers" value={p.followers} onClick={() => setList("followers")} />
+            <Stat label="Following" value={p.following} onClick={() => setList("following")} />
           </dl>
+          <p className="mt-2 text-xs text-muted">Joined {new Date(u.joinedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
         </div>
       </header>
 
@@ -123,6 +130,62 @@ export default function ProfilePage() {
       {tab === "saved" && p.isMe && <EmptyState icon={<Bookmark className="size-7" />} title="Everything you've saved lives in Saved" action={<Button href="/saved">Open Saved</Button>} />}
 
       {reportOpen && <ReportSheet open onClose={() => setReportOpen(false)} target="USER" targetId={u.id} />}
+      <FollowSheet handle={handle} which={list} onClose={() => setList(null)} />
     </div>
+  );
+}
+
+function Stat({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
+  const inner = (
+    <>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="text-lg font-semibold">{value}</dd>
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className="rounded-lg text-left hover:opacity-80" aria-label={`${value} ${label} — show list`}>
+      {inner}
+    </button>
+  ) : (
+    <div>{inner}</div>
+  );
+}
+
+function FollowSheet({ handle, which, onClose }: { handle: string; which: "followers" | "following" | null; onClose: () => void }) {
+  const me = useMe().data;
+  const q = useFollowList(handle, which);
+  const follow = useAction((a: { username: string; on: boolean }) => (a.on ? api.post(`/users/${a.username}/follow`) : api.delete(`/users/${a.username}/follow`)), {
+    invalidate: [["profile"], ["feed"]],
+  });
+  return (
+    <Sheet open={!!which} onClose={onClose} title={which === "followers" ? "Followers" : "Following"}>
+      {q.isLoading ? (
+        <Skeleton className="h-40" />
+      ) : !q.data?.length ? (
+        <p className="py-6 text-center text-sm text-muted">{which === "followers" ? "No followers yet." : "Not following anyone yet."}</p>
+      ) : (
+        <ul className="-mx-2 max-h-[60vh] overflow-y-auto">
+          {q.data.map((p) => (
+            <li key={p.id} className="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sand-2">
+              <Link href={`/u/${p.username}`} onClick={onClose} className="flex min-w-0 flex-1 items-center gap-3">
+                <Avatar user={p} size={40} />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">{p.displayName}</span>
+                  <span className="block truncate text-xs text-muted">
+                    @{p.username}
+                    {p.homeBase && ` · ${p.homeBase}`}
+                  </span>
+                </span>
+              </Link>
+              {me && !p.isMe && (
+                <Button size="sm" variant={p.followedByMe ? "secondary" : "primary"} disabled={follow.isPending} onClick={() => follow.run({ username: p.username, on: !p.followedByMe })}>
+                  {p.followedByMe ? "Following" : "Follow"}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Sheet>
   );
 }

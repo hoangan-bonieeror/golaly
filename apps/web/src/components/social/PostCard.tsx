@@ -44,7 +44,7 @@ export function PostCard({ post }: { post: PostView }) {
   const { like, save } = usePostActions(post);
   const trip = post.trip;
   const requireLogin = (fn: () => void) => (me ? fn() : router.push("/login"));
-  const photo = post.photos[0] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null };
+  const photo = post.photos[0] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null, image: null };
 
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">
@@ -63,7 +63,7 @@ export function PostCard({ post }: { post: PostView }) {
       </header>
 
       <Link href={`/posts/${post.id}`} className="block">
-        <Cover palette={photo.palette} imageUrl={photo.url} seed={post.id} rounded={false} className="aspect-[16/10] w-full">
+        <Cover palette={photo.palette} image={photo.image} imageUrl={photo.url} sizes="(min-width: 640px) 576px, 100vw" seed={post.id} rounded={false} className="aspect-[16/10] w-full">
           <div className="flex h-full items-end p-4">
             {trip && (
               <div className="text-white">

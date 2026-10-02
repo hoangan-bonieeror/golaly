@@ -86,7 +86,7 @@ function TripOverview() {
 
   return (
     <div className="space-y-6">
-      <Cover palette={trip.cover} imageUrl={trip.coverUrl} seed={trip.id} className="-mx-4 -mt-4 aspect-[4/3] rounded-none sm:aspect-[16/7] md:mx-0 md:mt-0 md:rounded-[var(--radius-card)]">
+      <Cover palette={trip.cover} image={trip.coverImage} imageUrl={trip.coverUrl} priority sizes="(min-width: 768px) 1100px, 100vw" seed={trip.id} className="-mx-4 -mt-4 aspect-[4/3] rounded-none sm:aspect-[16/7] md:mx-0 md:mt-0 md:rounded-[var(--radius-card)]">
         <div className="flex h-full flex-col justify-between p-4 text-white md:p-7">
           <div className="flex items-center justify-between">
             <IconButton label="Back" onClick={() => router.back()} className="bg-black/30 text-white backdrop-blur hover:bg-black/40">

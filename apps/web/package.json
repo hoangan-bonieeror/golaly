@@ -3,7 +3,9 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-maplibre-worker.mjs",
     "dev": "next dev -p 3000",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit"
@@ -12,6 +14,7 @@
     "@tanstack/react-query": "^5.104.0",
     "@triply/shared": "*",
     "lucide-react": "^1.49.0",
+    "maplibre-gl": "^6.11.2",
     "next": "^16.3.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
