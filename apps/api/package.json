@@ -14,7 +14,8 @@
     "db:reset": "prisma migrate reset --force",
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit",
-    "test:int": "jest --selectProjects integration --runInBand"
+    "test:int": "jest --selectProjects integration --runInBand",
+    "postinstall": "prisma generate"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.24",

@@ -1,29 +1,21 @@
 "use client";
 
-import { ArrowLeft, MapPinOff } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { PostCard } from "@/components/social/PostCard";
 import { Cover } from "@/components/trip/Cover";
 import { TripCard } from "@/components/trip/TripCard";
-import { EmptyState, SectionTitle } from "@/components/ui";
-import { discoverableTrips, feedPosts } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
+import { ErrorState, PageLoader, SectionTitle } from "@/components/ui";
+import { useDestination } from "@/lib/api/queries";
 
 export default function DestinationPage() {
   const { slug } = useParams<{ slug: string }>();
-  const { db, me } = useStore();
-  const dest = db.destinations.find((d) => d.slug === slug);
-
-  if (!dest)
-    return <EmptyState icon={<MapPinOff className="size-7" />} title="Destination not found" action={<Link href="/explore" className="font-semibold text-lagoon">Back to Explore</Link>} />;
-
-  const trips = discoverableTrips(db).filter((t) => t.destinationIds.includes(dest.id));
-  const popular = [...trips].sort((a, b) => b.saveCount - a.saveCount);
-  const suggested = [...trips].sort((a, b) => b.forkCount - a.forkCount).filter((t) => t.allowFork);
-  const places = db.places.filter((p) => p.destinationId === dest.id).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
-  const posts = feedPosts(db, me, "for-you").filter((p) => p.destinationId === dest.id || trips.some((t) => t.id === p.tripId));
+  const q = useDestination(slug);
+  if (q.isLoading) return <PageLoader />;
+  if (q.isError || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  const { destination: dest, popularTrips, remixable, places, posts } = q.data;
 
   return (
     <div className="space-y-10">
@@ -42,9 +34,9 @@ export default function DestinationPage() {
 
       <section>
         <SectionTitle>Popular trips</SectionTitle>
-        {popular.length ? (
+        {popularTrips.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {popular.map((t) => (
+            {popularTrips.map((t) => (
               <TripCard key={t.id} trip={t} />
             ))}
           </div>
@@ -75,11 +67,11 @@ export default function DestinationPage() {
         </section>
       )}
 
-      {suggested.length > 0 && (
+      {remixable.length > 0 && (
         <section>
           <SectionTitle>Suggested itineraries to remix</SectionTitle>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {suggested.map((t) => (
+            {remixable.map((t) => (
               <TripCard key={t.id} trip={t} compact />
             ))}
           </div>

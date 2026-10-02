@@ -1,28 +1,36 @@
 "use client";
 
-import { ROLE_LABEL, type TripRole, type UUID } from "@triply/shared";
-import { Clock, Link2, Mail, UserMinus, UserPlus } from "lucide-react";
+import { ROLE_LABEL, type TripDetail, type TripRole } from "@triply/shared";
+import { Clock, Link2, LogOut, Mail, UserMinus, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { tripMembers, userById } from "@/lib/mock/selectors";
-import { usePermissions } from "@/lib/store/hooks";
-import { useStore } from "@/lib/store/store";
-import { Avatar, Badge, Button, timeAgo } from "../ui";
+import { api } from "@/lib/api/client";
+import { keys, useAction, useMe } from "@/lib/api/queries";
+import { Avatar, Badge, Button, Sheet, timeAgo } from "../ui";
 import { InviteSheet } from "./InviteSheet";
 
-export function MembersPanel({ tripId }: { tripId: UUID }) {
-  const { db, me, actions, toast } = useStore();
-  const perm = usePermissions(tripId);
-  const members = tripMembers(db, tripId);
+export function MembersPanel({ trip }: { trip: TripDetail }) {
+  const me = useMe().data;
+  const router = useRouter();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const pending = db.invitations.filter((i) => i.tripId === tripId && !i.revokedAt && !i.acceptedAt && Date.parse(i.expiresAt) > Date.now());
-  const isOwner = perm.can("members.change_role");
+  const [confirm, setConfirm] = useState<{ userId: string; name: string; self: boolean } | null>(null);
+  const may = (a: string) => trip.permissions.includes(a as never);
+  const isOwner = may("members.change_role");
+  const invalidate = [keys.trip(trip.id), ["trips"]];
+
+  const changeRole = useAction((a: { userId: string; role: Exclude<TripRole, "OWNER">; name: string }) => api.patch(`/trips/${trip.id}/members/${a.userId}`, { role: a.role }), {
+    invalidate,
+    success: () => "Role updated",
+  });
+  const remove = useAction((userId: string) => api.delete(`/trips/${trip.id}/members/${userId}`), { invalidate });
+  const revoke = useAction((id: string) => api.delete(`/trips/${trip.id}/invitations/${id}`), { invalidate, success: "Invitation revoked" });
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-xl font-semibold">Trip members · {members.length}</h3>
-        {perm.can("members.invite") && (
+        <h3 className="font-display text-xl font-semibold">Trip members · {trip.myRole ? trip.members.length : trip.stats.travelers}</h3>
+        {may("members.invite") && (
           <Button size="sm" onClick={() => setInviteOpen(true)}>
             <UserPlus className="size-4" /> Invite
           </Button>
@@ -30,42 +38,36 @@ export function MembersPanel({ tripId }: { tripId: UUID }) {
       </div>
 
       <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
-        {members.map((m) => (
-          <li key={m.userId} className="flex items-center gap-3 p-3.5">
+        {trip.members.map((m) => (
+          <li key={m.user.id} className="flex items-center gap-3 p-3.5">
             <Link href={`/u/${m.user.username}`}>
               <Avatar user={m.user} size={42} />
             </Link>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">
-                {m.user.displayName} {m.userId === me && <span className="font-normal text-muted">(you)</span>}
+              <div className="truncate font-semibold">
+                {m.user.displayName} {m.user.id === me?.id && <span className="font-normal text-muted">(you)</span>}
               </div>
               <div className="truncate text-xs text-muted">@{m.user.username}</div>
             </div>
             {isOwner && m.role !== "OWNER" ? (
               <>
-                <label className="sr-only" htmlFor={`role-${m.userId}`}>
+                <label className="sr-only" htmlFor={`role-${m.user.id}`}>
                   Role for {m.user.displayName}
                 </label>
                 <select
-                  id={`role-${m.userId}`}
+                  id={`role-${m.user.id}`}
                   value={m.role}
-                  onChange={(e) => {
-                    const role = e.target.value as Exclude<TripRole, "OWNER">;
-                    actions.changeRole(tripId, m.userId, role);
-                    toast(`${m.user.displayName} is now ${role === "EDITOR" ? "an Editor" : "a Viewer"}`);
-                  }}
+                  disabled={changeRole.isPending}
+                  onChange={(e) => changeRole.run({ userId: m.user.id, role: e.target.value as "EDITOR" | "VIEWER", name: m.user.displayName })}
                   className="h-9 w-[104px] shrink-0 rounded-full border border-line bg-surface px-3 text-sm font-medium"
                 >
                   <option value="EDITOR">Editor</option>
                   <option value="VIEWER">Viewer</option>
                 </select>
                 <button
-                  onClick={() => {
-                    actions.removeMember(tripId, m.userId);
-                    toast(`${m.user.displayName} removed from trip`);
-                  }}
+                  onClick={() => setConfirm({ userId: m.user.id, name: m.user.displayName, self: false })}
                   aria-label={`Remove ${m.user.displayName}`}
-                  className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-sunset-50 hover:text-danger"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-sunset-50 hover:text-danger"
                 >
                   <UserMinus className="size-4" />
                 </button>
@@ -77,29 +79,22 @@ export function MembersPanel({ tripId }: { tripId: UUID }) {
         ))}
       </ul>
 
-      {isOwner && pending.length > 0 && (
+      {!trip.myRole && <p className="text-sm text-muted">Only members can see who else is on this trip.</p>}
+
+      {isOwner && (trip.pendingInvitations?.length ?? 0) > 0 && (
         <section>
           <h4 className="mb-2 text-sm font-semibold text-ink-2">Pending invitations</h4>
           <ul className="space-y-2">
-            {pending.map((inv) => (
+            {trip.pendingInvitations!.map((inv) => (
               <li key={inv.id} className="flex items-center gap-3 rounded-2xl border border-dashed border-line bg-surface/60 p-3">
-                <span className="flex size-9 items-center justify-center rounded-full bg-sand-2 text-ink-2">
-                  {inv.email ? <Mail className="size-4" /> : <Link2 className="size-4" />}
-                </span>
+                <span className="flex size-9 items-center justify-center rounded-full bg-sand-2 text-ink-2">{inv.email ? <Mail className="size-4" /> : <Link2 className="size-4" />}</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{inv.email ?? "Invite link"}</div>
                   <div className="flex items-center gap-1 text-xs text-muted">
-                    <Clock className="size-3" /> {ROLE_LABEL[inv.role]} · sent {timeAgo(new Date(Date.parse(inv.expiresAt) - 7 * 86400_000).toISOString())} by {userById(db, inv.invitedBy)?.displayName}
+                    <Clock className="size-3" /> {ROLE_LABEL[inv.role]} · sent {timeAgo(inv.createdAt)} by {inv.invitedBy.displayName}
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    actions.revokeInvitation(inv.id);
-                    toast("Invitation revoked");
-                  }}
-                >
+                <Button size="sm" variant="ghost" onClick={() => revoke.run(inv.id)}>
                   Revoke
                 </Button>
               </li>
@@ -108,13 +103,39 @@ export function MembersPanel({ tripId }: { tripId: UUID }) {
         </section>
       )}
 
-      {!isOwner && perm.role && (
-        <p className="rounded-2xl bg-sand-2 px-4 py-3 text-sm text-ink-2">
-          Only the trip owner can invite people or change roles. You&apos;re {perm.role === "EDITOR" ? "an Editor" : "a Viewer"} on this trip.
-        </p>
+      {trip.myRole && trip.myRole !== "OWNER" && (
+        <div className="flex flex-col gap-3 rounded-2xl bg-sand-2 px-4 py-3 text-sm text-ink-2 sm:flex-row sm:items-center">
+          <p className="flex-1">Only the trip owner can invite people or change roles. You&apos;re {trip.myRole === "EDITOR" ? "an Editor" : "a Viewer"} on this trip.</p>
+          <Button size="sm" variant="secondary" onClick={() => setConfirm({ userId: me!.id, name: trip.title, self: true })}>
+            <LogOut className="size-4" /> Leave trip
+          </Button>
+        </div>
       )}
 
-      <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={tripId} />
+      <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={trip.id} />
+      <Sheet open={!!confirm} onClose={() => setConfirm(null)} title={confirm?.self ? "Leave this trip?" : `Remove ${confirm?.name}?`}>
+        <p className="text-sm text-ink-2">
+          {confirm?.self ? "You'll lose access unless someone invites you again." : `${confirm?.name} will immediately lose access to this trip.`}
+        </p>
+        <div className="mt-6 flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setConfirm(null)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1 !bg-danger"
+            disabled={remove.isPending}
+            onClick={async () => {
+              const c = confirm!;
+              setConfirm(null);
+              if (await remove.run(c.userId)) {
+                if (c.self) router.push("/trips");
+              }
+            }}
+          >
+            {confirm?.self ? "Leave" : "Remove"}
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }

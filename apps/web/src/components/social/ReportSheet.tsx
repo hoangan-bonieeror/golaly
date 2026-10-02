@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReportReason, ReportTarget, UUID } from "@triply/shared";
+import type { ReportReason, ReportTarget } from "@triply/shared";
 import { useState } from "react";
-import { useStore } from "@/lib/store/store";
+import { api } from "@/lib/api/client";
+import { useAction } from "@/lib/api/queries";
 import { Button, Sheet, cx } from "../ui";
 
 const REASONS: { value: ReportReason; label: string }[] = [
@@ -13,9 +14,9 @@ const REASONS: { value: ReportReason; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
-export function ReportSheet({ open, onClose, target, targetId }: { open: boolean; onClose: () => void; target: ReportTarget; targetId: UUID }) {
-  const { actions, toast } = useStore();
+export function ReportSheet({ open, onClose, target, targetId }: { open: boolean; onClose: () => void; target: ReportTarget; targetId: string }) {
   const [reason, setReason] = useState<ReportReason>();
+  const report = useAction((r: ReportReason) => api.post("/reports", { target, targetId, reason: r }), { success: "Thanks — our team will review this." });
   return (
     <Sheet open={open} onClose={onClose} title={`Report ${target.toLowerCase()}`}>
       <div className="space-y-2" role="radiogroup">
@@ -34,9 +35,9 @@ export function ReportSheet({ open, onClose, target, targetId }: { open: boolean
       <Button
         size="lg"
         className="mt-5 w-full"
-        disabled={!reason}
-        onClick={() => {
-          if (actions.report(target, targetId, reason!)) toast("Thanks — our team will review this.");
+        disabled={!reason || report.isPending}
+        onClick={async () => {
+          await report.run(reason!);
           onClose();
         }}
       >

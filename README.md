@@ -1,45 +1,90 @@
-# TRIPLY — clickable UI prototype
+# TRIPLY
 
 > **Plan together. Discover together. Travel together.**
-> A social travel planning platform that turns real travelers' trips into reusable, collaborative plans.
+> A social travel planning platform that turns real travelers' trips into reusable, collaborative travel plans.
 
-This repo is the **front-end prototype** of the TRIPLY MVP. It's a real Next.js app with every core screen wired up, so you can click through the whole product loop before any backend exists:
+TRIPLY is a full-stack MVP. You can discover public trips, remix one into your own plan in a single tap, invite friends as Editors or Viewers, edit the itinerary together with live updates, and share finished trips as posts.
 
 **Discover → Save → Fork/Remix → Plan → Invite → Collaborate → Share**
 
-The data layer is an in-browser **mock API** that follows the same rules the planned NestJS + PostgreSQL backend will enforce (roles, privacy, fork rules, validation). When the backend is built, screens keep calling the same `actions.*` functions, and only the function bodies switch to `fetch('/api/v1/...')`.
-
-| Desktop — trip planning | Mobile — itinerary |
+| Desktop: itinerary + map | Mobile: itinerary |
 |---|---|
 | ![Trip planning on desktop](docs/screenshots/d-trip-plan.png) | ![Itinerary on mobile](docs/screenshots/m-trip-plan.png) |
 
-| Home feed | Fork / "Use this trip" | Explore |
+| Home feed | Members & roles | Explore |
 |---|---|---|
-| ![Home](docs/screenshots/d-home.png) | ![Fork](docs/screenshots/d-fork.png) | ![Explore](docs/screenshots/d-explore.png) |
+| ![Home](docs/screenshots/d-home.png) | ![Members](docs/screenshots/d-members.png) | ![Explore](docs/screenshots/d-explore.png) |
 
 ---
 
-## Quick start
+## Stack
 
-Requirements: **Node.js 20.9 or newer** (`node -v`).
+| Layer | Tech |
+|---|---|
+| Web | Next.js 16 (App Router), React 19, Tailwind CSS 4, TanStack Query, Socket.IO client |
+| API | NestJS 11 (modular), Prisma 7 (`prisma-client` generator + `pg` driver adapter), Socket.IO, argon2id, JWT in HTTP-only cookies |
+| Database | PostgreSQL 16 |
+| Shared | `packages/shared`: domain types, the **permission matrix**, **Zod schemas** used by both API and forms, and the API response contract |
+| Tests | Jest (unit + integration against a real Postgres test DB), Playwright (Definition-of-Done journey) |
+| Ops | Docker Compose, Dockerfiles, GitHub Actions CI |
 
-```bash
-cd triply
-npm install
-npm run dev
+```
+triply/
+├── apps/
+│   ├── api/                  NestJS REST API + WebSocket gateway
+│   │   ├── prisma/           schema.prisma · migrations/ · seed.ts (dev demo data)
+│   │   ├── src/common/       auth guard, CSRF, error filter, presenters (DB → view models)
+│   │   ├── src/modules/      auth · users · trips · itinerary · members · search · social
+│   │   │                     notifications · media · realtime · mail · audit
+│   │   └── test/             integration tests (auth, trips, collaboration, social, realtime, media)
+│   └── web/                  Next.js app (proxies /api/v1 and /media to the API)
+│       ├── src/app/          (auth)/… and (app)/… routes
+│       ├── src/components/   ui · layout · trip · itinerary · map · social
+│       ├── src/lib/          api client + query hooks · realtime · session · toast
+│       └── e2e/              definition-of-done.cjs (Playwright)
+├── packages/shared/          types · permissions · schemas · api-types
+├── docs/                     ARCHITECTURE.md · screenshots
+├── docker-compose.yml        Postgres (dev) + optional full stack
+└── .github/workflows/ci.yml  typecheck → tests → build → e2e
 ```
 
-Open **http://localhost:3000**. You start signed in as **An** (owner of the private "Japan — 7 Days" trip).
+---
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Dev server with hot reload |
-| `npm run build && npm start` | Production build and server |
-| `npm run typecheck` | TypeScript, strict mode |
+## Run it locally
 
-### Demo accounts
+You need **Node.js 20.9+** and **PostgreSQL 16**. Use Docker Desktop for Postgres, or install it natively.
 
-All passwords are `demo1234`. **Demo data is for development only.**
+### 1. Install & configure
+
+```bash
+npm install            # also builds packages/shared and generates the Prisma client
+npm run setup          # creates apps/api/.env (with a random JWT secret) and apps/web/.env.local
+```
+
+### 2. Start PostgreSQL
+
+**Option A, Docker (easiest):**
+```bash
+docker compose up -d db      # creates the `triply` and `triply_test` databases
+```
+
+**Option B, native Postgres** (Windows installer from postgresql.org, or Homebrew/apt). Then create a user and both databases, for example with `psql -U postgres`:
+```sql
+CREATE ROLE triply WITH LOGIN PASSWORD 'triply' CREATEDB;
+CREATE DATABASE triply OWNER triply;
+CREATE DATABASE triply_test OWNER triply;
+```
+If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `apps/api/.env`.
+
+### 3. Create tables, load demo data, run
+
+```bash
+npm run db:migrate     # applies prisma/migrations
+npm run db:seed        # DEV ONLY: demo users, trips, posts
+npm run dev            # API → http://localhost:4000   Web → http://localhost:3000
+```
+
+Open **http://localhost:3000** and log in with a demo account (password `demo1234`):
 
 | User | Email | Role in "Japan — 7 Days" |
 |---|---|---|
@@ -47,143 +92,88 @@ All passwords are `demo1234`. **Demo data is for development only.**
 | Minh | minh@triply.dev | Editor |
 | Linh | linh@triply.dev | Viewer |
 | Nam | nam@triply.dev | Viewer |
-| Sarah | sarah@triply.dev | Not a member (sees only public trips) |
+| Sarah | sarah@triply.dev | Not a member (public trips only); has a pending invite |
 
-**The flask button** (bottom-right on desktop, top bar on mobile) is a prototype-only tool. Use it to switch users instantly, log out, or reset the demo data.
+In development, a **flask button** (top bar on mobile, bottom-right on desktop) does a real login as any demo user, so you can switch between Owner, Editor, Viewer and an outsider quickly. It's hidden in production builds.
 
-**Live collaboration demo:** open two browser tabs and pick a different user in each, for example An and Minh. When the editor changes the itinerary, the owner's tab updates without a reload. This stands in for the planned WebSocket events.
+**Live collaboration:** open a normal window as An and a private window as Minh, both on the Japan trip. Edit as Minh and An's view updates instantly. The trip header shows a **Live** badge.
 
----
+Emails (invites, password resets) are written to `apps/api/storage/outbox/` in development, never to logs.
 
-## 3-minute demo script (the MVP "Definition of Done")
+### Useful commands
 
-1. **As An:** go to *My Trips → Japan — 7 Days*. Add an item with **Add to Day 1**: pick a type, search a place, and the title fills in for you.
-2. Click **Invite**, choose *Invite link* + *Viewer*, and copy the link.
-3. **Switch to Minh** (flask). He's an Editor, so he can edit, duplicate, reorder (drag or ⋯ menu) and delete items. **Switch to Linh**: she's a Viewer, so every edit control disappears.
-4. **As An:** open *Members* and change Linh to **Editor**, or remove Nam. Pending invites can be revoked.
-5. Open **Settings** (⚙). Set visibility to **Public** and save.
-6. **Switch to Sarah:** go to *Explore*, search "Japan", open the trip, click **Save**, then **Use this trip → Make it mine**.
-7. Sarah now owns a **private copy** with the attribution "Based on Japan — 7 Days by @an.nguyen". Members weren't copied. Edit it, then switch back to An: the original hasn't changed.
-
-The same journey runs as an automated script: see [Testing](#testing).
-
----
-
-## What's in the prototype
-
-| Area | Screens and behaviour |
+| Command | What it does |
 |---|---|
-| Auth | Splash, Welcome, Register (validated), Login, Forgot password (no account enumeration), 2-step Onboarding (traveler type + interests), Google button stub |
-| Home | Continue-planning card, For You / Following feed, recommended trips, trending destinations |
-| Explore | Search across Everything / Trips / Places / People / Destinations; destination pages (popular trips, trending places, recent posts, itineraries to remix) |
-| Trip overview | Cover, route, dates, days, places, travelers, budget, your role; Edit / Invite / Share / Save / **Use this trip** shown based on permissions |
-| Itinerary | Multi-day timeline; add / edit / duplicate / delete / reorder (drag & drop + menu); 7 item types; place search; notes; "Edited by Minh" trail; one-hand mobile **Add item** button |
-| Map | Offline SVG map with numbered markers, route per day, day filter, selection synced with the itinerary; built behind a `MapAdapter` boundary so MapLibre/Mapbox can replace it later |
-| Members | Owner/Editor/Viewer badges, role dropdown and remove (owner only), pending invites with revoke |
-| Invitations | By email or by link; opaque 32-char tokens, 7-day expiry, revocable; accept/decline page with expired/revoked states |
-| Trip settings | Name, description, dates, destinations, visibility (Private / Link-only / Public), allow comments, allow fork, delete (owner only) |
-| Social | Post cards, post detail with photo pager, likes, comments, save, share (copy link), report (5 reasons), create post / draft linked to a trip |
-| Profile | Stats, Follow, Trips/Posts tabs. **Private trips never appear on public profiles.** |
-| Saved | Trips / Posts / Places tabs |
-| Notifications | All 9 notification types, unread state, mark one or all as read, deep links (invites open the accept page) |
-| Empty & error states | Friendly copy everywhere ("Your next adventure starts here.", "This trip is private.", "This invitation has expired.") |
-
-### Rules the mock API enforces (same as the future backend)
-
-- **Permissions** live in one place: `packages/shared/src/permissions.ts`. The UI uses `can()` to hide controls, and every mutation **checks again** inside the mock API, so editing from a stale tab fails with *"You no longer have permission to edit this trip."*
-- **Privacy:** private trips are excluded from Explore, search, feeds and public profiles. Link-only trips are viewable but unlisted.
-- **Fork contract:** copies title, description, dates, destinations, days, items and places. It does **not** copy members, invitations, comments or counters. The new owner is the person who forked, the copy starts Private, and attribution is stored. The source trip is never modified, except that its fork count goes up.
-- **Validation:** emails, usernames, passwords, dates (end ≥ start), times, titles, comment length.
-- **IDs:** UUID-shaped everywhere. Nothing sequential appears in URLs.
+| `npm run dev` | shared (watch) + API (watch) + web (hot reload) |
+| `npm test` | API unit + integration tests (uses `TEST_DATABASE_URL`, rebuilt each run) |
+| `npm run test:unit` | Unit tests only (no database needed) |
+| `npm run e2e` | Playwright Definition-of-Done journey against a running stack |
+| `npm run typecheck` | TypeScript, strict, all packages |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm run db:migrate` | Create/apply migrations (`prisma migrate dev`) |
+| `npm run db:reset` | Drop, re-migrate and re-seed the dev DB |
 
 ---
 
-## Project structure
+## What's implemented (MVP P0 + most of P1)
 
-```
-triply/
-├── apps/web/                     Next.js 16 (App Router) + React 19 + Tailwind CSS 4
-│   ├── src/app/
-│   │   ├── (auth)/               welcome, login, register, forgot-password, onboarding
-│   │   ├── (app)/                home, explore, explore/[slug], trips, trips/new,
-│   │   │                         trips/[id], trips/[id]/settings, posts/new, posts/[id],
-│   │   │                         u/[username], saved, notifications, settings, invite/[token]
-│   │   ├── page.tsx              splash
-│   │   └── globals.css           design tokens (@theme)
-│   ├── src/components/
-│   │   ├── ui/                   Button, Sheet (bottom sheet ↔ dialog), Tabs, Chip, Avatar, EmptyState…
-│   │   ├── layout/               AppShell (sidebar + bottom nav), CreateSheet, DemoSwitcher, Toaster, Logo
-│   │   ├── trip/                 TripCard, Cover art, MembersPanel, InviteSheet, ForkSheet, DestinationPicker
-│   │   ├── itinerary/            Itinerary timeline, ItemSheet, type icons
-│   │   ├── map/                  TripMap (MapAdapter boundary)
-│   │   └── social/               PostCard, PlaceRow, ReportSheet
-│   ├── src/lib/
-│   │   ├── mock/                 seed.ts (demo data) · api.ts (mock endpoints) · selectors.ts (read rules)
-│   │   ├── store/                React store + hooks (usePermissions, useTrip, useUnreadCount)
-│   │   └── utils.ts
-│   └── e2e/definition-of-done.cjs
-├── packages/shared/              Domain types, permission matrix, labels (shared with the future API)
-└── docs/screenshots/
-```
-
-### Moving from prototype to MVP
-
-| Prototype piece | Becomes |
+| Area | Details |
 |---|---|
-| `lib/mock/seed.ts` | `apps/api/prisma/seed.ts` |
-| `lib/mock/api.ts` functions | NestJS module services (`trips`, `itinerary`, `members`, `invitations`, `posts`…) behind `/api/v1` |
-| `packages/shared/permissions.ts` | Imported unchanged by NestJS guards and the web app |
-| `lib/store/store.tsx` | Server state through TanStack Query or React Server Components; `actions.*` call the REST client |
-| `storage` event sync | Socket.IO events: `trip.item.created/updated/deleted`, `trip.member.joined/role_changed` |
-| Generated cover art | Object storage (S3/R2) with signed URLs and thumbnails |
-| SVG `MapCanvas` | MapLibre GL with the same `TripMap` props |
+| **Auth** | Register, login, logout, refresh-token rotation (reuse is rejected), forgot/reset password (single-use, 30-min tokens; logs out other sessions), onboarding. Google OAuth is a P1 stub. |
+| **Users** | Profile, avatar upload, bio, home base, followers/following, public trips & posts, account deletion (password-confirmed, soft delete + anonymise). |
+| **Trips** | CRUD, destinations (multi-stop route), dates that keep days in sync and **never silently delete plans**, cover upload, budget, visibility `PRIVATE` (default) / `LINK_ONLY` / `PUBLIC`, allow comments, allow fork, soft delete. |
+| **Itinerary** | Days (add, rename, delete with renumbering), items of 7 types, place search, times (chronological auto-ordering; untimed notes keep their slot), notes, duplicate, reorder within or across days (drag & drop or menu), "Edited by …" trail. |
+| **Collaboration** | Owner / Editor / Viewer enforced **server-side on every request**. Invite by email (bound to that address, single-use) or link (reusable until expiry/revoke). Tokens are 256-bit, stored as SHA-256 hashes, expire in 7 days and are revocable. Owners change roles and remove members; members can leave. Audit log for every permission change. |
+| **Realtime** | Socket.IO rooms per trip (joining re-checks permission). Item, day and member events refresh collaborators' screens; removed members are kicked from the room. Notifications are pushed live. |
+| **Fork / Remix** | Copies title, description, dates, destinations, days, items and places. Does **not** copy members, invites, comments, media or counters. New owner = forker; copy starts Private; "Based on … by @…" attribution survives even if the source is deleted. |
+| **Social** | Feed (For You / Following, cursor pagination), posts linked to trips (public post of a private trip is refused), drafts, photos, likes, comments (author can moderate), saves, follows, share, reports (5 reasons, one per user per target). |
+| **Discovery** | Search across trips, places, people and destinations (behind a `SearchProvider` interface, so it can move to OpenSearch/Algolia later), destination pages, explore. |
+| **Privacy** | Private trips never appear in Explore, search, feeds or public profiles. Non-members of public trips don't see the member list or invites. Posts drop out of feeds when their trip goes private. |
+| **Media** | JPEG/PNG/WebP validated by content, size and dimensions; re-encoded to WebP (**strips EXIF/GPS**); 640px thumbnails. The storage driver interface keeps local disk now and S3/R2 later. |
+| **Notifications** | All 9 spec types, unread badge, mark one or all as read, deep links, coalescing of rapid item edits. |
+| **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; CORS locked to the web origin; Helmet; rate limits (stricter on auth); validated env; friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
 
----
+Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking, moderation dashboard.
 
-## Design system
-
-- **Palette:** warm *sand* canvas `#F7F4EE`, deep *lagoon* primary `#0E6E6A`, *sunset* accent `#F26B4E`, ink `#16232E`. Tokens are in `globals.css` under `@theme`.
-- **Type:** a bookish serif for display text (postcards and travel journals) and the system sans for UI.
-- **Signature motif:** generated "postcard" covers (sun, layered ridges, water), one per trip, so the prototype has its own identity without stock photos.
-- **The 5-second rule:** every trip card shows destination, duration, creator, place count and cover without any interaction.
-- **Mobile:** bottom navigation, bottom-sheet forms, a one-hand Add item button. **Desktop:** sidebar navigation, itinerary on the left with the map on the right.
-- **Accessibility:** focus rings, labelled controls, `aria-pressed` and `aria-selected` states, Esc closes sheets, and reduced-motion is respected.
+API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
 ## Testing
 
-The MVP journey from spec §51 is scripted: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees the change live → make public → another user discovers, saves and forks → fork is independent → original is unchanged → private trip doesn't leak.
+- **Unit** (`src/**/*.spec.ts`): the permission matrix and `TripAccessService`, itinerary ordering logic, crypto, dates and the shared Zod schemas.
+- **Integration** (`test/*.int.ts`): boots the real Nest app against `triply_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads.
+- **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept, plus a privacy check.
 
-```bash
-npm i -D playwright && npx playwright install chromium
-npm run dev                                   # terminal 1
-node apps/web/e2e/definition-of-done.cjs      # terminal 2 (BASE_URL=... to override)
-```
-
-All 12 checkpoints pass on the build in this repo, with no console errors.
+Current status: **65/65** API tests and **all 16 Definition-of-Done steps** pass.
 
 ---
 
-## Known limits (on purpose for a prototype)
+## Deploying
 
-- Data lives in your browser's `localStorage`. Use *Reset demo data* to start over.
-- No real auth, email, uploads or map tiles. Those buttons show a short "arrives in Week N" toast.
-- Ownership transfer, Google OAuth, and AI suggestions are out of scope (P1/P2 in the spec).
+The repo has a Dockerfile for each app and a `full` Compose profile:
 
-## Next steps (from the 10-week plan)
+```bash
+export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))")
+docker compose --profile full up --build      # db + api (runs migrations on start) + web
+```
 
-1. **Week 1:** add `apps/api` (NestJS + Prisma + PostgreSQL), migrations generated from `packages/shared/types.ts`, JWT in HTTP-only cookies, CI.
-2. **Weeks 3–5:** port `api.ts` module by module (trips → itinerary → members/invitations), with unit tests for the permission, fork and invitation services.
-3. **Week 6:** Socket.IO gateway and MapLibre.
-4. **Weeks 7–9:** posts and media storage, search behind a `SearchService`, notifications.
+For a real deployment (for example Render, Railway or Fly for the API, Vercel for the web app, and a managed Postgres):
+
+1. **API**: set `DATABASE_URL`, `JWT_SECRET` (48+ random bytes), `WEB_ORIGIN=https://your-web-domain`, `COOKIE_SECURE=true` and `NODE_ENV=production`. Run `npm run db:deploy` on release, then `node apps/api/dist/main.js`.
+2. **Web**: set `API_ORIGIN=https://your-api-domain` **at build time** (Next rewrites are compiled in) and `NEXT_PUBLIC_REALTIME_URL=https://your-api-domain`.
+3. Serve both under the same parent domain (for example `app.example.com` and `api.example.com`) so cookies and WebSockets work, or put both behind one reverse proxy.
+4. Swap the local media driver for S3/R2, and the dev-outbox mail driver for SMTP/Resend/SES (both are small interfaces in `apps/api/src/modules/`).
+5. Never run `db:seed` in production. It refuses when `NODE_ENV=production`.
+
+> The Docker files follow standard multi-stage patterns but were not run in the environment this was built in. Test `docker compose --profile full up --build` once on your machine.
 
 ---
 
 ## Presenting this in a portfolio
 
-- **Lead with the loop, not the stack.** A 30-second screen recording of *Sarah forks An's trip → edits → the original stays unchanged* shows the product idea immediately.
-- **Show the permission matrix** (`packages/shared/src/permissions.ts`) next to the Owner, Editor and Viewer screenshots. It shows you think about authorization as a product feature.
-- **Explain the prototype-to-MVP seam:** "screens only call `actions.*`; swapping the mock for REST touches one file per module." Reviewers look for this kind of architecture thinking.
-- **Link the e2e script** as evidence that the Definition of Done is testable, not just a list of claims.
-- Suggested headline: *"TRIPLY — collaborative trip planning with GitHub-style fork/remix for itineraries (Next.js 16, React 19, TypeScript, Tailwind 4)."*
+- **Lead with the loop:** a 30-second recording of *Sarah remixes An's public trip → edits her copy → An's original is untouched* explains the product immediately.
+- **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
+- **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
+- **Point to the tests:** 65 API tests plus a Playwright script that proves the spec's Definition of Done.
+- **Suggested headline:** *"TRIPLY: collaborative trip planning with GitHub-style fork/remix for itineraries. Next.js 16 · NestJS · Prisma · PostgreSQL · Socket.IO."*

@@ -29,3 +29,8 @@ export function formatDateRange(start?: string, end?: string) {
   if (start.slice(5, 7) === end.slice(5, 7)) return `${md(start)} – ${d(end).getDate()}, ${y(end)}`;
   return `${md(start)} – ${md(end)}, ${y(end)}`;
 }
+
+/** Only allow same-site relative redirects after login (no open redirects). */
+export function safeNext(next: string | null, fallback = "/home") {
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+}

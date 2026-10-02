@@ -1,15 +1,34 @@
 {
   "name": "triply",
   "private": true,
-  "version": "0.1.0",
-  "description": "TRIPLY — Plan together. Discover together. Travel together. (Clickable UI prototype)",
-  "workspaces": ["apps/*", "packages/*"],
+  "version": "0.2.0",
+  "description": "TRIPLY — Plan together. Discover together. Travel together. Collaborative social travel planning (Next.js + NestJS + Prisma + PostgreSQL).",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm run dev -w @triply/web",
-    "build": "npm run build -w @triply/web",
-    "start": "npm run start -w @triply/web",
-    "lint": "npm run lint -w @triply/web",
-    "typecheck": "npm run typecheck -w @triply/web"
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "npm run build -w @triply/shared",
+    "dev": "concurrently -k -n shared,api,web -c gray,cyan,magenta \"npm run dev -w @triply/shared\" \"npm run dev -w @triply/api\" \"npm run dev -w @triply/web\"",
+    "build": "npm run build -w @triply/shared && npm run db:generate -w @triply/api && npm run build -w @triply/api && npm run build -w @triply/web",
+    "start": "concurrently -k -n api,web \"npm run start -w @triply/api\" \"npm run start -w @triply/web\"",
+    "typecheck": "npm run build -w @triply/shared && npm run typecheck -w @triply/api && npm run typecheck -w @triply/web",
+    "test": "npm run test -w @triply/api",
+    "test:unit": "npm run test:unit -w @triply/api",
+    "test:int": "npm run test:int -w @triply/api",
+    "e2e": "node apps/web/e2e/definition-of-done.cjs",
+    "db:generate": "npm run db:generate -w @triply/api",
+    "db:migrate": "npm run db:migrate -w @triply/api",
+    "db:deploy": "npm run db:deploy -w @triply/api",
+    "db:seed": "npm run db:seed -w @triply/api",
+    "db:reset": "npm run db:reset -w @triply/api"
   },
-  "engines": { "node": ">=20.9" }
+  "engines": {
+    "node": ">=20.9"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4",
+    "playwright": "^1.63.0"
+  }
 }

@@ -1,40 +1,45 @@
 "use client";
 
-import { ROLE_LABEL, type TripRole, type UUID } from "@triply/shared";
+import { ROLE_LABEL, emailSchema, type CreatedInvitation, type TripRole } from "@triply/shared";
 import { Check, Copy, Link2, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useStore } from "@/lib/store/store";
+import { api } from "@/lib/api/client";
+import { keys, useAction } from "@/lib/api/queries";
 import { Button, Field, Sheet, Tabs, cx, inputCls } from "../ui";
 
 type InvRole = Exclude<TripRole, "OWNER">;
 
-export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose: () => void; tripId: UUID }) {
-  const { actions, toast } = useStore();
+export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose: () => void; tripId: string }) {
   const [mode, setMode] = useState<"email" | "link">("email");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InvRole>("EDITOR");
   const [link, setLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string>();
+  const invite = useAction((body: { email?: string; role: InvRole }) => api.post<CreatedInvitation>(`/trips/${tripId}/invitations`, body), { invalidate: [keys.trip(tripId)] });
 
   useEffect(() => {
     if (open) {
       setEmail("");
       setLink(null);
       setCopied(false);
+      setError(undefined);
     }
   }, [open]);
 
-  const sendEmail = (e: React.FormEvent) => {
+  const sendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    const inv = actions.createInvitation(tripId, { email, role });
+    const parsed = emailSchema.safeParse(email);
+    if (!parsed.success) return setError("That email doesn't look right.");
+    const inv = await invite.run({ email: parsed.data, role });
     if (!inv) return;
-    toast(`Invite sent to ${inv.email}`);
-    onClose();
+    setMode("link");
+    setLink(inv.url);
   };
 
-  const makeLink = () => {
-    const inv = actions.createInvitation(tripId, { role });
-    if (inv) setLink(`${window.location.origin}/invite/${inv.token}`);
+  const makeLink = async () => {
+    const inv = await invite.run({ role });
+    if (inv) setLink(inv.url);
   };
 
   return (
@@ -54,12 +59,12 @@ export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose:
 
       <RolePicker role={role} setRole={setRole} />
 
-      {mode === "email" ? (
-        <form onSubmit={sendEmail} className="mt-5 space-y-4">
-          <Field label="Email address" hint="Tip: in the demo, try minh@, sarah@ or nam@triply.dev — they get an in-app notification.">
+      {mode === "email" && !link ? (
+        <form onSubmit={sendEmail} className="mt-5 space-y-4" noValidate>
+          <Field label="Email address" error={error} hint="They'll get an email, plus an in-app notification if they already use TRIPLY.">
             <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="friend@example.com" />
           </Field>
-          <Button type="submit" size="lg" className="w-full" disabled={!email}>
+          <Button type="submit" size="lg" className="w-full" disabled={!email || invite.isPending}>
             Send invite
           </Button>
         </form>
@@ -68,7 +73,9 @@ export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose:
           {link ? (
             <>
               <div className="flex items-center gap-2 rounded-xl border border-line bg-sand p-2 pl-3">
-                <code className="min-w-0 flex-1 truncate text-xs">{link}</code>
+                <code className="min-w-0 flex-1 truncate text-xs" data-testid="invite-link">
+                  {link}
+                </code>
                 <Button
                   size="sm"
                   variant={copied ? "secondary" : "primary"}
@@ -84,11 +91,13 @@ export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose:
                 </Button>
               </div>
               <p className="text-xs text-muted">
-                Anyone with this link can join as {ROLE_LABEL[role].toLowerCase()}. It expires in 7 days and you can revoke it anytime in Members.
+                {mode === "email"
+                  ? `Invite sent. This link only works for ${email}. It expires in 7 days.`
+                  : `Anyone with this link can join as ${ROLE_LABEL[role].toLowerCase()}. It expires in 7 days and you can revoke it anytime in Members.`}
               </p>
             </>
           ) : (
-            <Button size="lg" className="w-full" onClick={makeLink}>
+            <Button size="lg" className="w-full" onClick={makeLink} disabled={invite.isPending}>
               Create invite link
             </Button>
           )}
@@ -108,6 +117,7 @@ function RolePicker({ role, setRole }: { role: InvRole; setRole: (r: InvRole) =>
       {opts.map((o) => (
         <button
           key={o.value}
+          type="button"
           role="radio"
           aria-checked={role === o.value}
           onClick={() => setRole(o.value)}

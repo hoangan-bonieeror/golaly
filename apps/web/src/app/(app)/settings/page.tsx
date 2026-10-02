@@ -1,80 +1,135 @@
 "use client";
 
-import { LogOut, RotateCcw, Trash2 } from "lucide-react";
+import { updateProfileSchema, type MediaView, type Me } from "@triply/shared";
+import { Camera, LogOut, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Avatar, Button, Field, cx, inputCls } from "@/components/ui";
-import { useMe, useStore } from "@/lib/store/store";
+import { useEffect, useRef, useState } from "react";
+import { Avatar, Button, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
+import { api, ApiError } from "@/lib/api/client";
+import { keys, useAction, useMe } from "@/lib/api/queries";
+import { useSession } from "@/lib/session";
 
 export default function SettingsPage() {
-  const user = useMe();
-  const { actions, toast, signOut, resetDemo } = useStore();
+  const me = useMe().data;
+  const { logout } = useSession();
   const router = useRouter();
+  const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ displayName: "", bio: "", homeBase: "" });
+  const [error, setError] = useState<string>();
+  const [deleting, setDeleting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string>();
 
   useEffect(() => {
-    if (user) setForm({ displayName: user.displayName, bio: user.bio, homeBase: user.homeBase ?? "" });
+    if (me) setForm({ displayName: me.displayName, bio: me.bio, homeBase: me.homeBase ?? "" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [me?.id]);
 
-  if (!user)
-    return (
-      <div className="mx-auto max-w-md text-center">
-        <p className="mb-4 text-muted">Log in to manage your account.</p>
-        <Button href="/login">Log in</Button>
-      </div>
-    );
+  const save = useAction((body: object) => api.patch<Me>("/users/me", body), { invalidate: [keys.me, ["profile"]], success: "Profile saved" });
+  const avatar = useAction(
+    async (file: File) => {
+      const m = await api.upload<MediaView>("/media", file);
+      return api.patch<Me>("/users/me", { avatarMediaId: m.id });
+    },
+    { invalidate: [keys.me, ["profile"], ["feed"]], success: "Photo updated" },
+  );
+
+  if (!me) return <PageLoader />;
 
   return (
     <div className="mx-auto max-w-xl space-y-8">
       <h1 className="font-display text-3xl font-semibold md:text-4xl">Settings</h1>
 
       <form
-        onSubmit={(e) => {
+        noValidate
+        onSubmit={async (e) => {
           e.preventDefault();
-          if (actions.updateProfile(form)) toast("Profile saved");
+          const body = { ...form, homeBase: form.homeBase.trim() };
+          const parsed = updateProfileSchema.safeParse(body);
+          if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+          setError(undefined);
+          await save.run(body);
         }}
         className="space-y-5 rounded-[var(--radius-card)] border border-line bg-surface p-5"
       >
         <div className="flex items-center gap-4">
-          <Avatar user={user} size={64} />
-          <Button type="button" variant="secondary" size="sm" onClick={() => toast("Avatar upload arrives with media storage (Week 7)")}>
-            Change photo
+          <Avatar user={me} size={64} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="sr-only"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) void avatar.run(f);
+            }}
+          />
+          <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={avatar.isPending}>
+            <Camera className="size-4" /> {avatar.isPending ? "Uploading…" : "Change photo"}
           </Button>
         </div>
-        <Field label="Display name">
-          <input className={inputCls} value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+        <Field label="Display name" error={error}>
+          <input className={inputCls} value={form.displayName} maxLength={50} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
         </Field>
         <Field label="Username" hint="Usernames can't be changed in the MVP.">
-          <input className={cx(inputCls, "bg-sand text-muted")} value={`@${user.username}`} disabled />
+          <input className={cx(inputCls, "bg-sand text-muted")} value={`@${me.username}`} disabled />
+        </Field>
+        <Field label="Email">
+          <input className={cx(inputCls, "bg-sand text-muted")} value={me.email} disabled />
         </Field>
         <Field label="Bio" hint={`${form.bio.length}/160`}>
           <textarea className={cx(inputCls, "h-20 py-2.5")} maxLength={160} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
         </Field>
         <Field label="Home base">
-          <input className={inputCls} value={form.homeBase} onChange={(e) => setForm({ ...form, homeBase: e.target.value })} />
+          <input className={inputCls} value={form.homeBase} maxLength={80} onChange={(e) => setForm({ ...form, homeBase: e.target.value })} />
         </Field>
-        <Button type="submit">Save profile</Button>
+        <Button type="submit" disabled={save.isPending}>
+          Save profile
+        </Button>
       </form>
 
       <section className="space-y-2">
         <Button
           variant="secondary"
           className="w-full justify-start"
-          onClick={() => {
-            signOut();
+          onClick={async () => {
+            await logout();
             router.push("/welcome");
           }}
         >
           <LogOut className="size-4" /> Log out
         </Button>
-        <Button variant="secondary" className="w-full justify-start" onClick={resetDemo}>
-          <RotateCcw className="size-4" /> Reset prototype demo data
-        </Button>
-        <Button variant="danger" className="w-full justify-start" onClick={() => toast("Account deletion is handled by the API (soft delete + data export) — not in this prototype")}>
+        <Button variant="danger" className="w-full justify-start" onClick={() => setDeleting(true)}>
           <Trash2 className="size-4" /> Delete account
         </Button>
       </section>
+
+      <Sheet open={deleting} onClose={() => setDeleting(false)} title="Delete your account?">
+        <form
+          className="space-y-4"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api.delete("/users/me", { password });
+              await logout();
+              router.push("/welcome");
+            } catch (err) {
+              setDeleteError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+            }
+          }}
+        >
+          <p className="text-sm text-ink-2">
+            This logs you out everywhere, removes you from shared trips and deletes your trips, posts and comments. Trips others remixed from yours stay with them.
+          </p>
+          <Field label="Confirm with your password" error={deleteError}>
+            <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          <Button type="submit" className="w-full !bg-danger" disabled={!password}>
+            Delete my account
+          </Button>
+        </form>
+      </Sheet>
     </div>
   );
 }

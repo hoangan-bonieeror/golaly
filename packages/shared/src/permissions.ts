@@ -17,9 +17,9 @@ export interface PermissionMember {
 /**
  * Single source of truth for trip permissions (spec §6 Collaboration, §28).
  *
- * In the prototype the UI calls these to decide what to render AND the mock
- * store calls them again before mutating — mimicking how the NestJS API will
- * enforce them server-side. Never trust a role supplied by the client.
+ * The API's TripAccessService enforces these on every request using roles read
+ * from the database; the web app only receives the resulting `permissions` list
+ * as UI hints. Never trust a role supplied by the client.
  */
 
 export type TripAction =

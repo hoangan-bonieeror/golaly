@@ -1,13 +1,17 @@
 "use client";
 
+import { emailSchema } from "@triply/shared";
 import { MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, Field, inputCls } from "@/components/ui";
+import { api, ApiError } from "@/lib/api/client";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
 
   if (sent)
     return (
@@ -17,7 +21,12 @@ export default function ForgotPassword() {
         </div>
         <h1 className="font-display text-3xl font-semibold">Check your inbox</h1>
         {/* Same message whether or not the account exists — avoids account enumeration. */}
-        <p className="mt-2 text-sm text-muted">If an account exists for {email || "that email"}, we&apos;ve sent a reset link. It expires in 30 minutes.</p>
+        <p className="mt-2 text-sm text-muted">If an account exists for {email}, we&apos;ve sent a reset link. It expires in 30 minutes.</p>
+        {process.env.NODE_ENV !== "production" && (
+          <p className="mt-4 rounded-xl bg-sand-2 px-3 py-2 text-xs text-ink-2">
+            Dev: emails are written to <code>apps/api/storage/outbox</code>.
+          </p>
+        )}
         <Button href="/login" variant="secondary" className="mt-8">
           Back to log in
         </Button>
@@ -26,20 +35,31 @@ export default function ForgotPassword() {
 
   return (
     <form
-      onSubmit={(e) => {
+      onSubmit={async (e) => {
         e.preventDefault();
-        setSent(true);
+        const parsed = emailSchema.safeParse(email);
+        if (!parsed.success) return setError("Enter a valid email address.");
+        setBusy(true);
+        try {
+          await api.post("/auth/forgot-password", { email: parsed.data });
+          setSent(true);
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+        } finally {
+          setBusy(false);
+        }
       }}
       className="animate-rise space-y-5"
+      noValidate
     >
       <div>
         <h1 className="font-display text-3xl font-semibold">Reset password</h1>
         <p className="mt-1 text-sm text-muted">We&apos;ll email you a secure link.</p>
       </div>
-      <Field label="Email">
-        <input className={inputCls} type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field label="Email" error={error}>
+        <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
-      <Button size="lg" className="w-full" type="submit">
+      <Button size="lg" className="w-full" type="submit" disabled={busy}>
         Send reset link
       </Button>
       <p className="text-center text-sm">

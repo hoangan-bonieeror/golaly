@@ -1,35 +1,37 @@
 "use client";
 
+import { createTripSchema, type TripSummary } from "@triply/shared";
 import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DestinationPicker } from "@/components/trip/DestinationPicker";
-import { Button, Field, cx, inputCls } from "@/components/ui";
-import { useStore } from "@/lib/store/store";
+import { Button, Field, inputCls } from "@/components/ui";
+import { api } from "@/lib/api/client";
+import { useAction, useDestinations } from "@/lib/api/queries";
 
 export default function NewTripPage() {
-  const { actions, toast, db } = useStore();
   const router = useRouter();
+  const destinations = useDestinations().data ?? [];
   const [title, setTitle] = useState("");
   const [dest, setDest] = useState<string[]>([]);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [touched, setTouched] = useState(false);
+  const create = useAction((body: object) => api.post<TripSummary>("/trips", body), { invalidate: [["trips"]], success: "Trip created" });
 
-  const autoTitle = dest.length ? db.destinations.find((d) => d.id === dest[0])?.name + (dest.length > 1 ? " & more" : "") : "";
-  const errors = {
-    title: (title || autoTitle).trim().length >= 2 ? undefined : "Give your trip a name.",
-    dates: start && end && end < start ? "End date can't be before the start date." : undefined,
-  };
+  const first = destinations.find((d) => d.id === dest[0]);
+  const autoTitle = first ? first.name + (dest.length > 1 ? " & more" : "") : "";
+  const payload = { title: (title || autoTitle).trim(), destinationIds: dest, startDate: start || null, endDate: end || null };
+  const parsed = createTripSchema.safeParse(payload);
+  const errors: Record<string, string> = {};
+  if (!parsed.success) for (const i of parsed.error.issues) errors[String(i.path[0])] ??= i.message;
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (errors.title || errors.dates) return;
-    const trip = actions.createTrip({ title: title || autoTitle, destinationIds: dest, startDate: start, endDate: end });
-    if (!trip) return;
-    toast("Trip created");
-    router.push(`/trips/${trip.id}`);
+    if (!parsed.success) return;
+    const trip = await create.run(payload);
+    if (trip) router.push(`/trips/${trip.id}`);
   };
 
   return (
@@ -44,15 +46,15 @@ export default function NewTripPage() {
       </Field>
 
       <Field label="Trip name" error={touched ? errors.title : undefined}>
-        <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={autoTitle || "e.g. Japan — 7 Days"} />
+        <input className={inputCls} value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder={autoTitle || "e.g. Japan — 7 Days"} />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Start date">
           <input className={inputCls} type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
-        <Field label="End date" error={touched ? errors.dates : undefined}>
-          <input className={cx(inputCls)} type="date" min={start || undefined} value={end} onChange={(e) => setEnd(e.target.value)} />
+        <Field label="End date" error={touched ? errors.endDate : undefined}>
+          <input className={inputCls} type="date" min={start || undefined} value={end} onChange={(e) => setEnd(e.target.value)} />
         </Field>
       </div>
 
@@ -64,8 +66,8 @@ export default function NewTripPage() {
         <Button type="button" variant="secondary" size="lg" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button type="submit" size="lg" className="flex-1">
-          Create trip
+        <Button type="submit" size="lg" className="flex-1" disabled={create.isPending}>
+          {create.isPending ? "Creating…" : "Create trip"}
         </Button>
       </div>
     </form>

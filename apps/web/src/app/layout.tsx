@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "@/components/layout/Toaster";
-import { StoreProvider } from "@/lib/store/store";
+import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,10 +14,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <StoreProvider>
+        <Providers>
           {children}
           <Toaster />
-        </StoreProvider>
+        </Providers>
       </body>
     </html>
   );

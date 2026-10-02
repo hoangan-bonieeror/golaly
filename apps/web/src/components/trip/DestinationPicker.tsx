@@ -1,18 +1,15 @@
 "use client";
 
-import type { UUID } from "@triply/shared";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
-import { useStore } from "@/lib/store/store";
+import { useDestinations } from "@/lib/api/queries";
 import { cx, inputCls } from "../ui";
 
-export function DestinationPicker({ value, onChange }: { value: UUID[]; onChange: (v: UUID[]) => void }) {
-  const { db } = useStore();
+export function DestinationPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const all = useDestinations().data ?? [];
   const [q, setQ] = useState("");
-  const selected = value.map((id) => db.destinations.find((d) => d.id === id)!).filter(Boolean);
-  const options = db.destinations.filter(
-    (d) => !value.includes(d.id) && (q ? `${d.name} ${d.country}`.toLowerCase().includes(q.toLowerCase()) : true),
-  );
+  const selected = value.map((id) => all.find((d) => d.id === id)).filter((d): d is NonNullable<typeof d> => !!d);
+  const options = all.filter((d) => !value.includes(d.id) && (q ? `${d.name} ${d.country}`.toLowerCase().includes(q.toLowerCase()) : true));
   return (
     <div className="space-y-2">
       {selected.length > 0 && (
@@ -30,7 +27,7 @@ export function DestinationPicker({ value, onChange }: { value: UUID[]; onChange
       )}
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-        <input className={cx(inputCls, "pl-9")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={selected.length ? "Add another stop" : "Where are you going?"} />
+        <input className={cx(inputCls, "pl-9")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={selected.length ? "Add another stop" : "Where are you going?"} aria-label="Search destinations" />
       </div>
       <div className="flex flex-wrap gap-1.5">
         {options.slice(0, q ? 8 : 6).map((d) => (

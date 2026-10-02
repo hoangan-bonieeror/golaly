@@ -11,20 +11,33 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { useUnreadCount } from "@/lib/store/hooks";
-import { useMe } from "@/lib/store/store";
-import { Avatar, Button, cx } from "../ui";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useMe, useUnreadCount } from "@/lib/api/queries";
+import { useNotificationStream } from "@/lib/realtime";
+import { Avatar, Button, PageLoader, cx } from "../ui";
 import { CreateSheet } from "./CreateSheet";
 import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
 
+const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
+const PROTECTED_PREFIX = ["/invitations/", "/trips/new"];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const me = useMe();
-  const unread = useUnreadCount();
+  const router = useRouter();
+  const meQuery = useMe();
+  const me = meQuery.data ?? null;
+  const unread = useUnreadCount(!!me).data ?? 0;
   const [createOpen, setCreateOpen] = useState(false);
+  useNotificationStream(me?.id);
+
+  // Pages that only make sense for a signed-in user. Trips, posts, profiles and
+  // Explore stay viewable when logged out (public content only — enforced by the API).
+  const needsAuth = PROTECTED.includes(pathname) || PROTECTED_PREFIX.some((p) => pathname.startsWith(p)) || /^\/trips\/[^/]+\/settings$/.test(pathname);
+  useEffect(() => {
+    if (!meQuery.isLoading && !me && needsAuth) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [meQuery.isLoading, me, needsAuth, pathname, router]);
 
   const isActive = (href: string) => pathname === href || (href !== "/home" && pathname.startsWith(href));
   const profileHref = me ? `/u/${me.username}` : "/login";
@@ -61,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {!!badge && <span className="ml-auto rounded-full bg-sunset px-2 text-xs font-bold text-white">{badge}</span>}
             </Link>
           ))}
-          <Button className="mt-4" size="lg" onClick={() => setCreateOpen(true)}>
+          <Button className="mt-4" size="lg" onClick={() => (me ? setCreateOpen(true) : router.push("/login"))}>
             <PlusCircle className="size-5" /> Create
           </Button>
         </nav>
@@ -90,7 +103,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-4 md:px-8 md:pb-16 md:pt-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-4 md:px-8 md:pb-16 md:pt-8">
+        {needsAuth && !me ? <PageLoader /> : children}
+      </main>
 
       {/* Mobile bottom nav: Home · Explore · Trips · Create · Notifications · Profile */}
       <nav
@@ -106,7 +121,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon className="size-[22px]" strokeWidth={isActive(href) ? 2.4 : 1.8} />
           </MobileTab>
         ))}
-        <button onClick={() => setCreateOpen(true)} className="flex flex-col items-center justify-center py-2" aria-label="Create">
+        <button onClick={() => (me ? setCreateOpen(true) : router.push("/login"))} className="flex flex-col items-center justify-center py-2" aria-label="Create">
           <span className="flex size-10 items-center justify-center rounded-2xl bg-lagoon text-white shadow-md">
             <PlusCircle className="size-5" />
           </span>

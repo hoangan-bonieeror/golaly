@@ -1,26 +1,16 @@
 "use client";
 
-import { ROLE_LABEL, roleFor } from "@triply/shared";
 import { Luggage, Plus } from "lucide-react";
 import { useState } from "react";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, Chip, EmptyState } from "@/components/ui";
-import { myTrips } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
+import { Button, Chip, EmptyState, ErrorState, Skeleton } from "@/components/ui";
+import { useMyTrips } from "@/lib/api/queries";
 
 type Filter = "all" | "mine" | "shared" | "past";
 
 export default function TripsPage() {
-  const { db, me } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
-  const today = new Date().toISOString().slice(0, 10);
-  const all = myTrips(db, me);
-  const trips = all.filter((t) => {
-    if (filter === "mine") return t.ownerId === me;
-    if (filter === "shared") return t.ownerId !== me;
-    if (filter === "past") return t.endDate && t.endDate < today;
-    return true;
-  });
+  const trips = useMyTrips(filter);
 
   return (
     <div className="space-y-6">
@@ -49,7 +39,15 @@ export default function TripsPage() {
         ))}
       </div>
 
-      {trips.length === 0 ? (
+      {trips.isLoading ? (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="aspect-[5/4]" />
+          ))}
+        </div>
+      ) : trips.isError ? (
+        <ErrorState error={trips.error} onRetry={() => trips.refetch()} />
+      ) : !trips.data?.length ? (
         <EmptyState
           icon={<Luggage className="size-7" />}
           title="Your next adventure starts here."
@@ -65,10 +63,9 @@ export default function TripsPage() {
         />
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.map((t) => {
-            const role = roleFor(t, db.members, me);
-            return <TripCard key={t.id} trip={t} showRole={role && role !== "OWNER" ? ROLE_LABEL[role] : null} />;
-          })}
+          {trips.data.map((t) => (
+            <TripCard key={t.id} trip={t} showRole />
+          ))}
         </div>
       )}
     </div>

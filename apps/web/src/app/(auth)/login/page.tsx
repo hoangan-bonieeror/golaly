@@ -1,31 +1,49 @@
 "use client";
 
+import { loginSchema } from "@triply/shared";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Button, Field, inputCls } from "@/components/ui";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { GoogleButton } from "@/components/auth/GoogleButton";
-import { useStore } from "@/lib/store/store";
+import { Button, Field, inputCls } from "@/components/ui";
+import { ApiError } from "@/lib/api/client";
+import { useSession } from "@/lib/session";
+import { useToast } from "@/lib/toast";
+import { safeNext } from "@/lib/utils";
 
-export default function Login() {
-  const { db, signIn, toast } = useStore();
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <Login />
+    </Suspense>
+  );
+}
+
+function Login() {
+  const { login } = useSession();
+  const toast = useToast();
   const router = useRouter();
-  const [email, setEmail] = useState("an@triply.dev");
-  const [password, setPassword] = useState("demo1234");
+  const next = safeNext(useSearchParams().get("next"));
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Prototype auth: <username>@triply.dev / demo1234. Real auth = POST /api/v1/auth/login (HTTP-only cookie).
-    const handle = email.trim().toLowerCase().split("@")[0];
-    const user = db.users.find((u) => u.displayName.toLowerCase() === handle || u.username === handle);
-    if (!user || password !== "demo1234") {
-      setError("That email and password don't match. Try a demo account below.");
-      return;
+    const parsed = loginSchema.safeParse({ email, password });
+    if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+    setBusy(true);
+    setError(undefined);
+    try {
+      const user = await login(parsed.data);
+      toast(`Welcome back, ${user.displayName}`);
+      router.push(user.onboarded ? next : "/onboarding");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
     }
-    signIn(user.id);
-    toast(`Welcome back, ${user.displayName}`);
-    router.push("/home");
   };
 
   return (
@@ -45,8 +63,8 @@ export default function Login() {
           Forgot password?
         </Link>
       </div>
-      <Button size="lg" className="w-full" type="submit">
-        Log in
+      <Button size="lg" className="w-full" type="submit" disabled={busy}>
+        {busy ? "Logging in…" : "Log in"}
       </Button>
       <GoogleButton />
       <p className="text-center text-sm text-muted">
@@ -55,9 +73,11 @@ export default function Login() {
           Create account
         </Link>
       </p>
-      <div className="rounded-2xl border border-dashed border-line bg-surface p-3 text-xs text-muted">
-        <b className="text-ink-2">Demo accounts</b> (password <code>demo1234</code>): an@, sarah@, minh@, linh@, nam@triply.dev
-      </div>
+      {process.env.NODE_ENV !== "production" && (
+        <div className="rounded-2xl border border-dashed border-line bg-surface p-3 text-xs text-muted">
+          <b className="text-ink-2">Dev demo accounts</b> (after <code>npm run db:seed</code>, password <code>demo1234</code>): an@, sarah@, minh@, linh@, nam@triply.dev
+        </div>
+      )}
     </form>
   );
 }

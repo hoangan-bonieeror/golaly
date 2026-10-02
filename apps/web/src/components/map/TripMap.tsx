@@ -1,23 +1,20 @@
 "use client";
 
-import { ITEM_TYPE_LABEL, type ItineraryItem, type Place, type UUID } from "@triply/shared";
+import { ITEM_TYPE_LABEL, type ItemView, type PlaceView, type TripDetail } from "@triply/shared";
 import { Navigation, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { dayItems, tripDays } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
 import { Chip, cx } from "../ui";
 
 /**
  * Trip map (spec §14) — markers, day filter, selected place, simple A→B→C route.
  *
- * MapAdapter boundary: this prototype renders an offline, dependency-free SVG
- * projection. The production build swaps the <MapCanvas> for MapLibre/Mapbox
- * tiles and a RouteProvider (straight lines today → routing API later)
- * without changing the props below.
+ * MapAdapter boundary: <MapCanvas> is an offline, dependency-free SVG projection
+ * (no API key, works anywhere). Swap it for MapLibre/Mapbox tiles and a RouteProvider
+ * (straight lines today → routing API later) without changing TripMap's props.
  */
 export interface MapStop {
-  item: ItineraryItem;
-  place: Place;
+  item: ItemView;
+  place: PlaceView;
   dayNumber: number;
   order: number;
 }
@@ -25,19 +22,18 @@ export interface MapStop {
 const DAY_COLORS = ["#0e6e6a", "#f26b4e", "#5b4a9e", "#2f6db5", "#c28512", "#b5446e", "#3d8b5a", "#6b7780", "#a4471f", "#1b4965"];
 
 export function TripMap({
-  tripId,
+  trip,
   selectedId,
   onSelect,
   className,
 }: {
-  tripId: UUID;
-  selectedId?: UUID | null;
-  onSelect?: (item: ItineraryItem) => void;
+  trip: TripDetail;
+  selectedId?: string | null;
+  onSelect?: (item: ItemView) => void;
   className?: string;
 }) {
-  const { db } = useStore();
-  const days = tripDays(db, tripId);
-  const multiCity = (db.trips.find((t) => t.id === tripId)?.destinationIds.length ?? 0) > 1;
+  const days = trip.days;
+  const multiCity = trip.destinations.length > 1;
   // Multi-city trips start on Day 1 so markers aren't squeezed into far-apart clusters.
   const [dayFilter, setDayFilter] = useState<number | "all">(multiCity ? 1 : "all");
 
@@ -45,13 +41,12 @@ export function TripMap({
     const out: MapStop[] = [];
     for (const d of days) {
       let order = 0;
-      for (const item of dayItems(db, d.id)) {
-        const place = db.places.find((p) => p.id === item.placeId);
-        if (place) out.push({ item, place, dayNumber: d.dayNumber, order: ++order });
+      for (const item of d.items) {
+        if (item.place) out.push({ item, place: item.place, dayNumber: d.dayNumber, order: ++order });
       }
     }
     return out;
-  }, [db, days]);
+  }, [days]);
 
   // Selecting an item (in the list or on the map) focuses its day.
   useEffect(() => {
@@ -110,7 +105,7 @@ export function TripMap({
   );
 }
 
-function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selectedId?: UUID | null; onSelect?: (i: ItineraryItem) => void }) {
+function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selectedId?: string | null; onSelect?: (i: ItemView) => void }) {
   const W = 600;
   const H = 440;
   const pad = 60;

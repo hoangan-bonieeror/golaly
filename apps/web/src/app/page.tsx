@@ -3,18 +3,18 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LogoMark } from "@/components/layout/Logo";
-import { useStore } from "@/lib/store/store";
+import { useMe } from "@/lib/api/queries";
 
 /** Splash (spec §8). */
 export default function Splash() {
   const router = useRouter();
-  const { me, ready } = useStore();
+  const me = useMe();
 
   useEffect(() => {
-    if (!ready) return;
-    const t = setTimeout(() => router.replace(me ? "/home" : "/welcome"), 1400);
+    if (me.isLoading) return;
+    const t = setTimeout(() => router.replace(me.data ? "/home" : "/welcome"), 1200);
     return () => clearTimeout(t);
-  }, [ready, me, router]);
+  }, [me.isLoading, me.data, router]);
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center bg-lagoon px-6 text-center text-white">

@@ -1,37 +1,54 @@
 "use client";
 
+import { registerSchema } from "@triply/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button, Field, inputCls } from "@/components/ui";
-import { useStore } from "@/lib/store/store";
+import { ApiError } from "@/lib/api/client";
+import { useSession } from "@/lib/session";
+import { useToast } from "@/lib/toast";
 
 export default function Register() {
-  const { actions, signIn, toast } = useStore();
+  const { register } = useSession();
+  const toast = useToast();
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "", username: "" });
   const [touched, setTouched] = useState(false);
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
 
-  // Mirrors the shared Zod schema that the API will also enforce.
-  const errors = {
-    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email) ? undefined : "Enter a valid email address.",
-    password: form.password.length >= 8 ? undefined : "At least 8 characters.",
-    username: /^[a-z0-9._]{3,24}$/i.test(form.username) ? undefined : "3–24 letters, numbers, dots or underscores.",
-  };
+  // Same Zod schema the API enforces.
+  const parsed = registerSchema.safeParse(form);
+  const fieldErrors: Record<string, string> = {};
+  if (!parsed.success) for (const i of parsed.error.issues) fieldErrors[String(i.path[0])] ??= i.message;
+  const err = (k: string) => (touched ? fieldErrors[k] : undefined) ?? serverErrors[k];
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (Object.values(errors).some(Boolean)) return;
-    const user = actions.register(form);
-    if (!user) return;
-    signIn(user.id);
-    toast("Account created");
-    router.push("/onboarding");
+    if (!parsed.success) return;
+    setBusy(true);
+    setServerErrors({});
+    try {
+      await register(parsed.data);
+      toast("Account created");
+      router.push("/onboarding");
+    } catch (e) {
+      if (e instanceof ApiError) {
+        const key = /username/i.test(e.message) ? "username" : /email/i.test(e.message) ? "email" : "password";
+        setServerErrors(e.fields ?? { [key]: e.message });
+      } else toast("Something went wrong. Please try again.", "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [k]: e.target.value });
+    setServerErrors({});
+  };
 
   return (
     <form onSubmit={submit} className="animate-rise space-y-5" noValidate>
@@ -39,17 +56,17 @@ export default function Register() {
         <h1 className="font-display text-3xl font-semibold">Create your account</h1>
         <p className="mt-1 text-sm text-muted">It takes less than a minute.</p>
       </div>
-      <Field label="Email" error={touched ? errors.email : undefined}>
+      <Field label="Email" error={err("email")}>
         <input className={inputCls} type="email" autoComplete="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
       </Field>
-      <Field label="Username" error={touched ? errors.username : undefined} hint="This is how friends find you.">
+      <Field label="Username" error={err("username")} hint="This is how friends find you.">
         <input className={inputCls} autoComplete="username" value={form.username} onChange={set("username")} placeholder="an.nguyen" />
       </Field>
-      <Field label="Password" error={touched ? errors.password : undefined}>
+      <Field label="Password" error={err("password")} hint="At least 8 characters.">
         <input className={inputCls} type="password" autoComplete="new-password" value={form.password} onChange={set("password")} />
       </Field>
-      <Button size="lg" className="w-full" type="submit">
-        Create account
+      <Button size="lg" className="w-full" type="submit" disabled={busy}>
+        {busy ? "Creating…" : "Create account"}
       </Button>
       <GoogleButton />
       <p className="text-center text-sm text-muted">

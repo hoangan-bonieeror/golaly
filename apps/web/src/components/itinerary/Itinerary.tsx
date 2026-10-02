@@ -1,34 +1,40 @@
 "use client";
 
-import type { ItineraryItem, UUID } from "@triply/shared";
+import type { ItemView, TripDetail } from "@triply/shared";
 import { ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { dayItems, tripDays, userById } from "@/lib/mock/selectors";
-import { usePermissions } from "@/lib/store/hooks";
-import { useStore } from "@/lib/store/store";
+import { api } from "@/lib/api/client";
+import { keys, useAction, useMe } from "@/lib/api/queries";
 import { cx, timeAgo } from "../ui";
 import { ItemSheet } from "./ItemSheet";
 import { ItemTypeIcon } from "./ItemTypeIcon";
 
 export function Itinerary({
-  tripId,
+  trip,
   selectedId,
   onSelect,
 }: {
-  tripId: UUID;
-  selectedId?: UUID | null;
-  onSelect?: (item: ItineraryItem) => void;
+  trip: TripDetail;
+  selectedId?: string | null;
+  onSelect?: (item: ItemView) => void;
 }) {
-  const { db, me, actions, toast } = useStore();
-  const perm = usePermissions(tripId);
-  const days = tripDays(db, tripId);
-  const canEdit = perm.can("itinerary.edit");
-  const [sheet, setSheet] = useState<{ open: boolean; dayId?: UUID; item?: ItineraryItem | null }>({ open: false });
-  const [dragId, setDragId] = useState<UUID | null>(null);
+  const me = useMe().data;
+  const days = trip.days;
+  const may = (a: string) => trip.permissions.includes(a as never);
+  const canEdit = may("itinerary.edit");
+  const canAdd = may("itinerary.add");
+  const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; item?: ItemView | null }>({ open: false });
+  const [dragId, setDragId] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 
-  const drop = (dayId: UUID, index: number) => {
-    if (dragId) actions.reorderItem(dragId, { dayId, index });
+  const invalidate = [keys.trip(trip.id), ["trips"]];
+  const reorder = useAction((a: { id: string; dayId: string; index: number }) => api.post(`/items/${a.id}/reorder`, { dayId: a.dayId, index: a.index }), { invalidate });
+  const duplicate = useAction((id: string) => api.post(`/items/${id}/duplicate`), { invalidate, success: "Item duplicated" });
+  const remove = useAction((id: string) => api.delete(`/items/${id}`), { invalidate, success: "Item removed" });
+  const addDay = useAction(() => api.post(`/trips/${trip.id}/days`), { invalidate, success: "Day added" });
+
+  const drop = (dayId: string, index: number) => {
+    if (dragId) void reorder.run({ id: dragId, dayId, index });
     setDragId(null);
     setOverKey(null);
   };
@@ -36,7 +42,7 @@ export function Itinerary({
   return (
     <div className="space-y-8">
       {days.map((day) => {
-        const items = dayItems(db, day.id);
+        const items = day.items;
         return (
           <section key={day.id} aria-labelledby={`day-${day.id}`}>
             <header className="sticky top-14 z-10 -mx-1 mb-2 flex items-baseline gap-3 bg-sand/90 px-1 py-2 backdrop-blur md:top-0">
@@ -65,8 +71,8 @@ export function Itinerary({
                 </li>
               )}
               {items.map((it, idx) => {
-                const place = db.places.find((p) => p.id === it.placeId);
-                const editor = it.updatedBy && it.updatedBy !== me ? userById(db, it.updatedBy) : null;
+                const place = it.place;
+                const editor = it.updatedBy && it.updatedBy.id !== me?.id ? it.updatedBy : null;
                 return (
                   <li
                     key={it.id}
@@ -134,15 +140,9 @@ export function Itinerary({
                               first={idx === 0}
                               last={idx === items.length - 1}
                               onEdit={() => setSheet({ open: true, item: it })}
-                              onDuplicate={() => {
-                                actions.duplicateItem(it.id);
-                                toast("Item duplicated");
-                              }}
-                              onMove={(dir) => actions.reorderItem(it.id, { dayId: day.id, index: idx + dir })}
-                              onDelete={() => {
-                                actions.deleteItem(it.id);
-                                toast("Item removed");
-                              }}
+                              onDuplicate={() => duplicate.run(it.id)}
+                              onMove={(dir) => reorder.run({ id: it.id, dayId: day.id, index: idx + dir })}
+                              onDelete={() => remove.run(it.id)}
                             />
                           </>
                         )}
@@ -153,7 +153,7 @@ export function Itinerary({
               })}
             </ol>
 
-            {perm.can("itinerary.add") && (
+            {canAdd && (
               <button
                 onClick={() => setSheet({ open: true, dayId: day.id })}
                 className="ml-[60px] mt-1 flex h-11 w-[calc(100%-60px)] items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-lagoon hover:border-lagoon hover:bg-lagoon-50/60"
@@ -165,12 +165,10 @@ export function Itinerary({
         );
       })}
 
-      {perm.can("itinerary.add") && (
+      {canAdd && (
         <button
-          onClick={() => {
-            actions.addDay(tripId);
-            toast("Day added");
-          }}
+          disabled={addDay.isPending}
+          onClick={() => addDay.run(undefined)}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-sand-2 text-sm font-semibold text-ink-2 hover:bg-line"
         >
           <CalendarPlus className="size-4" /> Add another day
@@ -178,7 +176,7 @@ export function Itinerary({
       )}
 
       {/* One-hand mobile FAB */}
-      {perm.can("itinerary.add") && (
+      {canAdd && (
         <button
           onClick={() => setSheet({ open: true, dayId: days[0]?.id })}
           className="fixed bottom-20 left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-lagoon px-5 font-semibold text-white shadow-pop md:hidden"
@@ -187,7 +185,7 @@ export function Itinerary({
         </button>
       )}
 
-      <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} tripId={tripId} defaultDayId={sheet.dayId} item={sheet.item} />
+      <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} item={sheet.item} />
     </div>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { ITEM_TYPE_LABEL, type ItineraryItem, type ItineraryItemType, type UUID } from "@triply/shared";
+import { ITEM_TYPE_LABEL, createItemSchema, type ItemView, type ItineraryItemType, type PlaceView, type TripDetail } from "@triply/shared";
 import { Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { tripDays } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api/client";
+import { keys, useAction, usePlaceSearch } from "@/lib/api/queries";
+import { useDebounced } from "@/lib/hooks";
 import { Button, Field, Sheet, cx, inputCls } from "../ui";
 import { ItemTypeIcon, TYPE_META } from "./ItemTypeIcon";
 
@@ -17,36 +18,34 @@ const TYPES: ItineraryItemType[] = ["PLACE", "RESTAURANT", "HOTEL", "ACTIVITY", 
 export function ItemSheet({
   open,
   onClose,
-  tripId,
+  trip,
   defaultDayId,
   item,
 }: {
   open: boolean;
   onClose: () => void;
-  tripId: UUID;
-  defaultDayId?: UUID;
-  item?: ItineraryItem | null;
+  trip: TripDetail;
+  defaultDayId?: string;
+  item?: ItemView | null;
 }) {
-  const { db, actions, toast } = useStore();
-  const trip = db.trips.find((t) => t.id === tripId)!;
-  const days = tripDays(db, tripId);
-
   const [type, setType] = useState<ItineraryItemType>("PLACE");
-  const [dayId, setDayId] = useState<UUID>("");
+  const [dayId, setDayId] = useState("");
   const [title, setTitle] = useState("");
-  const [placeId, setPlaceId] = useState<UUID | undefined>();
+  const [place, setPlace] = useState<PlaceView | null>(null);
   const [startTime, setStart] = useState("");
   const [endTime, setEnd] = useState("");
   const [notes, setNotes] = useState("");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string>();
+  const debouncedQ = useDebounced(q, 200);
+  const suggestions = usePlaceSearch(debouncedQ, trip.id);
 
   useEffect(() => {
     if (!open) return;
     setType(item?.type ?? "PLACE");
-    setDayId(item?.dayId ?? defaultDayId ?? days[0]?.id ?? "");
+    setDayId(item?.dayId ?? defaultDayId ?? trip.days[0]?.id ?? "");
     setTitle(item?.title ?? "");
-    setPlaceId(item?.placeId);
+    setPlace(item?.place ?? null);
     setStart(item?.startTime ?? "");
     setEnd(item?.endTime ?? "");
     setNotes(item?.notes ?? "");
@@ -55,32 +54,34 @@ export function ItemSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item?.id]);
 
-  const place = db.places.find((p) => p.id === placeId);
-  const suggestions = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return db.places
-      .filter((p) => (s ? p.name.toLowerCase().includes(s) || p.address.toLowerCase().includes(s) : trip.destinationIds.includes(p.destinationId)))
-      .filter((p) => type === "NOTE" || type === "PLACE" || p.category === type || s)
-      .sort((a, b) => Number(trip.destinationIds.includes(b.destinationId)) - Number(trip.destinationIds.includes(a.destinationId)))
-      .slice(0, 6);
-  }, [db.places, q, trip.destinationIds, type]);
+  const invalidate = [keys.trip(trip.id), ["trips"]];
+  const create = useAction((body: object) => api.post<ItemView>(`/days/${dayId}/items`, body), { invalidate, success: () => `Added to Day ${trip.days.find((d) => d.id === dayId)?.dayNumber}` });
+  const update = useAction(
+    async (body: object) => {
+      const updated = await api.patch<ItemView>(`/items/${item!.id}`, body);
+      if (item!.dayId !== dayId) await api.post(`/items/${item!.id}/reorder`, { dayId, index: 999 });
+      return updated;
+    },
+    { invalidate, success: "Item updated" },
+  );
 
-  const submit = (e: React.FormEvent) => {
+  const list = suggestions.data ?? [];
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalTitle = title.trim() || place?.name || "";
-    if (!finalTitle) return setError(type === "NOTE" ? "Write a note first." : "Add a title or pick a place.");
-    if (startTime && endTime && endTime < startTime) return setError("End time should be after the start time.");
-    const payload = { type, title: finalTitle, placeId: type === "NOTE" ? undefined : placeId, startTime: startTime || undefined, endTime: endTime || undefined, notes: notes.trim() || undefined };
-    if (item) {
-      if (!actions.updateItem(item.id, payload)) return;
-      if (item.dayId !== dayId) actions.reorderItem(item.id, { dayId, index: 999 });
-      toast("Item updated");
-    } else {
-      const created = actions.addItem(dayId, payload);
-      if (!created) return;
-      toast(`Added to Day ${days.find((d) => d.id === dayId)?.dayNumber}`);
-    }
-    onClose();
+    const payload = {
+      type,
+      title: title.trim() || place?.name || "",
+      placeId: type === "NOTE" ? null : (place?.id ?? null),
+      startTime: startTime || null,
+      endTime: endTime || null,
+      notes: type === "NOTE" ? null : notes.trim() || null,
+    };
+    // Same schema the API enforces.
+    const parsed = createItemSchema.safeParse(payload);
+    if (!parsed.success) return setError(parsed.error.issues[0]?.message ?? (type === "NOTE" ? "Write a note first." : "Add a title or pick a place."));
+    const ok = item ? await update.run(payload) : await create.run(payload);
+    if (ok) onClose();
   };
 
   return (
@@ -118,7 +119,7 @@ export function ItemSheet({
                   <div className="truncate text-sm font-semibold">{place.name}</div>
                   <div className="truncate text-xs text-muted">{place.address}</div>
                 </div>
-                <button type="button" onClick={() => setPlaceId(undefined)} aria-label="Clear place" className="rounded-full p-1.5 hover:bg-surface">
+                <button type="button" onClick={() => setPlace(null)} aria-label="Clear place" className="rounded-full p-1.5 hover:bg-surface">
                   <X className="size-4" />
                 </button>
               </div>
@@ -126,15 +127,15 @@ export function ItemSheet({
               <>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-                  <input className={cx(inputCls, "pl-9")} placeholder="Search places" value={q} onChange={(e) => setQ(e.target.value)} />
+                  <input className={cx(inputCls, "pl-9")} placeholder="Search places" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search places" />
                 </div>
-                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
-                  {suggestions.map((p) => (
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto" aria-busy={suggestions.isFetching}>
+                  {list.map((p) => (
                     <button
                       type="button"
                       key={p.id}
                       onClick={() => {
-                        setPlaceId(p.id);
+                        setPlace(p);
                         if (!title) setTitle(p.name);
                         if (type === "PLACE" && p.category !== "PLACE") setType(p.category);
                       }}
@@ -143,11 +144,13 @@ export function ItemSheet({
                       <ItemTypeIcon type={p.category} size="sm" />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">{p.name}</span>
-                        <span className="block truncate text-xs text-muted">{p.address}</span>
+                        <span className="block truncate text-xs text-muted">
+                          {p.address} · {p.destinationName}
+                        </span>
                       </span>
                     </button>
                   ))}
-                  {suggestions.length === 0 && <p className="px-2 py-2 text-xs text-muted">No matches — you can still add it with a custom title.</p>}
+                  {!suggestions.isFetching && list.length === 0 && <p className="px-2 py-2 text-xs text-muted">No matches — you can still add it with a custom title.</p>}
                 </div>
               </>
             )}
@@ -155,13 +158,13 @@ export function ItemSheet({
         )}
 
         <Field label={type === "NOTE" ? "Note" : "Title"}>
-          <input className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={type === "NOTE" ? "e.g. Free afternoon" : place?.name ?? "e.g. Lunch"} />
+          <input className={inputCls} value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} placeholder={type === "NOTE" ? "e.g. Free afternoon" : (place?.name ?? "e.g. Lunch")} />
         </Field>
 
         <div className="grid grid-cols-3 gap-3">
           <Field label="Day">
             <select className={inputCls} value={dayId} onChange={(e) => setDayId(e.target.value)}>
-              {days.map((d) => (
+              {trip.days.map((d) => (
                 <option key={d.id} value={d.id}>
                   Day {d.dayNumber}
                 </option>
@@ -178,12 +181,16 @@ export function ItemSheet({
 
         {type !== "NOTE" && (
           <Field label="Notes" hint="Visible to everyone on the trip.">
-            <textarea className={cx(inputCls, "h-20 py-2.5")} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Tickets, reservations, tips…" />
+            <textarea className={cx(inputCls, "h-20 py-2.5")} maxLength={2000} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Tickets, reservations, tips…" />
           </Field>
         )}
 
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <Button type="submit" size="lg" className="w-full">
+        {error && (
+          <p className="text-sm text-danger" role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit" size="lg" className="w-full" disabled={create.isPending || update.isPending}>
           {item ? "Save changes" : "Add to itinerary"}
         </Button>
       </form>

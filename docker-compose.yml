@@ -1,0 +1,52 @@
+# Local PostgreSQL for development:   docker compose up -d db
+# Full stack in containers (optional): docker compose --profile full up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: triply
+      POSTGRES_PASSWORD: triply
+      POSTGRES_DB: triply
+    ports:
+      - "5432:5432"
+    volumes:
+      - triply-db:/var/lib/postgresql/data
+      - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triply -d triply"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    profiles: ["full"]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your shell or a .env file next to docker-compose.yml}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      MEDIA_DIR: /data/media
+    volumes:
+      - triply-media:/data/media
+    ports:
+      - "4000:4000"
+
+  web:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_ORIGIN: http://api:4000
+        NEXT_PUBLIC_REALTIME_URL: ${NEXT_PUBLIC_REALTIME_URL:-http://localhost:4000}
+    depends_on: [api]
+    ports:
+      - "3000:3000"
+
+volumes:
+  triply-db:
+  triply-media:

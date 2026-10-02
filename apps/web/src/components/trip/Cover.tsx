@@ -1,7 +1,7 @@
 /**
  * Generated "postcard" cover art — an original TRIPLY visual motif used in
  * place of user photos in the prototype. Deterministic per seed, so every
- * trip/post keeps its own look. Real media (object storage) replaces this later.
+ * trip/post keeps its own look. When a photo was uploaded, it's layered on top.
  */
 import { cx } from "@/lib/utils";
 
@@ -33,7 +33,9 @@ export function Cover({
   className,
   children,
   rounded = true,
+  imageUrl,
 }: {
+  imageUrl?: string | null;
   palette: [string, string];
   seed: string;
   className?: string;
@@ -70,6 +72,11 @@ export function Cover({
           <path d={ridge(r, 262, 40)} fill={a} opacity="0.9" />
         )}
       </svg>
+      {imageUrl && (
+        // Uploaded photo (served from /media, already resized + EXIF-stripped by the API)
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="" className="absolute inset-0 size-full object-cover" loading="lazy" />
+      )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/0 to-black/0" />
       {children && <div className="relative h-full">{children}</div>}
     </div>

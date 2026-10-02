@@ -5,7 +5,8 @@ import { Baby, Camera, Heart, Landmark, Mountain, ShoppingBag, Sparkles, Sun, Te
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, cx } from "@/components/ui";
-import { useStore } from "@/lib/store/store";
+import { api } from "@/lib/api/client";
+import { keys, useAction } from "@/lib/api/queries";
 
 const typeIcon: Record<TravelerType, React.ElementType> = { SOLO: User, COUPLE: Heart, FRIENDS: Users, FAMILY: Baby, ALL: Sparkles };
 const interestIcon: Record<Interest, React.ElementType> = {
@@ -13,15 +14,14 @@ const interestIcon: Record<Interest, React.ElementType> = {
 };
 
 export default function Onboarding() {
-  const { actions } = useStore();
+  const save = useAction((body: object) => api.patch("/users/me", body), { invalidate: [keys.me] });
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [type, setType] = useState<TravelerType>();
   const [interests, setInterests] = useState<Interest[]>([]);
 
-  const finish = () => {
-    actions.updateProfile({ travelerType: type, interests });
-    router.push("/home");
+  const finish = async () => {
+    if (await save.run({ travelerType: type ?? null, interests })) router.push("/home");
   };
 
   return (

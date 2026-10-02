@@ -5,23 +5,17 @@ import { useState } from "react";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { PostCard } from "@/components/social/PostCard";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, EmptyState, Tabs } from "@/components/ui";
-import { canView } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
+import { Button, EmptyState, Skeleton, Tabs } from "@/components/ui";
+import { useSavedPlaces, useSavedPosts, useSavedTrips } from "@/lib/api/queries";
 
 type Tab = "trips" | "posts" | "places";
 
 export default function SavedPage() {
-  const { db, me } = useStore();
   const [tab, setTab] = useState<Tab>("trips");
-  // A saved trip that later went private disappears from Saved for non-members.
-  const trips = db.savedTrips
-    .filter((s) => s.userId === me)
-    .map((s) => db.trips.find((t) => t.id === s.tripId && !t.deletedAt))
-    .filter((t): t is NonNullable<typeof t> => !!t && canView(db, t, me));
-  const posts = db.savedPosts.filter((s) => s.userId === me).map((s) => db.posts.find((p) => p.id === s.postId)!).filter(Boolean);
-  const places = db.savedPlaces.filter((s) => s.userId === me).map((s) => db.places.find((p) => p.id === s.placeId)!).filter(Boolean);
-
+  const trips = useSavedTrips();
+  const posts = useSavedPosts();
+  const places = useSavedPlaces();
+  const current = { trips, posts, places }[tab];
   const empty = {
     trips: "Save trips you want to explore later.",
     posts: "Save posts that inspire your next trip.",
@@ -35,35 +29,34 @@ export default function SavedPage() {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "trips", label: `Trips · ${trips.length}` },
-          { value: "posts", label: `Posts · ${posts.length}` },
-          { value: "places", label: `Places · ${places.length}` },
+          { value: "trips", label: `Trips · ${trips.data?.length ?? "…"}` },
+          { value: "posts", label: `Posts · ${posts.data?.length ?? "…"}` },
+          { value: "places", label: `Places · ${places.data?.length ?? "…"}` },
         ]}
       />
-      {tab === "trips" && trips.length > 0 && (
+      {current.isLoading && <Skeleton className="h-64" />}
+      {tab === "trips" && !!trips.data?.length && (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.map((t) => (
+          {trips.data.map((t) => (
             <TripCard key={t.id} trip={t} />
           ))}
         </div>
       )}
-      {tab === "posts" && posts.length > 0 && (
+      {tab === "posts" && !!posts.data?.length && (
         <div className="grid gap-6 md:grid-cols-2">
-          {posts.map((p) => (
+          {posts.data.map((p) => (
             <PostCard key={p.id} post={p} />
           ))}
         </div>
       )}
-      {tab === "places" && places.length > 0 && (
+      {tab === "places" && !!places.data?.length && (
         <div className="grid gap-2.5 sm:grid-cols-2">
-          {places.map((p) => (
+          {places.data.map((p) => (
             <PlaceRow key={p.id} place={p} />
           ))}
         </div>
       )}
-      {((tab === "trips" && !trips.length) || (tab === "posts" && !posts.length) || (tab === "places" && !places.length)) && (
-        <EmptyState icon={<Bookmark className="size-7" />} title={empty} action={<Button href="/explore">Explore</Button>} />
-      )}
+      {current.data && current.data.length === 0 && <EmptyState icon={<Bookmark className="size-7" />} title={empty} action={<Button href="/explore">Explore</Button>} />}
     </div>
   );
 }

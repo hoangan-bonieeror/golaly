@@ -1,61 +1,76 @@
 "use client";
 
-import type { Post } from "@triply/shared";
+import type { PostView } from "@triply/shared";
 import { Bookmark, CalendarDays, Heart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import Link from "next/link";
-import { routeLabel, tripStats, userById } from "@/lib/mock/selectors";
-import { useStore } from "@/lib/store/store";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api/client";
+import { useAction, useMe } from "@/lib/api/queries";
+import { useToast } from "@/lib/toast";
 import { Cover } from "../trip/Cover";
 import { Avatar, Button, cx, formatCount, timeAgo } from "../ui";
 
 export function useShare() {
-  const { toast } = useStore();
-  return async (path: string) => {
+  const toast = useToast();
+  return async (path: string, title?: string) => {
     const url = typeof window !== "undefined" ? window.location.origin + path : path;
     try {
-      await navigator.clipboard.writeText(url);
-      toast("Link copied");
+      if (navigator.share && /Mobi/i.test(navigator.userAgent)) await navigator.share({ url, title });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast("Link copied");
+      }
     } catch {
-      toast("Link: " + url);
+      /* user cancelled share sheet */
     }
   };
 }
 
-export function PostCard({ post }: { post: Post }) {
-  const { db, me, actions } = useStore();
+/** Like / save toggles for a post, refreshing every list it may appear in. */
+export function usePostActions(post: PostView) {
+  const invalidate = [["feed"], ["post", post.id], ["posts"], ["profile"], ["destination"]];
+  const like = useAction((on: boolean) => (on ? api.post<PostView>(`/posts/${post.id}/like`) : api.delete<PostView>(`/posts/${post.id}/like`)), { invalidate });
+  const save = useAction((on: boolean) => (on ? api.post<PostView>(`/posts/${post.id}/save`) : api.delete<PostView>(`/posts/${post.id}/save`)), {
+    invalidate,
+    success: (r) => (r.savedByMe ? "Post saved" : "Removed from saved"),
+  });
+  return { like, save };
+}
+
+export function PostCard({ post }: { post: PostView }) {
+  const me = useMe().data;
+  const router = useRouter();
   const share = useShare();
-  const author = userById(db, post.userId);
-  const trip = post.tripId ? db.trips.find((t) => t.id === post.tripId && !t.deletedAt) : undefined;
-  const stats = trip ? tripStats(db, trip) : null;
-  const liked = db.likes.some((l) => l.userId === me && l.postId === post.id);
-  const saved = db.savedPosts.some((l) => l.userId === me && l.postId === post.id);
-  const dest = db.destinations.find((d) => d.id === post.destinationId);
+  const { like, save } = usePostActions(post);
+  const trip = post.trip;
+  const requireLogin = (fn: () => void) => (me ? fn() : router.push("/login"));
+  const photo = post.photos[0] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null };
 
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">
       <header className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/u/${author?.username}`}>
-          <Avatar user={author} size={38} />
+        <Link href={`/u/${post.author.username}`}>
+          <Avatar user={post.author} size={38} />
         </Link>
         <div className="min-w-0 flex-1 leading-tight">
-          <Link href={`/u/${author?.username}`} className="text-sm font-semibold hover:underline">
-            {author?.displayName}
+          <Link href={`/u/${post.author.username}`} className="text-sm font-semibold hover:underline">
+            {post.author.displayName}
           </Link>
           <div className="truncate text-xs text-muted">
-            {dest ? `${dest.name}, ${dest.country}` : "Travel story"} · {timeAgo(post.createdAt)}
+            {post.destination ? `${post.destination.name}, ${post.destination.country}` : "Travel story"} · {timeAgo(post.createdAt)}
           </div>
         </div>
       </header>
 
       <Link href={`/posts/${post.id}`} className="block">
-        <Cover palette={post.photos[0]} seed={post.id} rounded={false} className="aspect-[16/10] w-full">
+        <Cover palette={photo.palette} imageUrl={photo.url} seed={post.id} rounded={false} className="aspect-[16/10] w-full">
           <div className="flex h-full items-end p-4">
             {trip && (
               <div className="text-white">
                 <div className="font-display text-2xl font-semibold leading-tight drop-shadow">{trip.title}</div>
                 <div className="mt-0.5 flex items-center gap-1 text-sm text-white/90">
                   <MapPin className="size-3.5" />
-                  {routeLabel(db, trip)}
+                  {trip.route}
                 </div>
               </div>
             )}
@@ -64,35 +79,35 @@ export function PostCard({ post }: { post: Post }) {
       </Link>
 
       <div className="px-4 pt-3">
-        {stats && (
+        {trip && (
           <div className="mb-2 flex flex-wrap gap-2 text-xs font-semibold text-ink-2">
             <span className="flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1">
-              <CalendarDays className="size-3.5" /> {stats.days} days
+              <CalendarDays className="size-3.5" /> {trip.stats.days} days
             </span>
             <span className="flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1">
-              <MapPin className="size-3.5" /> {stats.places} places
+              <MapPin className="size-3.5" /> {trip.stats.places} places
             </span>
           </div>
         )}
         <Link href={`/posts/${post.id}`}>
           <h3 className="font-semibold leading-snug">{post.title}</h3>
-          <p className="mt-1 line-clamp-2 text-sm text-ink-2">{post.body}</p>
+          {post.body && <p className="mt-1 line-clamp-2 text-sm text-ink-2">{post.body}</p>}
         </Link>
       </div>
 
       <footer className="flex items-center gap-1 px-2 py-2">
-        <ActionBtn label={liked ? "Unlike" : "Like"} onClick={() => actions.toggleLike(post.id)} active={liked}>
-          <Heart className={cx("size-5", liked && "fill-sunset text-sunset")} />
+        <ActionBtn label={post.likedByMe ? "Unlike" : "Like"} onClick={() => requireLogin(() => like.run(!post.likedByMe))} active={post.likedByMe}>
+          <Heart className={cx("size-5", post.likedByMe && "fill-sunset text-sunset")} />
           {formatCount(post.likeCount)}
         </ActionBtn>
         <ActionBtn label="Comments" href={`/posts/${post.id}#comments`}>
           <MessageCircle className="size-5" />
           {formatCount(post.commentCount)}
         </ActionBtn>
-        <ActionBtn label={saved ? "Unsave" : "Save"} onClick={() => actions.toggleSavePost(post.id)} active={saved}>
-          <Bookmark className={cx("size-5", saved && "fill-ink")} />
+        <ActionBtn label={post.savedByMe ? "Unsave" : "Save"} onClick={() => requireLogin(() => save.run(!post.savedByMe))} active={post.savedByMe}>
+          <Bookmark className={cx("size-5", post.savedByMe && "fill-ink")} />
         </ActionBtn>
-        <ActionBtn label="Share" onClick={() => share(`/posts/${post.id}`)}>
+        <ActionBtn label="Share" onClick={() => share(`/posts/${post.id}`, post.title)}>
           <Share2 className="size-5" />
         </ActionBtn>
         {trip && (

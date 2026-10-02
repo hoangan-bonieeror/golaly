@@ -1,7 +1,6 @@
 "use client";
 
-import type { User } from "@triply/shared";
-import { X } from "lucide-react";
+import { AlertTriangle, Compass, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useId, useRef } from "react";
 import { cx } from "@/lib/utils";
@@ -60,11 +59,16 @@ export function IconButton({ label, className, children, ...rest }: React.Button
 }
 
 // ── Avatar ───────────────────────────────────────────────────────────────
-export function Avatar({ user, size = 36, ring }: { user?: Pick<User, "displayName" | "avatarHue"> | null; size?: number; ring?: boolean }) {
+type AvatarUser = { displayName: string; avatarHue: number; avatarUrl?: string | null };
+export function Avatar({ user, size = 36, ring }: { user?: AvatarUser | null; size?: number; ring?: boolean }) {
   const hue = user?.avatarHue ?? 180;
+  const cls = cx("inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white select-none", ring && "ring-2 ring-surface");
+  if (user?.avatarUrl)
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={user.avatarUrl} alt="" width={size} height={size} className={cx(cls, "object-cover")} style={{ width: size, height: size }} />;
   return (
     <span
-      className={cx("inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white select-none", ring && "ring-2 ring-surface")}
+      className={cls}
       style={{
         width: size,
         height: size,
@@ -208,3 +212,30 @@ export function SectionTitle({ children, action }: { children: React.ReactNode; 
 
 
 
+
+// ── Loading states ───────────────────────────────────────────────────────
+export function Skeleton({ className }: { className?: string }) {
+  return <div className={cx("animate-pulse rounded-2xl bg-sand-2", className)} aria-hidden />;
+}
+
+export function PageLoader({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label={label}>
+      <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-lagoon" />
+    </div>
+  );
+}
+
+/** Friendly full-panel error for failed queries (spec §40). */
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const status = (error as { status?: number })?.status;
+  const message = (error as { message?: string })?.message ?? "Something went wrong. Please try again.";
+  return (
+    <EmptyState
+      icon={status === 403 ? <Lock className="size-7" /> : status === 404 ? <Compass className="size-7" /> : <AlertTriangle className="size-7" />}
+      title={status === 404 ? "We couldn't find that" : status === 403 ? message : "Something went wrong"}
+      body={status === 403 ? undefined : status === 404 ? "It may have been deleted or the link is wrong." : message}
+      action={onRetry && status !== 403 && status !== 404 ? <Button onClick={onRetry}>Try again</Button> : <Button href="/home">Go home</Button>}
+    />
+  );
+}

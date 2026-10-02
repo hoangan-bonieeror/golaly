@@ -1,12 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui";
-import { useStore } from "@/lib/store/store";
+import { useToast } from "@/lib/toast";
 
 export function GoogleButton() {
-  const { toast } = useStore();
+  const toast = useToast();
   return (
-    <Button type="button" variant="secondary" size="lg" className="w-full" onClick={() => toast("Google sign-in is planned for P1")}>
+    <Button type="button" variant="secondary" size="lg" className="w-full" onClick={() => toast("Google sign-in is coming soon (P1). Use email for now.")}>
       <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
         <path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8.1z" />
         <path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z" />
