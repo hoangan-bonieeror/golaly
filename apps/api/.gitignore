@@ -1,0 +1,5 @@
+dist
+.env
+storage
+src/generated
+coverage

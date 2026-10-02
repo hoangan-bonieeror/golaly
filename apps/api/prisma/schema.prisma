@@ -1,0 +1,522 @@
+// TRIPLY database schema (spec §24–26).
+// UUID primary keys everywhere — nothing sequential is ever exposed publicly.
+// Soft deletion (deletedAt) for users, trips, posts and comments.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TripVisibility {
+  PRIVATE
+  LINK_ONLY
+  PUBLIC
+}
+
+enum TripRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum ItemType {
+  PLACE
+  RESTAURANT
+  HOTEL
+  FLIGHT
+  TRANSPORTATION
+  ACTIVITY
+  NOTE
+}
+
+enum PostVisibility {
+  PUBLIC
+  FOLLOWERS
+  DRAFT
+}
+
+enum TravelerType {
+  SOLO
+  COUPLE
+  FRIENDS
+  FAMILY
+  ALL
+}
+
+enum NotificationType {
+  TRIP_INVITE
+  TRIP_ITEM_ADDED
+  TRIP_ITEM_UPDATED
+  TRIP_MEMBER_ROLE_CHANGED
+  COMMENT
+  LIKE
+  FOLLOW
+  TRIP_SAVED
+  TRIP_FORKED
+}
+
+enum ReportTarget {
+  POST
+  COMMENT
+  USER
+  TRIP
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE
+  MISLEADING
+  OTHER
+}
+
+// ── Users ────────────────────────────────────────────────────────────────
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  isDemo       Boolean   @default(false) @map("is_demo")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  profile        UserProfile?
+  sessions       Session[]
+  resetTokens    PasswordResetToken[]
+  ownedTrips     Trip[]               @relation("TripOwner")
+  memberships    TripMember[]
+  posts          Post[]
+  comments       PostComment[]
+  likes          PostLike[]
+  following      Follow[]             @relation("Follower")
+  followers      Follow[]             @relation("Following")
+  savedTrips     SavedTrip[]
+  savedPosts     SavedPost[]
+  savedPlaces    SavedPlace[]
+  notifications  Notification[]       @relation("Recipient")
+  actedNotifs    Notification[]       @relation("Actor")
+  media          Media[]
+  reports        Report[]
+  invitationsBy  TripInvitation[]     @relation("Inviter")
+  itemsEdited    ItineraryItem[]      @relation("ItemEditor")
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId        String        @id @map("user_id") @db.Uuid
+  displayName   String        @map("display_name")
+  bio           String        @default("")
+  homeBase      String?       @map("home_base")
+  avatarHue     Int           @default(180) @map("avatar_hue")
+  avatarMediaId String?       @map("avatar_media_id") @db.Uuid
+  travelerType  TravelerType? @map("traveler_type")
+  interests     String[]      @default([])
+  onboardedAt   DateTime?     @map("onboarded_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatar Media? @relation("Avatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
+
+  @@map("user_profiles")
+}
+
+/// Refresh-token sessions. Only a SHA-256 hash of the token is stored.
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  userAgent  String?   @map("user_agent")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime  @default(now()) @map("last_used_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model Follow {
+  followerId  String   @map("follower_id") @db.Uuid
+  followingId String   @map("following_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+// ── Destinations & places ───────────────────────────────────────────────
+model Destination {
+  id       String  @id @default(uuid()) @db.Uuid
+  slug     String  @unique
+  name     String
+  country  String
+  lat      Float
+  lng      Float
+  blurb    String  @default("")
+  paletteA String  @map("palette_a")
+  paletteB String  @map("palette_b")
+
+  places Place[]
+  trips  TripDestination[]
+  posts  Post[]
+
+  @@index([name])
+  @@map("destinations")
+}
+
+model Place {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  category      ItemType
+  destinationId String   @map("destination_id") @db.Uuid
+  address       String   @default("")
+  lat           Float
+  lng           Float
+  rating        Float?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  destination Destination     @relation(fields: [destinationId], references: [id])
+  items       ItineraryItem[]
+  savedBy     SavedPlace[]
+
+  @@index([destinationId])
+  @@index([lat, lng])
+  @@index([name])
+  @@map("places")
+}
+
+// ── Trips ────────────────────────────────────────────────────────────────
+model Trip {
+  id              String         @id @default(uuid()) @db.Uuid
+  ownerId         String         @map("owner_id") @db.Uuid
+  title           String
+  description     String         @default("")
+  startDate       DateTime?      @map("start_date") @db.Date
+  endDate         DateTime?      @map("end_date") @db.Date
+  visibility      TripVisibility @default(PRIVATE)
+  allowComments   Boolean        @default(true) @map("allow_comments")
+  allowFork       Boolean        @default(true) @map("allow_fork")
+  estimatedBudget Int?           @map("estimated_budget")
+  currency        String         @default("USD")
+  coverA          String         @map("cover_a")
+  coverB          String         @map("cover_b")
+  coverMediaId    String?        @map("cover_media_id") @db.Uuid
+  forkedFromId    String?        @map("forked_from_id") @db.Uuid
+  /// Denormalised attribution — survives even if the source trip is later deleted.
+  forkedFromTitle String?        @map("forked_from_title")
+  forkedFromOwner String?        @map("forked_from_owner")
+  forkCount       Int            @default(0) @map("fork_count")
+  saveCount       Int            @default(0) @map("save_count")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  owner        User              @relation("TripOwner", fields: [ownerId], references: [id])
+  cover        Media?            @relation("TripCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  forkedFrom   Trip?             @relation("Forks", fields: [forkedFromId], references: [id], onDelete: SetNull)
+  forks        Trip[]            @relation("Forks")
+  destinations TripDestination[]
+  members      TripMember[]
+  invitations  TripInvitation[]
+  days         TripDay[]
+  posts        Post[]
+  savedBy      SavedTrip[]
+
+  @@index([ownerId])
+  @@index([visibility, deletedAt])
+  @@index([updatedAt])
+  @@map("trips")
+}
+
+model TripDestination {
+  tripId        String @map("trip_id") @db.Uuid
+  destinationId String @map("destination_id") @db.Uuid
+  position      Int
+
+  trip        Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  destination Destination @relation(fields: [destinationId], references: [id])
+
+  @@id([tripId, destinationId])
+  @@index([destinationId])
+  @@map("trip_destinations")
+}
+
+model TripMember {
+  tripId   String   @map("trip_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  role     TripRole
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([tripId, userId])
+  @@index([userId])
+  @@map("trip_members")
+}
+
+/// Only a SHA-256 hash of the invite token is stored. Tokens are never logged.
+model TripInvitation {
+  id         String    @id @default(uuid()) @db.Uuid
+  tripId     String    @map("trip_id") @db.Uuid
+  email      String?
+  role       TripRole
+  tokenHash  String    @unique @map("token_hash")
+  invitedBy  String    @map("invited_by") @db.Uuid
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  acceptedAt DateTime? @map("accepted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  trip    Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  inviter User @relation("Inviter", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+  @@index([email])
+  @@map("trip_invitations")
+}
+
+model TripDay {
+  id        String    @id @default(uuid()) @db.Uuid
+  tripId    String    @map("trip_id") @db.Uuid
+  dayNumber Int       @map("day_number")
+  date      DateTime? @db.Date
+  title     String?
+
+  trip  Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  items ItineraryItem[]
+
+  @@unique([tripId, dayNumber])
+  @@map("trip_days")
+}
+
+model ItineraryItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  dayId       String   @map("day_id") @db.Uuid
+  type        ItemType
+  title       String
+  description String?
+  placeId     String?  @map("place_id") @db.Uuid
+  startTime   String?  @map("start_time")
+  endTime     String?  @map("end_time")
+  notes       String?
+  sortOrder   Int      @map("sort_order")
+  updatedById String?  @map("updated_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  day       TripDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  place     Place?  @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  updatedBy User?   @relation("ItemEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([dayId, sortOrder])
+  @@map("itinerary_items")
+}
+
+// ── Social ───────────────────────────────────────────────────────────────
+model Post {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @map("user_id") @db.Uuid
+  tripId        String?        @map("trip_id") @db.Uuid
+  destinationId String?        @map("destination_id") @db.Uuid
+  title         String
+  body          String         @default("")
+  visibility    PostVisibility @default(PUBLIC)
+  likeCount     Int            @default(0) @map("like_count")
+  commentCount  Int            @default(0) @map("comment_count")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  deletedAt     DateTime?      @map("deleted_at")
+
+  user        User          @relation(fields: [userId], references: [id])
+  trip        Trip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  destination Destination?  @relation(fields: [destinationId], references: [id])
+  media       PostMedia[]
+  likes       PostLike[]
+  comments    PostComment[]
+  savedBy     SavedPost[]
+
+  @@index([userId])
+  @@index([tripId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+/// A post photo: either uploaded media, or (seed data) a generated palette.
+model PostMedia {
+  id       String  @id @default(uuid()) @db.Uuid
+  postId   String  @map("post_id") @db.Uuid
+  mediaId  String? @map("media_id") @db.Uuid
+  paletteA String  @map("palette_a")
+  paletteB String  @map("palette_b")
+  position Int
+
+  post  Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@index([postId])
+  @@map("post_media")
+}
+
+model PostLike {
+  userId    String   @map("user_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("post_likes")
+}
+
+model PostComment {
+  id        String    @id @default(uuid()) @db.Uuid
+  postId    String    @map("post_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  body      String
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("post_comments")
+}
+
+model SavedTrip {
+  userId    String   @map("user_id") @db.Uuid
+  tripId    String   @map("trip_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tripId])
+  @@map("saved_trips")
+}
+
+model SavedPost {
+  userId    String   @map("user_id") @db.Uuid
+  postId    String   @map("post_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("saved_posts")
+}
+
+model SavedPlace {
+  userId    String   @map("user_id") @db.Uuid
+  placeId   String   @map("place_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, placeId])
+  @@map("saved_places")
+}
+
+model Notification {
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @map("user_id") @db.Uuid
+  actorId      String?          @map("actor_id") @db.Uuid
+  type         NotificationType
+  text         String
+  tripId       String?          @map("trip_id") @db.Uuid
+  postId       String?          @map("post_id") @db.Uuid
+  invitationId String?          @map("invitation_id") @db.Uuid
+  readAt       DateTime?        @map("read_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  user  User  @relation("Recipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor User? @relation("Actor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model Report {
+  id         String       @id @default(uuid()) @db.Uuid
+  reporterId String       @map("reporter_id") @db.Uuid
+  target     ReportTarget
+  targetId   String       @map("target_id") @db.Uuid
+  reason     ReportReason
+  details    String?
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, target, targetId])
+  @@map("reports")
+}
+
+/// Binary data lives in object storage; only metadata is stored here (spec §32).
+model Media {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  storageKey String   @unique @map("storage_key")
+  thumbKey   String?  @map("thumb_key")
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  width      Int
+  height     Int
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  owner      User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  avatarOf   UserProfile[] @relation("Avatar")
+  coverOf    Trip[]        @relation("TripCover")
+  postMedia  PostMedia[]
+
+  @@index([ownerId])
+  @@map("media")
+}
+
+/// Sensitive permission changes (spec §42).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id") @db.Uuid
+  meta       Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}

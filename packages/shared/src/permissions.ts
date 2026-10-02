@@ -1,4 +1,18 @@
-import type { Trip, TripMember, TripRole, UUID } from "./types";
+import type { TripRole, TripVisibility, UUID } from "./types";
+
+/** Minimal shapes so both DB rows (Date) and API objects (string) can be checked. */
+export interface PermissionTrip {
+  id: UUID;
+  ownerId: UUID;
+  visibility: TripVisibility;
+  allowFork: boolean;
+  deletedAt?: unknown;
+}
+export interface PermissionMember {
+  tripId: UUID;
+  userId: UUID;
+  role: TripRole;
+}
 
 /**
  * Single source of truth for trip permissions (spec §6 Collaboration, §28).
@@ -61,8 +75,8 @@ const PUBLIC_ACTIONS: ReadonlySet<TripAction> = new Set<TripAction>([
 ]);
 
 export function roleFor(
-  trip: Pick<Trip, "id" | "ownerId">,
-  members: TripMember[],
+  trip: Pick<PermissionTrip, "id" | "ownerId">,
+  members: PermissionMember[],
   userId: UUID | null | undefined,
 ): TripRole | null {
   if (!userId) return null;
@@ -73,8 +87,8 @@ export function roleFor(
 export function can(
   action: TripAction,
   ctx: {
-    trip: Pick<Trip, "id" | "ownerId" | "visibility" | "allowFork" | "deletedAt">;
-    members: TripMember[];
+    trip: PermissionTrip;
+    members: PermissionMember[];
     userId: UUID | null | undefined;
   },
 ): boolean {
