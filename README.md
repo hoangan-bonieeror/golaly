@@ -79,7 +79,7 @@ If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `
 ### 3. Create tables, load demo data, run
 
 ```bash
-npm run db:migrate     # applies prisma/migrations
+npm run db:deploy      # creates the tables from prisma/migrations (no prompts)
 npm run db:seed        # DEV ONLY: demo users, trips, posts
 npm run dev            # API → http://localhost:4000   Web → http://localhost:3000
 ```
@@ -110,7 +110,8 @@ Emails (invites, password resets) are written to `apps/api/storage/outbox/` in d
 | `npm run e2e` | Playwright Definition-of-Done journey against a running stack |
 | `npm run typecheck` | TypeScript, strict, all packages |
 | `npm run build` / `npm start` | Production build / serve |
-| `npm run db:migrate` | Create/apply migrations (`prisma migrate dev`) |
+| `npm run db:deploy` | Apply committed migrations (first-time setup, CI, production) |
+| `npm run db:migrate` | After you change `schema.prisma`: create + apply a new migration (`prisma migrate dev`, needs CREATEDB for its shadow database) |
 | `npm run db:reset` | Drop, re-migrate and re-seed the dev DB |
 
 ---

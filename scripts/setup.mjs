@@ -19,4 +19,4 @@ for (const [from, to] of pairs) {
   }
   console.log(`✓ created ${to}`);
 }
-console.log("\nNext: start PostgreSQL (docker compose up -d db), then: npm run db:migrate && npm run db:seed && npm run dev");
+console.log("\nNext: start PostgreSQL (docker compose up -d db), then: npm run db:deploy && npm run db:seed && npm run dev");
