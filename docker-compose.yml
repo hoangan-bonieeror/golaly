@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: triply
       POSTGRES_DB: triply
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - triply-db:/var/lib/postgresql/data
       - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
@@ -25,8 +25,9 @@ services:
       db: { condition: service_healthy }
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://triply:triply@db:5432/triply
-      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your shell or a .env file next to docker-compose.yml}
+      DATABASE_URL: postgresql://postgres:admin123@db:5432/triply
+      # Only used by the optional "full" profile. The API refuses to start if this is empty or too short.
+      JWT_SECRET: ${JWT_SECRET:-}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       MEDIA_DIR: /data/media
