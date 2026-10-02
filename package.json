@@ -1,0 +1,15 @@
+{
+  "name": "triply",
+  "private": true,
+  "version": "0.1.0",
+  "description": "TRIPLY — Plan together. Discover together. Travel together. (Clickable UI prototype)",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @triply/web",
+    "build": "npm run build -w @triply/web",
+    "start": "npm run start -w @triply/web",
+    "lint": "npm run lint -w @triply/web",
+    "typecheck": "npm run typecheck -w @triply/web"
+  },
+  "engines": { "node": ">=20.9" }
+}

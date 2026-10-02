@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────────────────────
+   TRIPLY design tokens
+   Warm sand canvas · deep lagoon primary · sunset accent.
+   Display type is a bookish serif (postcards & travel journals),
+   UI type is the system sans for speed and legibility.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --color-sand: #f7f4ee;
+  --color-sand-2: #efe9df;
+  --color-surface: #ffffff;
+  --color-ink: #16232e;
+  --color-ink-2: #3a4853;
+  --color-muted: #6b7780;
+  --color-line: #e5ded2;
+
+  --color-lagoon: #0e6e6a;
+  --color-lagoon-600: #0b5a57;
+  --color-lagoon-50: #e5f2f1;
+  --color-sunset: #f26b4e;
+  --color-sunset-50: #fdece7;
+  --color-gold: #e2a93b;
+  --color-danger: #c2412d;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+
+  --radius-card: 1.25rem;
+  --shadow-card: 0 1px 2px rgb(22 35 46 / 0.05), 0 8px 24px -12px rgb(22 35 46 / 0.18);
+  --shadow-pop: 0 12px 40px -12px rgb(22 35 46 / 0.35);
+}
+
+html,
+body {
+  background: var(--color-sand);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Paper grain on covers — subtle, original texture */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: overlay;
+  background-image: radial-gradient(rgb(255 255 255 / 0.6) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  scrollbar-width: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-lagoon);
+  outline-offset: 2px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 0.35s ease-out both;
+}
+
+@keyframes toast {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-toast {
+  animation: toast 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-toast {
+    animation: none;
+  }
+}
