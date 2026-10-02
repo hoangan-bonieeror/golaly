@@ -59,8 +59,12 @@ export function toUserSummary(u: UserSummaryRow): UserSummary {
 export const placeInclude = (viewerId: string | null) =>
   ({
     destination: { select: { name: true } },
+    area: { select: { name: true } },
     savedBy: { where: { userId: viewerId ?? "00000000-0000-0000-0000-000000000000" }, select: { userId: true } },
   }) satisfies Prisma.PlaceInclude;
+
+/** Places users may pick, browse or search: active and not merged into another record. */
+export const listablePlace = { status: "ACTIVE", mergedIntoId: null } satisfies Prisma.PlaceWhereInput;
 
 export type PlaceRow = Prisma.PlaceGetPayload<{ include: ReturnType<typeof placeInclude> }>;
 
@@ -70,11 +74,13 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     name: p.name,
     category: p.category,
     destinationId: p.destinationId,
-    destinationName: p.destination.name,
+    // Imported places outside a curated destination fall back to their administrative area.
+    destinationName: p.destination?.name ?? p.area?.name ?? "",
     address: p.address,
     lat: p.lat,
     lng: p.lng,
     rating: p.rating,
+    status: p.status,
     savedByMe: p.savedBy.length > 0,
   };
 }

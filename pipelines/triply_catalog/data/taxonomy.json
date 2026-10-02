@@ -1,0 +1,509 @@
+{
+ "_comment": "TRIPLY place taxonomy. Keys are stable identifiers: rename labels freely, never keys.",
+ "categories": [
+  {
+   "key": "food",
+   "parent": null,
+   "label_vi": "Ăn uống",
+   "label_en": "Food",
+   "item_type": "RESTAURANT",
+   "sort_order": 10
+  },
+  {
+   "key": "food.restaurant",
+   "parent": "food",
+   "label_vi": "Nhà hàng",
+   "label_en": "Restaurant",
+   "item_type": "RESTAURANT",
+   "sort_order": 11
+  },
+  {
+   "key": "food.vietnamese",
+   "parent": "food",
+   "label_vi": "Món Việt",
+   "label_en": "Vietnamese",
+   "item_type": "RESTAURANT",
+   "sort_order": 12
+  },
+  {
+   "key": "food.street_food",
+   "parent": "food",
+   "label_vi": "Ẩm thực đường phố",
+   "label_en": "Street food",
+   "item_type": "RESTAURANT",
+   "sort_order": 13
+  },
+  {
+   "key": "food.seafood",
+   "parent": "food",
+   "label_vi": "Hải sản",
+   "label_en": "Seafood",
+   "item_type": "RESTAURANT",
+   "sort_order": 14
+  },
+  {
+   "key": "food.noodles",
+   "parent": "food",
+   "label_vi": "Phở & bún",
+   "label_en": "Noodle soup",
+   "item_type": "RESTAURANT",
+   "sort_order": 15
+  },
+  {
+   "key": "food.bakery",
+   "parent": "food",
+   "label_vi": "Tiệm bánh",
+   "label_en": "Bakery",
+   "item_type": "RESTAURANT",
+   "sort_order": 16
+  },
+  {
+   "key": "food.vegetarian",
+   "parent": "food",
+   "label_vi": "Món chay",
+   "label_en": "Vegetarian",
+   "item_type": "RESTAURANT",
+   "sort_order": 17
+  },
+  {
+   "key": "food.fast_food",
+   "parent": "food",
+   "label_vi": "Đồ ăn nhanh",
+   "label_en": "Fast food",
+   "item_type": "RESTAURANT",
+   "sort_order": 18
+  },
+  {
+   "key": "food.dessert",
+   "parent": "food",
+   "label_vi": "Tráng miệng & kem",
+   "label_en": "Dessert & ice cream",
+   "item_type": "RESTAURANT",
+   "sort_order": 19
+  },
+  {
+   "key": "food.international",
+   "parent": "food",
+   "label_vi": "Ẩm thực quốc tế",
+   "label_en": "International",
+   "item_type": "RESTAURANT",
+   "sort_order": 20
+  },
+  {
+   "key": "drink",
+   "parent": null,
+   "label_vi": "Cà phê & đồ uống",
+   "label_en": "Coffee & drinks",
+   "item_type": "RESTAURANT",
+   "sort_order": 20
+  },
+  {
+   "key": "drink.cafe",
+   "parent": "drink",
+   "label_vi": "Quán cà phê",
+   "label_en": "Café",
+   "item_type": "RESTAURANT",
+   "sort_order": 21
+  },
+  {
+   "key": "drink.tea_house",
+   "parent": "drink",
+   "label_vi": "Trà quán",
+   "label_en": "Tea house",
+   "item_type": "RESTAURANT",
+   "sort_order": 22
+  },
+  {
+   "key": "drink.juice",
+   "parent": "drink",
+   "label_vi": "Nước ép & sinh tố",
+   "label_en": "Juice & smoothies",
+   "item_type": "RESTAURANT",
+   "sort_order": 23
+  },
+  {
+   "key": "sights",
+   "parent": null,
+   "label_vi": "Điểm tham quan",
+   "label_en": "Sights",
+   "item_type": "PLACE",
+   "sort_order": 30
+  },
+  {
+   "key": "sights.landmark",
+   "parent": "sights",
+   "label_vi": "Địa danh",
+   "label_en": "Landmark",
+   "item_type": "PLACE",
+   "sort_order": 31
+  },
+  {
+   "key": "sights.historic",
+   "parent": "sights",
+   "label_vi": "Di tích lịch sử",
+   "label_en": "Historic site",
+   "item_type": "PLACE",
+   "sort_order": 32
+  },
+  {
+   "key": "sights.monument",
+   "parent": "sights",
+   "label_vi": "Tượng đài",
+   "label_en": "Monument",
+   "item_type": "PLACE",
+   "sort_order": 33
+  },
+  {
+   "key": "sights.viewpoint",
+   "parent": "sights",
+   "label_vi": "Điểm ngắm cảnh",
+   "label_en": "Viewpoint",
+   "item_type": "PLACE",
+   "sort_order": 34
+  },
+  {
+   "key": "sights.old_town",
+   "parent": "sights",
+   "label_vi": "Phố cổ",
+   "label_en": "Old town",
+   "item_type": "PLACE",
+   "sort_order": 35
+  },
+  {
+   "key": "culture",
+   "parent": null,
+   "label_vi": "Văn hoá & tâm linh",
+   "label_en": "Culture & religion",
+   "item_type": "PLACE",
+   "sort_order": 40
+  },
+  {
+   "key": "culture.museum",
+   "parent": "culture",
+   "label_vi": "Bảo tàng",
+   "label_en": "Museum",
+   "item_type": "PLACE",
+   "sort_order": 41
+  },
+  {
+   "key": "culture.pagoda",
+   "parent": "culture",
+   "label_vi": "Chùa & đền",
+   "label_en": "Pagoda & temple",
+   "item_type": "PLACE",
+   "sort_order": 42
+  },
+  {
+   "key": "culture.church",
+   "parent": "culture",
+   "label_vi": "Nhà thờ",
+   "label_en": "Church",
+   "item_type": "PLACE",
+   "sort_order": 43
+  },
+  {
+   "key": "culture.gallery",
+   "parent": "culture",
+   "label_vi": "Phòng tranh",
+   "label_en": "Art gallery",
+   "item_type": "PLACE",
+   "sort_order": 44
+  },
+  {
+   "key": "culture.theatre",
+   "parent": "culture",
+   "label_vi": "Nhà hát",
+   "label_en": "Theatre",
+   "item_type": "PLACE",
+   "sort_order": 45
+  },
+  {
+   "key": "nature",
+   "parent": null,
+   "label_vi": "Thiên nhiên",
+   "label_en": "Nature",
+   "item_type": "PLACE",
+   "sort_order": 50
+  },
+  {
+   "key": "nature.beach",
+   "parent": "nature",
+   "label_vi": "Bãi biển",
+   "label_en": "Beach",
+   "item_type": "PLACE",
+   "sort_order": 51
+  },
+  {
+   "key": "nature.park",
+   "parent": "nature",
+   "label_vi": "Công viên",
+   "label_en": "Park",
+   "item_type": "PLACE",
+   "sort_order": 52
+  },
+  {
+   "key": "nature.waterfall",
+   "parent": "nature",
+   "label_vi": "Thác nước",
+   "label_en": "Waterfall",
+   "item_type": "PLACE",
+   "sort_order": 53
+  },
+  {
+   "key": "nature.cave",
+   "parent": "nature",
+   "label_vi": "Hang động",
+   "label_en": "Cave",
+   "item_type": "PLACE",
+   "sort_order": 54
+  },
+  {
+   "key": "nature.island",
+   "parent": "nature",
+   "label_vi": "Đảo",
+   "label_en": "Island",
+   "item_type": "PLACE",
+   "sort_order": 55
+  },
+  {
+   "key": "nature.mountain",
+   "parent": "nature",
+   "label_vi": "Núi & đèo",
+   "label_en": "Mountain & pass",
+   "item_type": "PLACE",
+   "sort_order": 56
+  },
+  {
+   "key": "nature.lake",
+   "parent": "nature",
+   "label_vi": "Hồ",
+   "label_en": "Lake",
+   "item_type": "PLACE",
+   "sort_order": 57
+  },
+  {
+   "key": "activity",
+   "parent": null,
+   "label_vi": "Hoạt động & giải trí",
+   "label_en": "Activities",
+   "item_type": "ACTIVITY",
+   "sort_order": 60
+  },
+  {
+   "key": "activity.tour",
+   "parent": "activity",
+   "label_vi": "Tour & trải nghiệm",
+   "label_en": "Tours & experiences",
+   "item_type": "ACTIVITY",
+   "sort_order": 61
+  },
+  {
+   "key": "activity.spa",
+   "parent": "activity",
+   "label_vi": "Spa & massage",
+   "label_en": "Spa & massage",
+   "item_type": "ACTIVITY",
+   "sort_order": 62
+  },
+  {
+   "key": "activity.theme_park",
+   "parent": "activity",
+   "label_vi": "Công viên giải trí",
+   "label_en": "Theme park",
+   "item_type": "ACTIVITY",
+   "sort_order": 63
+  },
+  {
+   "key": "activity.zoo",
+   "parent": "activity",
+   "label_vi": "Sở thú & thuỷ cung",
+   "label_en": "Zoo & aquarium",
+   "item_type": "ACTIVITY",
+   "sort_order": 64
+  },
+  {
+   "key": "activity.sports",
+   "parent": "activity",
+   "label_vi": "Thể thao",
+   "label_en": "Sports",
+   "item_type": "ACTIVITY",
+   "sort_order": 65
+  },
+  {
+   "key": "activity.cooking_class",
+   "parent": "activity",
+   "label_vi": "Lớp nấu ăn",
+   "label_en": "Cooking class",
+   "item_type": "ACTIVITY",
+   "sort_order": 66
+  },
+  {
+   "key": "nightlife",
+   "parent": null,
+   "label_vi": "Về đêm",
+   "label_en": "Nightlife",
+   "item_type": "ACTIVITY",
+   "sort_order": 70
+  },
+  {
+   "key": "nightlife.bar",
+   "parent": "nightlife",
+   "label_vi": "Quán bar",
+   "label_en": "Bar",
+   "item_type": "ACTIVITY",
+   "sort_order": 71
+  },
+  {
+   "key": "nightlife.pub",
+   "parent": "nightlife",
+   "label_vi": "Quán bia",
+   "label_en": "Pub & beer",
+   "item_type": "ACTIVITY",
+   "sort_order": 72
+  },
+  {
+   "key": "nightlife.club",
+   "parent": "nightlife",
+   "label_vi": "Club",
+   "label_en": "Nightclub",
+   "item_type": "ACTIVITY",
+   "sort_order": 73
+  },
+  {
+   "key": "lodging",
+   "parent": null,
+   "label_vi": "Lưu trú",
+   "label_en": "Places to stay",
+   "item_type": "HOTEL",
+   "sort_order": 80
+  },
+  {
+   "key": "lodging.hotel",
+   "parent": "lodging",
+   "label_vi": "Khách sạn",
+   "label_en": "Hotel",
+   "item_type": "HOTEL",
+   "sort_order": 81
+  },
+  {
+   "key": "lodging.hostel",
+   "parent": "lodging",
+   "label_vi": "Hostel",
+   "label_en": "Hostel",
+   "item_type": "HOTEL",
+   "sort_order": 82
+  },
+  {
+   "key": "lodging.resort",
+   "parent": "lodging",
+   "label_vi": "Khu nghỉ dưỡng",
+   "label_en": "Resort",
+   "item_type": "HOTEL",
+   "sort_order": 83
+  },
+  {
+   "key": "lodging.homestay",
+   "parent": "lodging",
+   "label_vi": "Homestay",
+   "label_en": "Homestay",
+   "item_type": "HOTEL",
+   "sort_order": 84
+  },
+  {
+   "key": "lodging.guesthouse",
+   "parent": "lodging",
+   "label_vi": "Nhà nghỉ",
+   "label_en": "Guesthouse",
+   "item_type": "HOTEL",
+   "sort_order": 85
+  },
+  {
+   "key": "shopping",
+   "parent": null,
+   "label_vi": "Mua sắm",
+   "label_en": "Shopping",
+   "item_type": "PLACE",
+   "sort_order": 90
+  },
+  {
+   "key": "shopping.market",
+   "parent": "shopping",
+   "label_vi": "Chợ",
+   "label_en": "Market",
+   "item_type": "PLACE",
+   "sort_order": 91
+  },
+  {
+   "key": "shopping.night_market",
+   "parent": "shopping",
+   "label_vi": "Chợ đêm",
+   "label_en": "Night market",
+   "item_type": "PLACE",
+   "sort_order": 92
+  },
+  {
+   "key": "shopping.mall",
+   "parent": "shopping",
+   "label_vi": "Trung tâm thương mại",
+   "label_en": "Shopping mall",
+   "item_type": "PLACE",
+   "sort_order": 93
+  },
+  {
+   "key": "shopping.souvenir",
+   "parent": "shopping",
+   "label_vi": "Quà lưu niệm",
+   "label_en": "Souvenirs",
+   "item_type": "PLACE",
+   "sort_order": 94
+  },
+  {
+   "key": "shopping.tailor",
+   "parent": "shopping",
+   "label_vi": "Tiệm may",
+   "label_en": "Tailor",
+   "item_type": "PLACE",
+   "sort_order": 95
+  },
+  {
+   "key": "transport",
+   "parent": null,
+   "label_vi": "Di chuyển",
+   "label_en": "Getting around",
+   "item_type": "TRANSPORTATION",
+   "sort_order": 100
+  },
+  {
+   "key": "transport.airport",
+   "parent": "transport",
+   "label_vi": "Sân bay",
+   "label_en": "Airport",
+   "item_type": "TRANSPORTATION",
+   "sort_order": 101
+  },
+  {
+   "key": "transport.train_station",
+   "parent": "transport",
+   "label_vi": "Ga tàu",
+   "label_en": "Train station",
+   "item_type": "TRANSPORTATION",
+   "sort_order": 102
+  },
+  {
+   "key": "transport.bus_station",
+   "parent": "transport",
+   "label_vi": "Bến xe",
+   "label_en": "Bus station",
+   "item_type": "TRANSPORTATION",
+   "sort_order": 103
+  },
+  {
+   "key": "transport.ferry",
+   "parent": "transport",
+   "label_vi": "Bến phà & tàu",
+   "label_en": "Ferry terminal",
+   "item_type": "TRANSPORTATION",
+   "sort_order": 104
+  }
+ ]
+}

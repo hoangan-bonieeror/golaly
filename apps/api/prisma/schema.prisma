@@ -13,6 +13,25 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
+/// ACTIVE = shown everywhere · CLOSED = permanently closed (kept so old itineraries still resolve) · HIDDEN = hidden by an admin.
+enum PlaceStatus {
+  ACTIVE
+  CLOSED
+  HIDDEN
+}
+
+enum GeoAreaLevel {
+  COUNTRY
+  REGION
+  CITY
+  DISTRICT
+}
+
 enum TripVisibility {
   PRIVATE
   LINK_ONLY
@@ -84,6 +103,7 @@ model User {
   /// Null for accounts created through Google sign-in until a password is set.
   passwordHash     String?   @map("password_hash")
   isDemo           Boolean   @default(false) @map("is_demo")
+  role             UserRole  @default(USER)
   /// Set once the user proves they own `email` (link in a verification email, or Google sign-in).
   emailVerifiedAt  DateTime? @map("email_verified_at")
   /// Per-account brute-force protection (independent of the client IP).
@@ -221,18 +241,21 @@ model Follow {
 
 // ── Destinations & places ───────────────────────────────────────────────
 model Destination {
-  id         String @id @default(uuid()) @db.Uuid
-  slug       String @unique
+  id         String  @id @default(uuid()) @db.Uuid
+  slug       String  @unique
   name       String
   country    String
   lat        Float
   lng        Float
-  blurb      String @default("")
-  paletteA   String @map("palette_a")
-  paletteB   String @map("palette_b")
+  blurb      String  @default("")
+  paletteA   String  @map("palette_a")
+  paletteB   String  @map("palette_b")
   /// Accent-free "name country" for fuzzy search ("hoi an" finds "Hội An").
-  searchText String @default("") @map("search_text")
+  searchText String  @default("") @map("search_text")
+  /// The administrative area this curated destination corresponds to (catalog imports attach places through it).
+  areaId     String? @map("area_id") @db.Uuid
 
+  area   GeoArea?          @relation(fields: [areaId], references: [id], onDelete: SetNull)
   places Place[]
   trips  TripDestination[]
   posts  Post[]
@@ -242,23 +265,58 @@ model Destination {
   @@map("destinations")
 }
 
+/// The canonical place the app shows. Imported places are merged from `place_sources`;
+/// `id` never changes, so itineraries and saved places survive re-imports and merges.
 model Place {
-  id            String   @id @default(uuid()) @db.Uuid
+  id            String                                 @id @default(uuid()) @db.Uuid
+  /// Local (on-the-ground) name. Translations live in `place_names`.
   name          String
+  /// Accent-free, lower-cased name used for matching.
+  nameNorm      String                                 @default("") @map("name_norm")
+  /// Coarse type the itinerary UI uses; derived from `categoryId` for imported places.
   category      ItemType
-  destinationId String   @map("destination_id") @db.Uuid
-  address       String   @default("")
+  categoryId    String?                                @map("category_id") @db.Uuid
+  /// Curated destination page this place belongs to, if any.
+  destinationId String?                                @map("destination_id") @db.Uuid
+  /// Smallest administrative area containing the place.
+  areaId        String?                                @map("area_id") @db.Uuid
+  address       String                                 @default("")
   lat           Float
   lng           Float
+  /// geography(Point) kept in sync with lat/lng by a trigger (migration 20261005000000_catalog).
+  location      Unsupported("geography(Point, 4326)")?
+  phone         String?
+  website       String?
+  /// OSM opening_hours syntax, e.g. "Mo-Su 07:00-22:00".
+  openingHours  String?                                @map("opening_hours")
   rating        Float?
-  searchText    String   @default("") @map("search_text")
-  createdAt     DateTime @default(now()) @map("created_at")
+  status        PlaceStatus                            @default(ACTIVE)
+  /// 0–1: how many sources confirm it and how complete it is.
+  qualityScore  Float                                  @default(0) @map("quality_score")
+  /// Fields an admin edited by hand; imports never overwrite them.
+  lockedFields  String[]                               @default([]) @map("locked_fields")
+  /// Which provider supplied each published field, e.g. {"name":"overture","phone":"osm"}.
+  fieldSources  Json                                   @default("{}") @map("field_sources")
+  mergedIntoId  String?                                @map("merged_into_id") @db.Uuid
+  lastSeenAt    DateTime?                              @map("last_seen_at")
+  searchText    String                                 @default("") @map("search_text")
+  createdAt     DateTime                               @default(now()) @map("created_at")
+  updatedAt     DateTime                               @default(now()) @updatedAt @map("updated_at")
 
-  destination Destination     @relation(fields: [destinationId], references: [id])
+  destination Destination?    @relation(fields: [destinationId], references: [id])
+  area        GeoArea?        @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  categoryRef Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  mergedInto  Place?          @relation("PlaceMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom  Place[]         @relation("PlaceMerges")
   items       ItineraryItem[]
   savedBy     SavedPlace[]
+  sources     PlaceSource[]
+  names       PlaceName[]
 
   @@index([destinationId])
+  @@index([areaId, categoryId, status])
+  @@index([nameNorm])
+  @@index([location], map: "places_location_gist", type: Gist)
   @@index([lat, lng])
   @@index([name])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -583,4 +641,160 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// ── Place catalog (imported from open data by the Python pipeline in /pipelines) ──
+
+/// Administrative areas: country → region (province / centrally-run city) → city → district.
+model GeoArea {
+  id          String                                       @id @default(uuid()) @db.Uuid
+  parentId    String?                                      @map("parent_id") @db.Uuid
+  level       GeoAreaLevel
+  /// ISO 3166-1 alpha-2, e.g. "VN".
+  countryCode String                                       @map("country_code")
+  /// ISO 3166-2 where known, e.g. "VN-DN".
+  isoCode     String?                                      @map("iso_code")
+  /// Local name ("Đà Nẵng"); translations in geo_area_names.
+  name        String
+  slug        String                                       @unique
+  timezone    String?
+  /// Where the boundary came from ("overture", "manual") and its id there.
+  source      String
+  externalId  String?                                      @map("external_id")
+  minLng      Float?                                       @map("min_lng")
+  minLat      Float?                                       @map("min_lat")
+  maxLng      Float?                                       @map("max_lng")
+  maxLat      Float?                                       @map("max_lat")
+  boundary    Unsupported("geometry(MultiPolygon, 4326)")?
+  createdAt   DateTime                                     @default(now()) @map("created_at")
+  updatedAt   DateTime                                     @default(now()) @updatedAt @map("updated_at")
+
+  parent       GeoArea?      @relation("AreaTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children     GeoArea[]     @relation("AreaTree")
+  names        GeoAreaName[]
+  places       Place[]
+  destinations Destination[]
+  sources      PlaceSource[]
+
+  @@unique([source, externalId])
+  @@index([parentId, level])
+  @@index([countryCode, level])
+  @@index([boundary], map: "geo_areas_boundary_gist", type: Gist)
+  @@map("geo_areas")
+}
+
+model GeoAreaName {
+  areaId String @map("area_id") @db.Uuid
+  /// BCP 47 language tag ("vi", "en", "ja"…).
+  lang   String
+  name   String
+
+  area GeoArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([areaId, lang])
+  @@map("geo_area_names")
+}
+
+/// TRIPLY's own two-level taxonomy (e.g. food → food.cafe). Provider categories map onto it.
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  parentId  String?  @map("parent_id") @db.Uuid
+  key       String   @unique
+  labelVi   String   @map("label_vi")
+  labelEn   String   @map("label_en")
+  itemType  ItemType @map("item_type")
+  sortOrder Int      @default(0) @map("sort_order")
+
+  parent   Category?     @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Category[]    @relation("CategoryTree")
+  maps     CategoryMap[]
+  places   Place[]
+  sources  PlaceSource[]
+
+  @@map("categories")
+}
+
+/// provider category → TRIPLY category. `external_category` is e.g. "cafe" (Overture) or "amenity=cafe" (OSM).
+model CategoryMap {
+  provider         String
+  externalCategory String   @map("external_category")
+  categoryId       String   @map("category_id") @db.Uuid
+  category         Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([provider, externalCategory])
+  @@map("category_maps")
+}
+
+/// One record as a provider published it. Re-imports upsert on (provider, external_id); unchanged
+/// content (same content_hash) only bumps last_seen_at.
+model PlaceSource {
+  id              String                                 @id @default(uuid()) @db.Uuid
+  placeId         String?                                @map("place_id") @db.Uuid
+  provider        String
+  externalId      String                                 @map("external_id")
+  /// The provider's record, untouched.
+  raw             Json
+  /// Our normalised view of it (names by language, phone in E.164, category key…).
+  normalized      Json
+  contentHash     String                                 @map("content_hash")
+  lat             Float
+  lng             Float
+  location        Unsupported("geography(Point, 4326)")?
+  categoryId      String?                                @map("category_id") @db.Uuid
+  areaId          String?                                @map("area_id") @db.Uuid
+  license         String
+  attribution     String
+  /// "open" | "temporarily_closed" | "permanently_closed" as reported by the provider.
+  operatingStatus String                                 @default("open") @map("operating_status")
+  firstSeenAt     DateTime                               @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime                               @default(now()) @map("last_seen_at")
+  lastRunId       String?                                @map("last_run_id") @db.Uuid
+  /// Last run in which this record was new or its content/category changed (drives incremental publish).
+  changedRunId    String?                                @map("changed_run_id") @db.Uuid
+  /// Consecutive complete runs this record was absent from.
+  missingRuns     Int                                    @default(0) @map("missing_runs")
+
+  place    Place?    @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  area     GeoArea?  @relation(fields: [areaId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalId])
+  @@index([placeId])
+  @@index([provider, areaId])
+  @@index([changedRunId])
+  @@index([location], map: "place_sources_location_gist", type: Gist)
+  @@map("place_sources")
+}
+
+model PlaceName {
+  placeId String @map("place_id") @db.Uuid
+  /// BCP 47 language tag; the local name is also stored under its own language.
+  lang    String
+  /// primary | alternate | short
+  kind    String @default("primary")
+  name    String
+  source  String
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@id([placeId, lang, kind])
+  @@map("place_names")
+}
+
+/// One pipeline run (CLI or Airflow). Phase 3 adds sync_jobs and the admin screens on top.
+model SyncRun {
+  id         String    @id @default(uuid()) @db.Uuid
+  /// "cli" | "airflow" | "admin"
+  trigger    String
+  /// { area, providers, dry_run, … }
+  params     Json
+  /// running | succeeded | failed | needs_review
+  status     String    @default("running")
+  stats      Json      @default("{}")
+  error      String?
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  @@index([startedAt])
+  @@map("sync_runs")
 }

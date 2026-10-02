@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6" generator="triply-fixture">
+  <node id="1001" lat="15.87948" lon="108.33166" version="1">
+    <tag k="amenity" v="fast_food"/><tag k="cuisine" v="vietnamese"/><tag k="name" v="Bánh Mì Phượng"/>
+    <tag k="name:en" v="Banh Mi Phuong"/><tag k="opening_hours" v="Mo-Su 06:30-21:30"/><tag k="phone" v="+84 235 0000 001"/>
+  </node>
+  <node id="1002" lat="15.87710" lon="108.32640" version="1">
+    <tag k="amenity" v="restaurant"/><tag k="cuisine" v="vietnamese"/><tag k="name" v="Morning Glory"/>
+    <tag k="addr:housenumber" v="106"/><tag k="addr:street" v="Nguyễn Thái Học"/><tag k="website" v="morningglory.example"/>
+  </node>
+  <node id="1003" lat="15.87712" lon="108.32760" version="1">
+    <tag k="tourism" v="attraction"/><tag k="name" v="Phố cổ Hội An"/><tag k="name:en" v="Hội An Ancient Town"/>
+  </node>
+  <node id="1004" lat="15.87800" lon="108.33010" version="1"><tag k="shop" v="supermarket"/><tag k="name" v="Mini Mart"/></node>
+  <node id="1005" lat="15.87820" lon="108.33020" version="1"><tag k="amenity" v="cafe"/></node>
+  <node id="1006" lat="15.87660" lon="108.32700" version="1">
+    <tag k="disused:amenity" v="cafe"/><tag k="amenity" v="cafe"/><tag k="name" v="Closed Corner Cafe"/>
+  </node>
+  <node id="2001" lat="15.87730" lon="108.32575" version="1"/>
+  <node id="2002" lat="15.87730" lon="108.32595" version="1"/>
+  <node id="2003" lat="15.87736" lon="108.32595" version="1"/>
+  <node id="2004" lat="15.87736" lon="108.32575" version="1"/>
+  <way id="3001" version="1">
+    <nd ref="2001"/><nd ref="2002"/><nd ref="2003"/><nd ref="2004"/><nd ref="2001"/>
+    <tag k="historic" v="yes"/><tag k="tourism" v="attraction"/><tag k="name" v="Chùa Cầu"/><tag k="name:en" v="Japanese Covered Bridge"/>
+    <tag k="name:ja" v="来遠橋"/><tag k="name:prefix" v="not-a-language"/>
+  </way>
+</osm>

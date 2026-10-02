@@ -3,7 +3,7 @@ import type { CreateItemInput, DayView, ItemView, ReorderItemInput, UpdateItemIn
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
 import { lockTrip, writeSortOrder } from "../../common/locks";
-import { dayInclude, toDayView, toItemView } from "../../common/presenters";
+import { dayInclude, listablePlace, toDayView, toItemView } from "../../common/presenters";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications";
 import { RealtimeService } from "../realtime/realtime";
@@ -37,7 +37,8 @@ export class ItineraryService {
   }
 
   private async assertPlace(placeId: string | null | undefined) {
-    if (placeId && !(await this.prisma.place.findUnique({ where: { id: placeId }, select: { id: true } }))) throw Errors.invalid("That place doesn't exist.");
+    if (placeId && !(await this.prisma.place.findFirst({ where: { id: placeId, ...listablePlace }, select: { id: true } })))
+      throw Errors.invalid("That place doesn't exist or has closed.");
   }
 
   private writeOrder(tx: Tx, ids: string[]) {

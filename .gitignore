@@ -6,3 +6,11 @@ out
 next-env.d.ts
 apps/web/e2e/artifacts
 .env
+
+# Python pipeline
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+pipelines/data/

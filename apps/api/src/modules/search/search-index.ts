@@ -44,9 +44,9 @@ export class SearchIndexService implements OnApplicationBootstrap {
       await this.prisma.destination.update({ where: { id: d.id }, data: { searchText: normalizeSearch(`${d.name} ${d.country}`) } });
       n++;
     }
-    const places = await this.prisma.place.findMany({ where: { searchText: "" }, include: { destination: { select: { name: true, country: true } } } });
+    const places = await this.prisma.place.findMany({ where: { searchText: "" }, include: { destination: { select: { name: true, country: true } }, area: { select: { name: true } } } });
     for (const p of places) {
-      await this.prisma.place.update({ where: { id: p.id }, data: { searchText: normalizeSearch(`${p.name} ${p.address} ${p.destination.name} ${p.destination.country}`) } });
+      await this.prisma.place.update({ where: { id: p.id }, data: { searchText: normalizeSearch(`${p.name} ${p.address} ${p.destination?.name ?? p.area?.name ?? ""} ${p.destination?.country ?? ""}`) } });
       n++;
     }
     const trips = await this.prisma.trip.findMany({ where: { searchText: "" }, select: { id: true, updatedAt: true, title: true, description: true, destinations: { select: { destination: { select: { name: true, country: true } } } } } });

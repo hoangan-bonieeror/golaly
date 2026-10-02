@@ -23,7 +23,8 @@ TRIPLY is a full-stack MVP. You can discover public trips, remix one into your o
 |---|---|
 | Web | Next.js 16 (App Router), React 19, Tailwind CSS 4, TanStack Query, Socket.IO client |
 | API | NestJS 11 (modular), Prisma 7 (`prisma-client` generator + `pg` driver adapter), Socket.IO, argon2id, JWT in HTTP-only cookies |
-| Database | PostgreSQL 16 |
+| Database | PostgreSQL 16 + PostGIS |
+| Place catalog | `pipelines/`: Python 3.12, DuckDB, pyosmium, Apache Airflow 3: imports open place data (Overture Maps, OpenStreetMap) per country/province |
 | Shared | `packages/shared`: domain types, the **permission matrix**, **Zod schemas** used by both API and forms, and the API response contract |
 | Tests | Jest (unit + integration against a real Postgres test DB), Playwright (Definition-of-Done journey) |
 | Ops | Docker Compose, Dockerfiles, GitHub Actions CI |
@@ -42,10 +43,11 @@ triply/
 │       ├── src/components/   ui · layout · trip · itinerary · map · social
 │       ├── src/lib/          api client + query hooks · realtime · session · toast
 │       └── e2e/              definition-of-done.cjs (Playwright)
-├── packages/shared/          types · permissions · schemas · api-types
+├── packages/shared/          types · permissions · schemas · api-types · fixtures/ (cases shared with Python)
+├── pipelines/                place catalog: triply_catalog (Python) · dags/ (Airflow) · tests/
 ├── docs/                     ARCHITECTURE.md · screenshots
-├── docker-compose.yml        Postgres (dev) + optional full stack
-└── .github/workflows/ci.yml  typecheck → tests → build → e2e
+├── docker-compose.yml        PostGIS (dev) + optional full stack + optional Airflow
+└── .github/workflows/ci.yml  typecheck → tests → build → e2e · pipelines: ruff → pytest
 ```
 
 ---
@@ -65,16 +67,26 @@ npm run setup          # creates apps/api/.env (with a random JWT secret) and ap
 
 **Option A, Docker (easiest):**
 ```bash
-docker compose up -d db      # creates the `triply` and `triply_test` databases
+docker compose up -d db      # PostgreSQL + PostGIS; creates the `triply` and `triply_test` databases
 ```
 
-**Option B, native Postgres** (Windows installer from postgresql.org, or Homebrew/apt). Then create a user and both databases, for example with `psql -U postgres`:
+**Option B, native Postgres** (Windows installer from postgresql.org with the **PostGIS** add-on from Stack Builder, or Homebrew/apt `postgis`). Then create a user and both databases, for example with `psql -U postgres`:
 ```sql
 CREATE ROLE triply WITH LOGIN PASSWORD 'triply' CREATEDB;
 CREATE DATABASE triply OWNER triply;
 CREATE DATABASE triply_test OWNER triply;
+-- PostGIS can only be enabled by a superuser; enabling it in template1 covers every database created later
+-- (including the ones the test suites recreate).
+\c template1
+CREATE EXTENSION IF NOT EXISTS postgis;
+\c triply
+CREATE EXTENSION IF NOT EXISTS postgis;
+\c triply_test
+CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `apps/api/.env`.
+
+> **Upgrading an existing checkout?** The database image is now `postgis/postgis:16-3.4-alpine`. `docker compose up -d db` recreates the container on the new image and keeps your data volume; then run `npm run db:deploy`.
 
 > **Port 5432 already taken** (e.g. a native Postgres is running)? Put `TRIPLY_DB_PORT=5433` in a `.env` file next to `docker-compose.yml` and use `localhost:5433` in your `DATABASE_URL` / `TEST_DATABASE_URL`.
 
@@ -156,6 +168,8 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 | **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; typed JWTs (an OAuth state token can't pass as an access token); CORS locked to the web origin; Helmet on the API and anti-clickjacking headers on the web app; per-IP rate limits that can't be dodged by forging `X-Forwarded-For` behind the edge proxy; validated env (refuses insecure cookies in production); friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
 | **Accessibility** | WCAG AA colour contrast, focus-trapped dialogs that return focus, ARIA tabs and menus with arrow-key support, labelled and described form errors, skip link, one `<title>` per page, logical headings, 44px touch targets. An axe-core gate in the E2E run fails the build on any serious/critical issue (desktop and mobile). |
 
+| **Place catalog** | Admin-driven import of places for a whole country, a province or one destination from **open data** (Overture Maps + OpenStreetMap), Python + Airflow. Records from every source are kept, matched across sources (names in any language, within 50 m) and merged field by field with recorded provenance; existing place ids and itineraries never change; re-runs are idempotent; closures need 3 missed runs and a safety brake stops mass closures. PostGIS boundaries for Vietnam's provinces; names per language for locale-aware display. See **[pipelines/README.md](pipelines/README.md)**. |
+
 Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking, moderation dashboard.
 
 API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
@@ -170,7 +184,9 @@ API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](d
 
 Also `npm run lint` (ESLint 9 with typescript-eslint, React Hooks and Next rules) runs in CI.
 
-Current status: **102/102** API tests, lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
+- **Pipeline** (`pipelines/tests`, pytest): normalisation (checked against the same cases as the TypeScript `normalizeSearch`), provider adapters, and end-to-end runs on synthetic Overture/OSM fixtures against a real PostGIS database: idempotent re-runs, itineraries untouched, locked fields, closures and the safety brake. The Airflow DAGs were executed with `dag.test()` on Airflow 3.1.
+
+Current status: **103/103** API tests, **44** pipeline tests (43 + a DAG parse test that runs where Airflow is installed), lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
 
 ---
 
@@ -203,6 +219,7 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 - **Lead with the loop:** a 30-second recording of *Sarah remixes An's public trip → edits her copy → An's original is untouched* explains the product immediately.
 - **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
-- **Point to the tests:** 102 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
+- **Show the data platform:** `pipelines/` is a small, real ETL: Overture GeoParquet read straight from S3 with DuckDB, OSM streamed with pyosmium, PostGIS, idempotent upserts by content hash, cross-source entity matching, field-level survivorship with provenance, and an Airflow DAG with one mapped task per province.
+- **Point to the tests:** 103 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
 - **Tell the hardening story:** an honest self-review found a rate-limit bypass, Google account pre-hijacking and two race conditions; each fix landed with a test that reproduces the problem (`apps/api/test/hardening.int.ts`). Interviewers love this.
 - **Suggested headline:** *"TRIPLY: collaborative trip planning with GitHub-style fork/remix for itineraries. Next.js 16 · NestJS · Prisma · PostgreSQL · Socket.IO."*

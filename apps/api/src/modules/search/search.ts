@@ -11,7 +11,7 @@ import {
 import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { Errors, ZodPipe } from "../../common/http";
-import { placeInclude, postInclude, toPlaceView, toPostView, toTripSummary, tripSummaryInclude, userSummarySelect, toUserSummary } from "../../common/presenters";
+import { listablePlace, placeInclude, postInclude, toPlaceView, toPostView, toTripSummary, tripSummaryInclude, userSummarySelect, toUserSummary } from "../../common/presenters";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { Prisma } from "../../generated/prisma/client";
 import { TrigramRanker, byRank } from "./ranker";
@@ -54,7 +54,7 @@ export class PostgresSearchProvider implements SearchProvider {
         : [],
       want("places")
         ? this.prisma.place.findMany({
-            where: placeIds ? { id: { in: placeIds } } : {},
+            where: { ...listablePlace, ...(placeIds ? { id: { in: placeIds } } : {}) },
             orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { name: "asc" }],
             take: limit,
             include: placeInclude(viewerId),
@@ -101,7 +101,7 @@ export class ExploreService {
     const [destinations, trips, places] = await Promise.all([
       this.search.destinations("", 12),
       this.prisma.trip.findMany({ where: DISCOVERABLE, orderBy: [{ saveCount: "desc" }], take: 12, include: tripSummaryInclude(viewerId) }),
-      this.prisma.place.findMany({ orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 9, include: placeInclude(viewerId) }),
+      this.prisma.place.findMany({ where: listablePlace, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 9, include: placeInclude(viewerId) }),
     ]);
     return { destinations, trips: trips.map((t) => toTripSummary(t, viewerId)), places: places.map(toPlaceView) };
   }
@@ -113,7 +113,7 @@ export class ExploreService {
     const [popular, remixable, places, posts] = await Promise.all([
       this.prisma.trip.findMany({ where: tripWhere, orderBy: { saveCount: "desc" }, take: 9, include: tripSummaryInclude(viewerId) }),
       this.prisma.trip.findMany({ where: { ...tripWhere, allowFork: true }, orderBy: { forkCount: "desc" }, take: 6, include: tripSummaryInclude(viewerId) }),
-      this.prisma.place.findMany({ where: { destinationId: d.id }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 12, include: placeInclude(viewerId) }),
+      this.prisma.place.findMany({ where: { destinationId: d.id, ...listablePlace }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 12, include: placeInclude(viewerId) }),
       this.prisma.post.findMany({
         where: { deletedAt: null, visibility: "PUBLIC", OR: [{ destinationId: d.id }, { trip: tripWhere }] },
         orderBy: { createdAt: "desc" },
@@ -135,7 +135,7 @@ export class ExploreService {
     const s = normalizeSearch(q);
     const ids = s ? await new TrigramRanker(this.prisma).places(s, 50) : null;
     const rows = await this.prisma.place.findMany({
-      where: ids ? { id: { in: ids } } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {},
+      where: { ...listablePlace, ...(ids ? { id: { in: ids } } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {}) },
       take: 50,
       orderBy: [{ rating: { sort: "desc", nulls: "last" } }],
       include: placeInclude(viewerId),
@@ -145,14 +145,16 @@ export class ExploreService {
     // Stable sort: places in the trip's own destinations first, then by relevance/rating.
     return ranked
       .map((p, i) => ({ p, i }))
-      .sort((a, b) => Number(boost.has(b.p.destinationId)) - Number(boost.has(a.p.destinationId)) || a.i - b.i)
+      .sort((a, b) => Number(!!b.p.destinationId && boost.has(b.p.destinationId)) - Number(!!a.p.destinationId && boost.has(a.p.destinationId)) || a.i - b.i)
       .slice(0, opts.limit)
       .map(({ p }) => toPlaceView(p));
   }
 
-  async place(id: string, viewerId: string | null) {
+  async place(id: string, viewerId: string | null, depth = 0): Promise<PlaceView> {
     const p = await this.prisma.place.findUnique({ where: { id }, include: placeInclude(viewerId) });
-    if (!p) throw Errors.notFound("That place");
+    if (!p || p.status === "HIDDEN") throw Errors.notFound("That place");
+    // A place merged into another one answers with the surviving record (old links keep working).
+    if (p.mergedIntoId && depth < 5) return this.place(p.mergedIntoId, viewerId, depth + 1);
     return toPlaceView(p);
   }
 

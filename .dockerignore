@@ -7,3 +7,6 @@ apps/api/storage
 apps/api/src/generated
 apps/web/e2e/artifacts
 .git
+**/.venv
+**/__pycache__
+pipelines/data

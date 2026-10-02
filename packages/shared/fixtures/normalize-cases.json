@@ -1,0 +1,20 @@
+{
+  "_comment": "normalizeSearch (TypeScript, packages/shared/src/labels.ts) and normalize_search (Python, pipelines/triply_catalog/normalize.py) must agree on every case. Both test suites read this file.",
+  "cases": [
+    ["Hội An", "hoi an"],
+    ["Đà Nẵng", "da nang"],
+    ["ĐƯỜNG Trần Phú", "duong tran phu"],
+    ["Bánh Mì Phượng", "banh mi phuong"],
+    ["  Phố   cổ\tHội An  ", "pho co hoi an"],
+    ["Chùa Cầu", "chua cau"],
+    ["Nguyễn Thị Minh Khai", "nguyen thi minh khai"],
+    ["Tōkyō", "tokyo"],
+    ["São Paulo", "sao paulo"],
+    ["Café Ồ", "cafe o"],
+    ["Kyōto — Gion", "kyoto — gion"],
+    ["来遠橋", "来遠橋"],
+    ["", ""],
+    ["MỸ SƠN", "my son"],
+    ["Quảng Ngãi", "quang ngai"]
+  ]
+}

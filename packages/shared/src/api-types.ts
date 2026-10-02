@@ -59,12 +59,15 @@ export interface PlaceView {
   id: string;
   name: string;
   category: ItineraryItemType;
-  destinationId: string;
+  /** null for imported places outside any curated destination; destinationName then names their area. */
+  destinationId: string | null;
   destinationName: string;
   address: string;
   lat: number;
   lng: number;
   rating: number | null;
+  /** CLOSED places stay visible inside existing itineraries but can't be added again. */
+  status: "ACTIVE" | "CLOSED" | "HIDDEN";
   savedByMe: boolean;
 }
 

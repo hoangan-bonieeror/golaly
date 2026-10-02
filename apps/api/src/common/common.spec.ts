@@ -60,4 +60,11 @@ describe("search normalisation", () => {
     expect(queryWords(normalizeSearch("Sensō-ji, Tokyo!! a"))).toEqual(["senso", "ji", "tokyo"]);
     expect(queryWords("%_%")).toEqual([]);
   });
+
+  it("matches the Python pipeline's normalize_search on the shared cases", () => {
+    const { normalizeSearch } = jest.requireActual("@triply/shared");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { cases } = require("../../../../packages/shared/fixtures/normalize-cases.json") as { cases: [string, string][] };
+    for (const [input, expected] of cases) expect([input, normalizeSearch(input)]).toEqual([input, expected]);
+  });
 });

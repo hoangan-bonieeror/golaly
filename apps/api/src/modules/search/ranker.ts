@@ -44,7 +44,7 @@ export class TrigramRanker {
     return this.run("trips", "id", q, limit, Prisma.sql`AND visibility = 'PUBLIC' AND deleted_at IS NULL`);
   }
   places(q: string, limit: number) {
-    return this.run("places", "id", q, limit);
+    return this.run("places", "id", q, limit, Prisma.sql`AND status = 'ACTIVE' AND merged_into_id IS NULL`);
   }
   destinations(q: string, limit: number) {
     return this.run("destinations", "id", q, limit);

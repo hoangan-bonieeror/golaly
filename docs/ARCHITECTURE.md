@@ -74,6 +74,24 @@ users ─1:1─ user_profiles            sessions (token_hash, prev_token_hash),
 - Soft deletes apply to users, trips, posts and comments.
 - Indexes and unique constraints follow spec §26: `users.email/username`, `trips.owner_id`, `(visibility, deleted_at)`, `trip_members(trip_id,user_id)`, `follows`, `post_likes`, `saved_posts`, `places(lat,lng)`, and so on.
 
+### Place catalog (PostGIS)
+
+```
+geo_areas (COUNTRY/REGION…, boundary MultiPolygon, slug vn / vn-da-nang) ──< geo_area_names (lang)
+   ▲ area_id                                     ▲ area_id
+places (id kept forever; status ACTIVE/CLOSED/HIDDEN; location geography; category_id → categories;
+        field_sources, locked_fields, quality_score, merged_into_id) ──< place_names (lang, kind)
+   ▲ place_id (nullable until published)
+place_sources (provider, external_id unique; raw, normalized, content_hash; missing_runs; last/changed_run_id)
+categories (key, labelVi/labelEn, item_type) ──< category_maps (provider, external_category)
+sync_runs (trigger, params, status running/succeeded/needs_review/partial/failed, stats)
+```
+
+`places.destination_id` is now optional: imported places belong to an administrative area and get the nearest curated
+destination (within 15 km) only when there is one. Lists and search show only `status = ACTIVE` and not merged;
+opening a merged place follows `merged_into_id`. The importer is a separate Python service (`pipelines/`), which only
+talks to the database; it never calls the API.
+
 Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB straight from those SQL files, so the tests always exercise exactly what production will run.
 
 ## REST API (`/api/v1`)
@@ -114,7 +132,26 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
 | `TripMap` (`web/components/map`) | MapLibre tiles (OpenFreeMap) with SVG fallback | Routing API for real travel paths |
 | AI (spec §49) | — | Suggests structured operations; the user confirms; the API validates and applies them through the same services and permission checks |
 
+## Place catalog pipeline
+
+`pipelines/` (Python) fills the catalog; the API only reads it. Airflow DAG `catalog_sync`:
+`start → plan → extract_load × (provider × province) → finalize → finish`.
+
+- **Extract**: Overture GeoParquet via DuckDB (bbox pushdown, `confidence ≥ 0.6`), OSM `.pbf` via pyosmium (tags →
+  candidate categories, `name:xx` → names, ways → centroid).
+- **Load** (`place_sources`): `COPY` into a temp table, upsert on `(provider, external_id)`; `changed_run_id` is set
+  only when the content hash or category changed, so later steps touch only what changed.
+- **Publish**: attach to an existing place (any name variant equal after normalisation, ≤ 50 m, no record from the
+  same provider yet) or create one; then recompute fields by `FIELD_PRIORITY`, respecting `locked_fields`.
+- **Missing records**: after a complete run, unseen records in scope get `missing_runs + 1`; at 3 the place closes
+  unless another source still has it. If more than 10 % of a scope would close, nothing is applied (`needs_review`).
+- **Text**: `normalize_search` in Python mirrors `normalizeSearch` in TypeScript; both test suites read
+  `packages/shared/fixtures/normalize-cases.json`.
+
 ## Known trade-offs
+
+- **Catalog matching is deliberately conservative** (same normalised name within 50 m). Different spellings stay as
+  two places until a later phase adds fuzzy matching with an admin review queue; a wrong merge is worse than a duplicate.
 
 - **Search** uses `pg_trgm`. Each searchable row keeps a denormalised, lower-cased, accent-free `search_text` (title, description, destinations, …) with a GIN trigram index; it's rewritten whenever the source fields change and back-filled at boot. A query matches when **every word** is a substring of `search_text` or has `word_similarity ≥ 0.4`; exact phrase matches rank first. Good up to hundreds of thousands of rows; past that, or for relevance tuning/facets, swap in a search engine behind `SearchProvider`.
 - **Map routes** are straight lines between stops in visit order, not real road/transit paths.

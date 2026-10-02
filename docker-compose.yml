@@ -1,8 +1,11 @@
 # Local PostgreSQL for development:   docker compose up -d db
 # Full stack in containers (optional): docker compose --profile full up --build   → http://localhost:3000
+# Place catalog pipeline (optional):    docker compose --profile pipelines up -d --build → Airflow on http://localhost:8080
 services:
   db:
-    image: postgres:16-alpine
+    # PostgreSQL 16 + PostGIS (the place catalog stores points and province boundaries).
+    # Same data directory format as postgres:16-alpine, so an existing volume keeps working.
+    image: postgis/postgis:16-3.4-alpine
     environment:
       POSTGRES_USER: triply
       POSTGRES_PASSWORD: triply
@@ -74,6 +77,53 @@ services:
     ports:
       - "3000:3000"
 
+  # ── Place catalog (pipelines/README.md) ──────────────────────────────────────────────
+  # Airflow keeps its own metadata in a separate "airflow" database on the same server.
+  airflow-db:
+    profiles: ["pipelines"]
+    image: postgis/postgis:16-3.4-alpine
+    depends_on:
+      db: { condition: service_healthy }
+    environment: { PGPASSWORD: triply }
+    entrypoint: ["sh", "-c"]
+    command:
+      - psql -h db -U triply -d triply -tAc "SELECT 1 FROM pg_database WHERE datname = 'airflow'" | grep -q 1
+        || psql -h db -U triply -d triply -c "CREATE DATABASE airflow"
+    restart: "no"
+
+  airflow:
+    profiles: ["pipelines"]
+    build: { context: ., dockerfile: pipelines/Dockerfile }
+    command: standalone
+    depends_on:
+      airflow-db: { condition: service_completed_successfully }
+    environment: &catalog-env
+      DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      OVERTURE_RELEASE: ${OVERTURE_RELEASE:-}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://triply:triply@db:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+      # Local development only: everyone is admin, no login. Never expose this port publicly.
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+    volumes:
+      - ./pipelines/dags:/opt/airflow/dags:ro
+      - triply-catalog:/data/catalog
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  # One-off CLI:  docker compose --profile pipelines run --rm catalog sync --area hoi-an
+  catalog:
+    profiles: ["pipelines"]
+    build: { context: ., dockerfile: pipelines/Dockerfile }
+    entrypoint: ["triply-catalog"]
+    command: ["stats"]
+    depends_on:
+      db: { condition: service_healthy }
+    environment: *catalog-env
+    volumes:
+      - triply-catalog:/data/catalog
+
 volumes:
   triply-db:
   triply-media:
+  triply-catalog:
