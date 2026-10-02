@@ -1,10 +1,10 @@
 "use client";
 
-import { VISIBILITY_LABEL, updateTripSchema, type MediaView, type TripSummary, type TripVisibility } from "@triply/shared";
+import { VISIBILITY_LABEL, updateTripSchema, type MediaView, type TripDetail, type TripSummary, type TripVisibility } from "@triply/shared";
 import { ArrowLeft, Globe2, ImagePlus, Link2, Lock, ShieldAlert, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Cover } from "@/components/trip/Cover";
 import { DestinationPicker } from "@/components/trip/DestinationPicker";
 import { Button, EmptyState, ErrorState, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
@@ -15,49 +15,40 @@ const VIS_ICON = { PRIVATE: Lock, LINK_ONLY: Link2, PUBLIC: Globe2 };
 
 export default function TripSettingsPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const q = useTrip(id);
   const trip = q.data;
+  if (q.isLoading) return <PageLoader />;
+  if (q.isError || !trip) return <ErrorState page error={q.error} onRetry={() => q.refetch()} />;
+  // Keyed by trip: the form starts from that trip's saved values (no effect-driven reset).
+  return <TripSettings key={trip.id} trip={trip} />;
+}
+
+function TripSettings({ trip }: { trip: TripDetail }) {
+  const id = trip.id;
+  const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    title: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-    destinationIds: [] as string[],
-    visibility: "PRIVATE" as TripVisibility,
-    allowComments: true,
-    allowFork: true,
-    estimatedBudget: "",
+    title: trip.title,
+    description: trip.description,
+    startDate: trip.startDate ?? "",
+    endDate: trip.endDate ?? "",
+    destinationIds: trip.destinations.map((d) => d.id),
+    visibility: trip.visibility as TripVisibility,
+    allowComments: trip.allowComments,
+    allowFork: trip.allowFork,
+    estimatedBudget: trip.estimatedBudget?.toString() ?? "",
   });
   const [cover, setCover] = useState<{ id: string; url: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (trip)
-      setForm({
-        title: trip.title,
-        description: trip.description,
-        startDate: trip.startDate ?? "",
-        endDate: trip.endDate ?? "",
-        destinationIds: trip.destinations.map((d) => d.id),
-        visibility: trip.visibility,
-        allowComments: trip.allowComments,
-        allowFork: trip.allowFork,
-        estimatedBudget: trip.estimatedBudget?.toString() ?? "",
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trip?.id]);
 
   const invalidate = [keys.trip(id), ["trips"], ["explore"], ["search"], ["profile"], ["feed"]];
   const save = useAction((body: object) => api.patch<TripSummary>(`/trips/${id}`, body), { invalidate, success: "Trip updated" });
   const remove = useAction(() => api.delete(`/trips/${id}`), { invalidate: [["trips"]], success: "Trip deleted" });
   const upload = useAction((file: File) => api.upload<MediaView>("/media", file), { success: "Cover uploaded — save to apply" });
 
-  if (q.isLoading) return <PageLoader />;
-  if (q.isError || !trip) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!trip.permissions.includes("trip.edit_details"))
     return (
       <EmptyState
@@ -127,6 +118,8 @@ export default function TripSettingsPage() {
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
+              aria-label="Upload a cover photo"
+              tabIndex={-1}
               className="sr-only"
               onChange={async (e) => {
                 const f = e.target.files?.[0];

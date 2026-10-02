@@ -12,7 +12,8 @@
   --color-surface: #ffffff;
   --color-ink: #16232e;
   --color-ink-2: #3a4853;
-  --color-muted: #6b7780;
+  /* #59646d ≥ 5:1 on sand, sand-2 and white (WCAG AA for small text). */
+  --color-muted: #59646d;
   --color-line: #e5ded2;
 
   --color-lagoon: #0e6e6a;
@@ -20,6 +21,9 @@
   --color-lagoon-50: #e5f2f1;
   --color-sunset: #f26b4e;
   --color-sunset-50: #fdece7;
+  /* Sunset for TEXT and small icons: #f26b4e is only ~2.7:1 on light backgrounds. */
+  --color-sunset-600: #c8472a; /* button fill: white text 4.8:1 */
+  --color-sunset-700: #b13f28;
   --color-gold: #e2a93b;
   --color-danger: #c2412d;
 

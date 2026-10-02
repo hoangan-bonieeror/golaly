@@ -14,6 +14,7 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
+import { RealtimeService } from "../realtime/realtime";
 import { SearchIndexService } from "../search/search-index";
 
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
@@ -25,6 +26,7 @@ export class UsersService {
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
     private readonly searchIndex: SearchIndexService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async me(userId: string): Promise<Me> {
@@ -37,6 +39,7 @@ export class UsersService {
       id: u.id,
       username: u.username,
       email: u.email,
+      emailVerified: !!u.emailVerifiedAt,
       displayName: u.profile?.displayName ?? u.username,
       avatarHue: u.profile?.avatarHue ?? 180,
       avatarUrl: mediaUrl(u.profile?.avatar?.thumbKey ?? u.profile?.avatar?.storageKey),
@@ -176,7 +179,7 @@ export class UsersService {
     if (u.passwordHash ? !(await verifyPassword(u.passwordHash, confirm.password ?? "")) : confirm.username?.trim().toLowerCase() !== u.username)
       throw new AppError(403, u.passwordHash ? "That password isn't right." : "Type your username exactly to confirm.");
     const now = new Date();
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
       await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });
       await tx.tripMember.deleteMany({ where: { userId, role: { not: "OWNER" } } });
       await tx.trip.updateMany({ where: { ownerId: userId, deletedAt: null }, data: { deletedAt: now } });
@@ -192,5 +195,6 @@ export class UsersService {
       await tx.userProfile.update({ where: { userId }, data: { displayName: "Deleted user", bio: "", homeBase: null, avatarMediaId: null } });
       await this.audit.log(userId, "user.deleted", "user", userId, {}, tx);
     });
+    await this.realtime.disconnectSessions({ userId });
   }
 }

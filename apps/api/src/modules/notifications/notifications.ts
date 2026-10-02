@@ -3,7 +3,7 @@ import { pageQuerySchema, type NotificationType, type NotificationView, type Pag
 import { ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { notificationInclude, toNotificationView } from "../../common/presenters";
-import { PrismaService, type Tx } from "../../prisma/prisma.service";
+import { afterCommit, PrismaService, type Tx } from "../../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime";
 
 /** Item edits within this window update the existing unread notification instead of stacking new ones. */
@@ -39,8 +39,8 @@ export class NotificationsService {
       row ??= await tx.notification.create({ data: { userId, actorId, type, text, ...refs }, include: notificationInclude });
       created.push({ userId, view: toNotificationView(row) });
     }
-    // Push after the write; if the surrounding transaction fails the client simply refetches.
-    setImmediate(() => created.forEach((c) => this.realtime.notification(c.userId, c.view)));
+    // Push only after the surrounding transaction commits (never for rows that were rolled back).
+    afterCommit(() => created.forEach((c) => this.realtime.notification(c.userId, c.view)));
   }
 
   async list(userId: string, cursor: string | undefined, limit: number): Promise<Paged<NotificationView>> {

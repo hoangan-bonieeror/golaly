@@ -12,7 +12,11 @@ export type AuditAction =
   | "trip.deleted"
   | "user.deleted"
   | "user.password_reset"
-  | "user.password_changed";
+  | "user.password_changed"
+  | "user.email_verified"
+  | "user.google_linked"
+  | "user.login_locked"
+  | "session.reuse_detected";
 
 /** Append-only log of sensitive permission changes (spec §42). Never stores tokens or passwords. */
 @Injectable()

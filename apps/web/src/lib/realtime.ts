@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { NotificationView, TripEvent } from "@triply/shared";
 import { useEffect, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { refreshSession } from "./api/client";
 import { keys } from "./api/queries";
 
 let socket: Socket | null = null;
@@ -31,7 +32,23 @@ export function getSocket(userId: string | null): Socket | null {
   if (socket && ownerId === userId) return socket;
   socket?.close();
   ownerId = userId;
-  socket = io(realtimeUrl(), { path: "/socket.io", withCredentials: true, transports: ["websocket", "polling"], reconnectionDelayMax: 10_000 });
+  const s = io(realtimeUrl(), { path: "/socket.io", withCredentials: true, transports: ["websocket", "polling"], reconnectionDelayMax: 10_000 });
+  // The socket authenticates with the 15-minute access cookie. When the server rejects it
+  // (expired on reconnect, or the session was revoked), refresh and reconnect; if the
+  // refresh fails the user really is signed out and the next REST call sends them to login.
+  let retrying = false;
+  const reauth = async () => {
+    if (retrying) return;
+    retrying = true;
+    const ok = await refreshSession();
+    retrying = false;
+    if (ok && socket === s && !s.connected) s.connect();
+  };
+  s.on("auth.error", reauth); // session revoked or expired while connected
+  s.on("connect_error", (err) => {
+    if (err.message === "unauthorized") void reauth(); // handshake rejected (e.g. expired cookie on reconnect)
+  });
+  socket = s;
   return socket;
 }
 

@@ -1,3 +1,4 @@
+import { randomToken, sha256 } from "../src/common/crypto";
 import type { INestApplication } from "@nestjs/common";
 import request from "supertest";
 import type TestAgent from "supertest/lib/agent";
@@ -12,7 +13,9 @@ export interface TestContext {
   /** Logged-in agent; cookies persist between calls like a browser. */
   as(email: string, password?: string): Promise<Agent>;
   anon(): Agent;
-  register(prefix: string): Promise<Agent & { email: string; username: string; id: string }>;
+  register(prefix: string, opts?: { verified?: boolean }): Promise<Agent & { email: string; username: string; id: string }>;
+  /** Confirms a user's email through the real endpoint (token row inserted directly — no inbox). */
+  verifyEmail(userId: string): Promise<void>;
 }
 
 export type Agent = {
@@ -62,7 +65,14 @@ export async function createTestContext(): Promise<TestContext> {
       (a as unknown as { cookie: string }).cookie = (res.headers["set-cookie"] as unknown as string[]).map((c) => c.split(";")[0]).join("; ");
       return a;
     },
-    async register(prefix) {
+    async verifyEmail(userId) {
+      const u = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+      const token = randomToken();
+      await prisma.emailVerificationToken.create({ data: { userId, email: u.email, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3_600_000) } });
+      const res = await request(server).post(`${API}/auth/verify-email`).set("X-Requested-With", "triply").send({ token });
+      if (res.status !== 200) throw new Error(`verify failed: ${res.status} ${JSON.stringify(res.body)}`);
+    },
+    async register(prefix, opts) {
       const n = `${prefix}${Date.now().toString(36)}${counter++}`.toLowerCase().slice(0, 24);
       const email = `${n}@example.com`;
       const raw = request.agent(server);
@@ -70,6 +80,7 @@ export async function createTestContext(): Promise<TestContext> {
       if (res.status !== 201) throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
       const a = wrap(raw);
       (a as unknown as { cookie: string }).cookie = (res.headers["set-cookie"] as unknown as string[]).map((c) => c.split(";")[0]).join("; ");
+      if (opts?.verified) await ctx.verifyEmail(res.body.id);
       return Object.assign(a, { email, username: n, id: res.body.id as string });
     },
   };

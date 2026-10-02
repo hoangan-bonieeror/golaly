@@ -1,15 +1,10 @@
 import { Injectable } from "@nestjs/common";
-import type { CreateTripInput, TripDetail, TripSummary, UpdateTripInput } from "@triply/shared";
+import type { CreateTripInput, Paged, TripDetail, TripSummary, UpdateTripInput } from "@triply/shared";
 import { addDays, dayCount, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
-import {
-  dayInclude,
-  toDayView,
-  toTripSummary,
-  toUserSummary,
-  tripSummaryInclude,
-  userSummarySelect,
-} from "../../common/presenters";
+import { lockTrip } from "../../common/locks";
+import { pageOf } from "../../common/paging";
+import { dayInclude, toDayView, toTripSummary, toUserSummary, tripSummaryInclude, userSummarySelect } from "../../common/presenters";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
@@ -32,7 +27,10 @@ export class TripsService {
 
   // ── Reads ──────────────────────────────────────────────────────────────
   async summary(tripId: string, viewerId: string | null, tx: Tx = this.prisma): Promise<TripSummary> {
-    const t = await tx.trip.findUniqueOrThrow({ where: { id: tripId }, include: tripSummaryInclude(viewerId) });
+    const t = await tx.trip.findUniqueOrThrow({
+      where: { id: tripId },
+      include: tripSummaryInclude(viewerId),
+    });
     return toTripSummary(t, viewerId);
   }
 
@@ -40,12 +38,28 @@ export class TripsService {
     const trip = await this.access.require("trip.view", tripId, viewerId);
     const isOwner = trip.ownerId === viewerId;
     const [t, days, members, invitations] = await Promise.all([
-      this.prisma.trip.findUniqueOrThrow({ where: { id: tripId }, include: tripSummaryInclude(viewerId) }),
-      this.prisma.tripDay.findMany({ where: { tripId }, orderBy: { dayNumber: "asc" }, include: dayInclude(viewerId) }),
-      this.prisma.tripMember.findMany({ where: { tripId }, include: { user: { select: userSummarySelect } }, orderBy: { joinedAt: "asc" } }),
+      this.prisma.trip.findUniqueOrThrow({
+        where: { id: tripId },
+        include: tripSummaryInclude(viewerId),
+      }),
+      this.prisma.tripDay.findMany({
+        where: { tripId },
+        orderBy: { dayNumber: "asc" },
+        include: dayInclude(viewerId),
+      }),
+      this.prisma.tripMember.findMany({
+        where: { tripId },
+        include: { user: { select: userSummarySelect } },
+        orderBy: { joinedAt: "asc" },
+      }),
       isOwner
         ? this.prisma.tripInvitation.findMany({
-            where: { tripId, revokedAt: null, acceptedAt: null, expiresAt: { gt: new Date() } },
+            where: {
+              tripId,
+              revokedAt: null,
+              acceptedAt: null,
+              expiresAt: { gt: new Date() },
+            },
             include: { inviter: { select: userSummarySelect } },
             orderBy: { createdAt: "desc" },
           })
@@ -58,7 +72,11 @@ export class TripsService {
       // Non-members of a public trip see who created it, not the private member list (spec §34).
       members: (trip.members.some((m) => m.userId === viewerId) ? members : members.filter((m) => m.role === "OWNER"))
         .sort((a, b) => order[a.role] - order[b.role])
-        .map((m) => ({ user: toUserSummary(m.user), role: m.role, joinedAt: m.joinedAt.toISOString() })),
+        .map((m) => ({
+          user: toUserSummary(m.user),
+          role: m.role,
+          joinedAt: m.joinedAt.toISOString(),
+        })),
       permissions: this.access.permissions(trip, viewerId),
       ...(isOwner
         ? {
@@ -75,7 +93,7 @@ export class TripsService {
     };
   }
 
-  async mine(viewerId: string, filter: "all" | "mine" | "shared" | "past"): Promise<TripSummary[]> {
+  async mine(viewerId: string, filter: "all" | "mine" | "shared" | "past", cursor: string | undefined, limit: number): Promise<Paged<TripSummary>> {
     const today = toDate(new Date().toISOString().slice(0, 10));
     const rows = await this.prisma.trip.findMany({
       where: {
@@ -85,13 +103,15 @@ export class TripsService {
         ...(filter === "shared" ? { ownerId: { not: viewerId } } : {}),
         ...(filter === "past" ? { endDate: { lt: today } } : {}),
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: tripSummaryInclude(viewerId),
     });
-    return rows.map((t) => toTripSummary(t, viewerId));
+    return pageOf(rows, limit, (t) => toTripSummary(t, viewerId));
   }
 
-  async saved(viewerId: string): Promise<TripSummary[]> {
+  async saved(viewerId: string, cursor: string | undefined, limit: number): Promise<Paged<TripSummary>> {
     const rows = await this.prisma.trip.findMany({
       where: {
         deletedAt: null,
@@ -99,9 +119,12 @@ export class TripsService {
         // A saved trip that later went private disappears for non-members.
         OR: [{ visibility: { not: "PRIVATE" } }, { members: { some: { userId: viewerId } } }],
       },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: tripSummaryInclude(viewerId),
     });
-    return rows.map((t) => toTripSummary(t, viewerId));
+    return pageOf(rows, limit, (t) => toTripSummary(t, viewerId));
   }
 
   // ── Writes ─────────────────────────────────────────────────────────────
@@ -111,27 +134,36 @@ export class TripsService {
     if (n > MAX_TRIP_DAYS) throw Errors.invalid(`Trips can be up to ${MAX_TRIP_DAYS} days long.`);
     const cover = destinations[0] ? ([destinations[0].paletteA, destinations[0].paletteB] as const) : FALLBACK_COVER;
 
-    const trip = await this.prisma.trip.create({
-      data: {
-        ownerId,
-        title: input.title,
-        description: input.description ?? "",
-        startDate: toDate(input.startDate),
-        endDate: toDate(input.endDate),
-        visibility: "PRIVATE", // spec §17: default PRIVATE
-        coverA: cover[0],
-        coverB: cover[1],
-        members: { create: { userId: ownerId, role: "OWNER" } },
-        destinations: { create: input.destinationIds.map((destinationId, position) => ({ destinationId, position })) },
-        days: {
-          create: Array.from({ length: n }, (_, i) => ({
-            dayNumber: i + 1,
-            date: input.startDate ? toDate(addDays(input.startDate, i)) : null,
-          })),
+    // One transaction: a trip never exists without its search entry.
+    const trip = await this.prisma.transaction(async (tx) => {
+      const t = await tx.trip.create({
+        data: {
+          ownerId,
+          title: input.title,
+          description: input.description ?? "",
+          startDate: toDate(input.startDate),
+          endDate: toDate(input.endDate),
+          visibility: "PRIVATE", // spec §17: default PRIVATE
+          coverA: cover[0],
+          coverB: cover[1],
+          members: { create: { userId: ownerId, role: "OWNER" } },
+          destinations: {
+            create: input.destinationIds.map((destinationId, position) => ({
+              destinationId,
+              position,
+            })),
+          },
+          days: {
+            create: Array.from({ length: n }, (_, i) => ({
+              dayNumber: i + 1,
+              date: input.startDate ? toDate(addDays(input.startDate, i)) : null,
+            })),
+          },
         },
-      },
+      });
+      await this.searchIndex.trip(t.id, tx);
+      return t;
     });
-    await this.searchIndex.trip(trip.id);
     return this.summary(trip.id, ownerId);
   }
 
@@ -140,14 +172,19 @@ export class TripsService {
     if (input.visibility && input.visibility !== trip.visibility) this.access.assert("trip.change_visibility", trip, viewerId);
     if (input.destinationIds) await this.validDestinations(input.destinationIds);
     if (input.coverMediaId) {
-      const m = await this.prisma.media.findFirst({ where: { id: input.coverMediaId, ownerId: viewerId } });
+      const m = await this.prisma.media.findFirst({
+        where: { id: input.coverMediaId, ownerId: viewerId },
+      });
       if (!m) throw Errors.invalid("Upload the cover photo first.");
     }
     const start = input.startDate !== undefined ? input.startDate : fromDate(trip.startDate);
     const end = input.endDate !== undefined ? input.endDate : fromDate(trip.endDate);
-    if (start && end && end < start) throw Errors.invalid("End date can't be before the start date.", { endDate: "End date can't be before the start date." });
+    if (start && end && end < start)
+      throw Errors.invalid("End date can't be before the start date.", {
+        endDate: "End date can't be before the start date.",
+      });
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
       const { destinationIds, startDate, endDate, ...rest } = input;
       await tx.trip.update({
         where: { id: tripId },
@@ -159,13 +196,28 @@ export class TripsService {
       });
       if (destinationIds) {
         await tx.tripDestination.deleteMany({ where: { tripId } });
-        await tx.tripDestination.createMany({ data: destinationIds.map((destinationId, position) => ({ tripId, destinationId, position })) });
+        await tx.tripDestination.createMany({
+          data: destinationIds.map((destinationId, position) => ({
+            tripId,
+            destinationId,
+            position,
+          })),
+        });
       }
-      if (startDate !== undefined || endDate !== undefined) await this.reconcileDays(tx, tripId, start, end);
+      if (startDate !== undefined || endDate !== undefined) {
+        await lockTrip(tx, tripId);
+        await this.reconcileDays(tx, tripId, start, end);
+      }
       if (input.visibility && input.visibility !== trip.visibility)
         await this.audit.log(viewerId, "trip.visibility_changed", "trip", tripId, { from: trip.visibility, to: input.visibility }, tx);
       if (input.title !== undefined || input.description !== undefined || destinationIds) await this.searchIndex.trip(tripId, tx);
     });
+    // Outsiders who were watching a public trip stop receiving its events once it goes private.
+    if (input.visibility === "PRIVATE" && trip.visibility !== "PRIVATE")
+      await this.realtime.evictNonMembers(
+        tripId,
+        trip.members.map((m) => m.userId),
+      );
     this.realtime.trip(tripId, viewerId, "trip.updated");
     return this.summary(tripId, viewerId);
   }
@@ -175,7 +227,11 @@ export class TripsService {
    * shrinking the range only removes trailing days that are empty.
    */
   private async reconcileDays(tx: Tx, tripId: string, start: string | null, end: string | null) {
-    const days = await tx.tripDay.findMany({ where: { tripId }, orderBy: { dayNumber: "asc" }, include: { _count: { select: { items: true } } } });
+    const days = await tx.tripDay.findMany({
+      where: { tripId },
+      orderBy: { dayNumber: "asc" },
+      include: { _count: { select: { items: true } } },
+    });
     const target = dayCount(start, end);
     if (target !== null) {
       if (target > MAX_TRIP_DAYS) throw Errors.invalid(`Trips can be up to ${MAX_TRIP_DAYS} days long.`);
@@ -183,18 +239,34 @@ export class TripsService {
       const busy = extra.filter((d) => d._count.items > 0);
       if (busy.length)
         throw Errors.invalid(`Day ${busy[0].dayNumber}${busy.length > 1 ? ` and ${busy.length - 1} more` : ""} still has plans. Move or delete them before shortening the trip.`);
-      if (extra.length) await tx.tripDay.deleteMany({ where: { id: { in: extra.map((d) => d.id) } } });
+      if (extra.length)
+        await tx.tripDay.deleteMany({
+          where: { id: { in: extra.map((d) => d.id) } },
+        });
       for (let i = days.length; i < target; i++) await tx.tripDay.create({ data: { tripId, dayNumber: i + 1 } });
     }
-    const all = await tx.tripDay.findMany({ where: { tripId }, orderBy: { dayNumber: "asc" } });
-    for (const [i, d] of all.entries()) await tx.tripDay.update({ where: { id: d.id }, data: { date: start ? toDate(addDays(start, i)) : null } });
+    const all = await tx.tripDay.findMany({
+      where: { tripId },
+      orderBy: { dayNumber: "asc" },
+    });
+    for (const [i, d] of all.entries())
+      await tx.tripDay.update({
+        where: { id: d.id },
+        data: { date: start ? toDate(addDays(start, i)) : null },
+      });
   }
 
   async remove(tripId: string, viewerId: string) {
     await this.access.require("trip.delete", tripId, viewerId);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } }); // soft delete
-      await tx.tripInvitation.updateMany({ where: { tripId, revokedAt: null, acceptedAt: null }, data: { revokedAt: new Date() } });
+    await this.prisma.transaction(async (tx) => {
+      await tx.trip.update({
+        where: { id: tripId },
+        data: { deletedAt: new Date() },
+      }); // soft delete
+      await tx.tripInvitation.updateMany({
+        where: { tripId, revokedAt: null, acceptedAt: null },
+        data: { revokedAt: new Date() },
+      });
       await this.audit.log(viewerId, "trip.deleted", "trip", tripId, {}, tx);
     });
     this.realtime.trip(tripId, viewerId, "trip.updated");
@@ -203,20 +275,26 @@ export class TripsService {
   async setSaved(tripId: string, viewerId: string, on: boolean): Promise<TripSummary> {
     const trip = await this.access.require("trip.view", tripId, viewerId);
     if (trip.visibility === "PRIVATE" && on) throw Errors.invalid("Private trips can't be saved — you're already a member.");
-    const key = { userId_tripId: { userId: viewerId, tripId } };
-    const existing = await this.prisma.savedTrip.findUnique({ where: key });
-    if (on && !existing) {
-      await this.prisma.$transaction([
-        this.prisma.savedTrip.create({ data: { userId: viewerId, tripId } }),
-        this.prisma.trip.update({ where: { id: tripId }, data: { saveCount: { increment: 1 } } }),
-      ]);
-      await this.notifications.notify([trip.ownerId], viewerId, "TRIP_SAVED", `saved your trip ${trip.title}`, { tripId });
-    } else if (!on && existing) {
-      await this.prisma.$transaction([
-        this.prisma.savedTrip.delete({ where: key }),
-        this.prisma.trip.update({ where: { id: tripId }, data: { saveCount: { decrement: 1 } } }),
-      ]);
-    }
+    // Idempotent: the counter moves by the rows actually changed (double-clicks can't error or drift it).
+    const changed = await this.prisma.transaction(async (tx) => {
+      const r = on
+        ? await tx.savedTrip.createMany({
+            data: [{ userId: viewerId, tripId }],
+            skipDuplicates: true,
+          })
+        : await tx.savedTrip.deleteMany({
+            where: { userId: viewerId, tripId },
+          });
+      if (r.count)
+        await tx.trip.update({
+          where: { id: tripId },
+          data: {
+            saveCount: on ? { increment: r.count } : { decrement: r.count },
+          },
+        });
+      return r.count > 0;
+    });
+    if (on && changed) await this.notifications.notify([trip.ownerId], viewerId, "TRIP_SAVED", `saved your trip ${trip.title}`, { tripId });
     return this.summary(tripId, viewerId);
   }
 
@@ -233,11 +311,14 @@ export class TripsService {
       include: {
         owner: { select: { username: true } },
         destinations: { orderBy: { position: "asc" } },
-        days: { orderBy: { dayNumber: "asc" }, include: { items: { orderBy: { sortOrder: "asc" } } } },
+        days: {
+          orderBy: { dayNumber: "asc" },
+          include: { items: { orderBy: { sortOrder: "asc" } } },
+        },
       },
     });
 
-    const fork = await this.prisma.$transaction(async (tx) => {
+    const fork = await this.prisma.transaction(async (tx) => {
       const created = await tx.trip.create({
         data: {
           ownerId: viewerId,
@@ -255,7 +336,12 @@ export class TripsService {
           forkedFromOwner: source.owner.username,
           searchText: source.searchText,
           members: { create: { userId: viewerId, role: "OWNER" } },
-          destinations: { create: source.destinations.map((d) => ({ destinationId: d.destinationId, position: d.position })) },
+          destinations: {
+            create: source.destinations.map((d) => ({
+              destinationId: d.destinationId,
+              position: d.position,
+            })),
+          },
         },
       });
       for (const day of source.days) {
@@ -281,7 +367,10 @@ export class TripsService {
           },
         });
       }
-      await tx.trip.update({ where: { id: source.id }, data: { forkCount: { increment: 1 }, updatedAt: source.updatedAt } });
+      await tx.trip.update({
+        where: { id: source.id },
+        data: { forkCount: { increment: 1 }, updatedAt: source.updatedAt },
+      });
       await this.notifications.notify([src.ownerId], viewerId, "TRIP_FORKED", `remixed your trip ${source.title}`, { tripId: source.id }, tx);
       return created;
     });
@@ -290,7 +379,9 @@ export class TripsService {
 
   private async validDestinations(ids: string[]) {
     if (!ids.length) return [];
-    const rows = await this.prisma.destination.findMany({ where: { id: { in: ids } } });
+    const rows = await this.prisma.destination.findMany({
+      where: { id: { in: ids } },
+    });
     if (rows.length !== new Set(ids).size) throw Errors.invalid("One of those destinations doesn't exist.");
     return ids.map((id) => rows.find((r) => r.id === id)!);
   }

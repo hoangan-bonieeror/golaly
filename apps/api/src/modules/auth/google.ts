@@ -10,6 +10,8 @@ import { randomToken } from "../../common/crypto";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
 import { SearchIndexService } from "../search/search-index";
+import { AuditService } from "../audit/audit";
+import { RealtimeService } from "../realtime/realtime";
 import { AuthService } from "./auth";
 
 const STATE_COOKIE = "triply_oauth";
@@ -63,6 +65,7 @@ export class GoogleClient {
 }
 
 interface StatePayload {
+  typ: "oauth_state";
   state: string;
   verifier: string;
   next: string;
@@ -76,6 +79,8 @@ export class GoogleAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly searchIndex: SearchIndexService,
+    private readonly realtime: RealtimeService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -98,7 +103,21 @@ export class GoogleAuthService {
     const byEmail = await this.prisma.user.findUnique({ where: { email: p.email } });
     if (byEmail) {
       if (byEmail.deletedAt) throw new Error("deleted-account");
-      await this.prisma.oAuthAccount.create({ data: { userId: byEmail.id, provider: "google", providerAccountId: p.sub, email: p.email } });
+      const now = new Date();
+      // Google has just proven this person owns the address. If the existing account never proved
+      // it, whoever registered it may not be them (pre-hijacking): drop that unproven password and
+      // end every existing session so only the verified owner keeps access.
+      const takeover = !byEmail.emailVerifiedAt;
+      await this.prisma.$transaction([
+        this.prisma.oAuthAccount.create({ data: { userId: byEmail.id, provider: "google", providerAccountId: p.sub, email: p.email } }),
+        this.prisma.user.update({
+          where: { id: byEmail.id },
+          data: takeover ? { emailVerifiedAt: now, passwordHash: null, failedLoginCount: 0, lockedUntil: null } : {},
+        }),
+        ...(takeover ? [this.prisma.session.updateMany({ where: { userId: byEmail.id, revokedAt: null }, data: { revokedAt: now } })] : []),
+      ]);
+      if (takeover) await this.realtime.disconnectSessions({ userId: byEmail.id });
+      await this.audit.log(byEmail.id, "user.google_linked", "user", byEmail.id, { verifiedBefore: !takeover });
       return { id: byEmail.id, isNew: false };
     }
     const username = await this.uniqueUsername(p.email.split("@")[0]);
@@ -108,6 +127,7 @@ export class GoogleAuthService {
         email: p.email,
         username,
         passwordHash: null,
+        emailVerifiedAt: new Date(),
         profile: { create: { displayName, avatarHue: Math.floor(Math.random() * 360), searchText: normalizeSearch(`${displayName} ${username}`) } },
         oauthAccounts: { create: { provider: "google", providerAccountId: p.sub, email: p.email } },
       },
@@ -155,7 +175,7 @@ export class GoogleAuthController {
     const state = randomToken(24);
     const verifier = randomToken(48);
     const challenge = createHash("sha256").update(verifier).digest("base64url");
-    const signed = await this.jwt.signAsync({ state, verifier, next: safeNext(next) } satisfies StatePayload, { secret: env.JWT_SECRET, expiresIn: STATE_TTL_S });
+    const signed = await this.jwt.signAsync({ typ: "oauth_state", state, verifier, next: safeNext(next) } satisfies StatePayload, { secret: env.JWT_SECRET, expiresIn: STATE_TTL_S });
     res.cookie(STATE_COOKIE, signed, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: "lax", path: STATE_PATH, maxAge: STATE_TTL_S * 1000 });
     return res.redirect(this.google.authUrl(state, challenge));
   }
@@ -174,7 +194,7 @@ export class GoogleAuthController {
     } catch {
       return fail("google_expired");
     }
-    if (!q.state || q.state !== saved.state || !q.code) return fail("google_state");
+    if (saved.typ !== "oauth_state" || !q.state || q.state !== saved.state || !q.code) return fail("google_state");
 
     try {
       const profile = await this.google.profile(q.code, saved.verifier);

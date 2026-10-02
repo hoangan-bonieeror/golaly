@@ -27,7 +27,8 @@ const FALLBACK: Record<number, string> = {
 
 let refreshing: Promise<boolean> | null = null;
 
-async function refreshSession(): Promise<boolean> {
+/** Rotates the session cookies. Shared by REST retries and the realtime socket. */
+export async function refreshSession(): Promise<boolean> {
   refreshing ??= fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include", headers: { "X-Requested-With": "triply" } })
     .then((r) => r.ok)
     .catch(() => false)

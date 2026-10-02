@@ -4,13 +4,14 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
 import { can, type NotificationView, type TripEvent, type TripEventName } from "@triply/shared";
 import type { Server, Socket } from "socket.io";
-import { ACCESS_COOKIE, type JwtPayload } from "../../common/auth";
+import { ACCESS_COOKIE, verifyAccess } from "../../common/auth";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -29,7 +30,7 @@ function parseCookies(header: string | undefined): Record<string, string> {
  * Events are notifications to refetch — the REST API stays the single source of truth.
  */
 @WebSocketGateway({ path: "/socket.io", cors: { origin: env.WEB_ORIGIN, credentials: true } })
-export class RealtimeGateway implements OnGatewayConnection {
+export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
   @WebSocketServer() server: Server;
   private readonly log = new Logger("Realtime");
 
@@ -38,16 +39,27 @@ export class RealtimeGateway implements OnGatewayConnection {
     private readonly prisma: PrismaService,
   ) {}
 
+  /**
+   * Authenticate in a handshake middleware, not in handleConnection: middleware finishes before
+   * the client sees "connect", so no event can arrive from a socket whose user isn't known yet.
+   * A rejected handshake surfaces on the client as `connect_error` with message "unauthorized".
+   */
+  afterInit(server: Server) {
+    server.use((socket, next) => {
+      const token = parseCookies(socket.handshake.headers.cookie)[ACCESS_COOKIE] ?? (socket.handshake.auth?.token as string | undefined);
+      verifyAccess(this.jwt, this.prisma, token)
+        .then((user) => {
+          if (!user) return next(new Error("unauthorized"));
+          socket.data.userId = user.id;
+          socket.data.sessionId = user.sessionId;
+          next();
+        })
+        .catch(() => next(new Error("unauthorized")));
+    });
+  }
+
   async handleConnection(socket: Socket) {
-    const token = parseCookies(socket.handshake.headers.cookie)[ACCESS_COOKIE] ?? (socket.handshake.auth?.token as string | undefined);
-    try {
-      const payload = await this.jwt.verifyAsync<JwtPayload>(token ?? "", { secret: env.JWT_SECRET });
-      socket.data.userId = payload.sub;
-      await socket.join(`user:${payload.sub}`);
-    } catch {
-      socket.emit("auth.error", { message: "Please log in to continue." });
-      socket.disconnect(true);
-    }
+    await socket.join([`user:${socket.data.userId}`, `session:${socket.data.sessionId}`]);
   }
 
   @SubscribeMessage("trip.join")
@@ -82,6 +94,25 @@ export class RealtimeGateway implements OnGatewayConnection {
     for (const s of sockets) s.leave(`trip:${tripId}`);
     this.log.debug(`removed ${sockets.length} socket(s) from trip room`);
   }
+
+  /** A trip turned private: everyone who isn't a member leaves its room right away. */
+  async evictNonMembers(tripId: string, memberIds: string[]) {
+    if (!this.server) return;
+    const keep = new Set(memberIds);
+    for (const s of await this.server.in(`trip:${tripId}`).fetchSockets()) if (!keep.has(s.data.userId)) s.leave(`trip:${tripId}`);
+  }
+
+  /** Revoked sessions lose their live connection immediately (logout, password change/reset, account deletion). */
+  async disconnectSessions(opts: { sessionIds?: string[]; userId?: string; exceptSessionId?: string }) {
+    if (!this.server) return;
+    const rooms = opts.userId ? [`user:${opts.userId}`] : (opts.sessionIds ?? []).map((id) => `session:${id}`);
+    if (!rooms.length) return;
+    for (const s of await this.server.in(rooms).fetchSockets()) {
+      if (opts.exceptSessionId && s.data.sessionId === opts.exceptSessionId) continue;
+      s.emit("auth.error", { message: "You've been signed out." });
+      s.disconnect(true);
+    }
+  }
 }
 
 @Injectable()
@@ -98,6 +129,14 @@ export class RealtimeService {
 
   kick(tripId: string, userId: string) {
     return this.gateway.kickFromTrip(tripId, userId);
+  }
+
+  evictNonMembers(tripId: string, memberIds: string[]) {
+    return this.gateway.evictNonMembers(tripId, memberIds);
+  }
+
+  disconnectSessions(opts: { sessionIds?: string[]; userId?: string; exceptSessionId?: string }) {
+    return this.gateway.disconnectSessions(opts);
   }
 }
 

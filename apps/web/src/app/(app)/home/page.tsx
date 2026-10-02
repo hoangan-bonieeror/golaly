@@ -7,7 +7,7 @@ import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, EmptyState, ErrorState, SectionTitle, Skeleton, Tabs, formatDateRange } from "@/components/ui";
+import { Button, EmptyState, ErrorState, formatDateRange, SectionTitle, Skeleton, TabPanel, Tabs } from "@/components/ui";
 import { useExplore, useFeed, useMe, useMyTrips } from "@/lib/api/queries";
 
 export default function HomePage() {
@@ -17,7 +17,7 @@ export default function HomePage() {
   const explore = useExplore();
   const mine = useMyTrips("all", !!me);
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = (mine.data ?? []).find((t) => !t.endDate || t.endDate >= today);
+  const upcoming = (mine.items ?? []).find((t) => !t.endDate || t.endDate >= today);
   const recommended = (explore.data?.trips ?? []).filter((t) => !t.myRole).slice(0, 4);
   const trending = (explore.data?.destinations ?? []).slice(0, 6);
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
@@ -59,7 +59,10 @@ export default function HomePage() {
         </section>
 
         <section>
+          <h2 className="sr-only">Feed</h2>
           <Tabs
+            id="feed-tabs"
+            label="Feed"
             value={mode}
             onChange={setMode}
             tabs={[
@@ -68,7 +71,7 @@ export default function HomePage() {
             ]}
             className="mb-5"
           />
-          <div className="mx-auto max-w-xl space-y-6">
+          <TabPanel tabsId="feed-tabs" value={mode} className="mx-auto max-w-xl space-y-6">
             {feed.isLoading ? (
               [0, 1].map((i) => <Skeleton key={i} className="h-96" />)
             ) : feed.isError ? (
@@ -104,7 +107,7 @@ export default function HomePage() {
                 {feed.isFetchingNextPage ? "Loading…" : "Load more"}
               </Button>
             )}
-          </div>
+          </TabPanel>
         </section>
       </div>
 
@@ -144,7 +147,7 @@ function ContinuePlanning({ trip }: { trip: TripSummary }) {
     >
       <span className="size-16 shrink-0 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${trip.cover[0]}, ${trip.cover[1]})` }} />
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold uppercase tracking-wide text-sunset">Continue planning</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-sunset-700">Continue planning</div>
         <div className="truncate font-semibold">{trip.title}</div>
         <div className="truncate text-sm text-muted">
           {trip.route || "Destination TBD"} · {formatDateRange(trip.startDate ?? undefined, trip.endDate ?? undefined)} · {trip.stats.travelers} travelers

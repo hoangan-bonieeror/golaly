@@ -4,7 +4,7 @@ import { cx } from "../ui";
 
 export const TYPE_META: Record<ItineraryItemType, { icon: React.ElementType; bg: string; fg: string; dot: string }> = {
   PLACE: { icon: MapPin, bg: "bg-lagoon-50", fg: "text-lagoon", dot: "#0e6e6a" },
-  RESTAURANT: { icon: UtensilsCrossed, bg: "bg-sunset-50", fg: "text-sunset", dot: "#f26b4e" },
+  RESTAURANT: { icon: UtensilsCrossed, bg: "bg-sunset-50", fg: "text-sunset-700", dot: "#f26b4e" },
   HOTEL: { icon: BedDouble, bg: "bg-[#ece8f7]", fg: "text-[#5b4a9e]", dot: "#5b4a9e" },
   FLIGHT: { icon: Plane, bg: "bg-[#e3eef9]", fg: "text-[#2f6db5]", dot: "#2f6db5" },
   TRANSPORTATION: { icon: Bus, bg: "bg-[#e3eef9]", fg: "text-[#2f6db5]", dot: "#2f6db5" },

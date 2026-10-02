@@ -1,5 +1,6 @@
 "use client";
 
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import type { CommentView } from "@triply/shared";
 import { ArrowLeft, Bookmark, Flag, GitFork, Heart, MapPin, MessageCircle, Send, Share2, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -10,7 +11,7 @@ import { ReportSheet } from "@/components/social/ReportSheet";
 import { Cover } from "@/components/trip/Cover";
 import { ForkSheet } from "@/components/trip/ForkSheet";
 import { TripCard } from "@/components/trip/TripCard";
-import { Avatar, Button, ErrorState, IconButton, PageLoader, cx, formatCount, inputCls, timeAgo } from "@/components/ui";
+import { Avatar, Button, cx, ErrorState, formatCount, IconButton, inputCls, LoadMore, PageLoader, timeAgo } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useComments, useMe, usePost } from "@/lib/api/queries";
 import type { PostView } from "@triply/shared";
@@ -18,8 +19,9 @@ import type { PostView } from "@triply/shared";
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
   const q = usePost(id);
+  useDocumentTitle(q.data?.title);
   if (q.isLoading) return <PageLoader />;
-  if (q.isError || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (q.isError || !q.data) return <ErrorState page error={q.error} onRetry={() => q.refetch()} />;
   return <PostDetail post={q.data} />;
 }
 
@@ -141,12 +143,12 @@ function PostDetail({ post }: { post: PostView }) {
       )}
 
       <section id="comments" className="scroll-mt-20 space-y-4">
-        <h2 className="font-display text-xl font-semibold">Comments · {comments.data?.length ?? post.commentCount}</h2>
-        {comments.data?.length === 0 && <p className="text-sm text-muted">No comments yet. Ask {post.author.displayName} something about the trip!</p>}
+        <h2 className="font-display text-xl font-semibold">Comments · {post.commentCount}</h2>
+        {comments.items?.length === 0 && <p className="text-sm text-muted">No comments yet. Ask {post.author.displayName} something about the trip!</p>}
         <ul className="space-y-4">
-          {comments.data?.map((c) => (
+          {comments.items?.map((c) => (
             <li key={c.id} className="group flex gap-3">
-              <Link href={`/u/${c.author.username}`}>
+              <Link href={`/u/${c.author.username}`} aria-label={`${c.author.displayName}'s profile`} tabIndex={-1}>
                 <Avatar user={c.author} size={34} />
               </Link>
               <div className="min-w-0 flex-1">
@@ -172,6 +174,7 @@ function PostDetail({ post }: { post: PostView }) {
             </li>
           ))}
         </ul>
+        <LoadMore hasMore={comments.hasNextPage} loading={comments.isFetchingNextPage} onClick={() => comments.fetchNextPage()} label="Show more comments" />
         {me && commentsAllowed && post.visibility !== "DRAFT" ? (
           <form
             onSubmit={async (e) => {

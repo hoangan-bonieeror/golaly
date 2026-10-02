@@ -78,37 +78,43 @@ enum ReportReason {
 
 // ── Users ────────────────────────────────────────────────────────────────
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
-  username     String    @unique
+  id               String    @id @default(uuid()) @db.Uuid
+  email            String    @unique
+  username         String    @unique
   /// Null for accounts created through Google sign-in until a password is set.
-  passwordHash String?   @map("password_hash")
-  isDemo       Boolean   @default(false) @map("is_demo")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+  passwordHash     String?   @map("password_hash")
+  isDemo           Boolean   @default(false) @map("is_demo")
+  /// Set once the user proves they own `email` (link in a verification email, or Google sign-in).
+  emailVerifiedAt  DateTime? @map("email_verified_at")
+  /// Per-account brute-force protection (independent of the client IP).
+  failedLoginCount Int       @default(0) @map("failed_login_count")
+  lockedUntil      DateTime? @map("locked_until")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
-  profile        UserProfile?
-  oauthAccounts  OAuthAccount[]
-  sessions       Session[]
-  resetTokens    PasswordResetToken[]
-  ownedTrips     Trip[]               @relation("TripOwner")
-  memberships    TripMember[]
-  posts          Post[]
-  comments       PostComment[]
-  likes          PostLike[]
-  following      Follow[]             @relation("Follower")
-  followers      Follow[]             @relation("Following")
-  savedTrips     SavedTrip[]
-  savedPosts     SavedPost[]
-  savedPlaces    SavedPlace[]
-  notifications  Notification[]       @relation("Recipient")
-  actedNotifs    Notification[]       @relation("Actor")
-  media          Media[]
-  reports        Report[]
-  invitationsBy  TripInvitation[]     @relation("Inviter")
-  itemsEdited    ItineraryItem[]      @relation("ItemEditor")
-  auditLogs      AuditLog[]
+  profile       UserProfile?
+  oauthAccounts OAuthAccount[]
+  sessions      Session[]
+  resetTokens   PasswordResetToken[]
+  verifyTokens  EmailVerificationToken[]
+  ownedTrips    Trip[]                   @relation("TripOwner")
+  memberships   TripMember[]
+  posts         Post[]
+  comments      PostComment[]
+  likes         PostLike[]
+  following     Follow[]                 @relation("Follower")
+  followers     Follow[]                 @relation("Following")
+  savedTrips    SavedTrip[]
+  savedPosts    SavedPost[]
+  savedPlaces   SavedPlace[]
+  notifications Notification[]           @relation("Recipient")
+  actedNotifs   Notification[]           @relation("Actor")
+  media         Media[]
+  reports       Report[]
+  invitationsBy TripInvitation[]         @relation("Inviter")
+  itemsEdited   ItineraryItem[]          @relation("ItemEditor")
+  auditLogs     AuditLog[]
 
   @@map("users")
 }
@@ -131,7 +137,6 @@ model UserProfile {
   avatar Media? @relation("Avatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
 
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
-
   @@map("user_profiles")
 }
 
@@ -153,14 +158,17 @@ model OAuthAccount {
 
 /// Refresh-token sessions. Only a SHA-256 hash of the token is stored.
 model Session {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String    @map("user_id") @db.Uuid
-  tokenHash  String    @unique @map("token_hash")
-  userAgent  String?   @map("user_agent")
-  expiresAt  DateTime  @map("expires_at")
-  revokedAt  DateTime? @map("revoked_at")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  lastUsedAt DateTime  @default(now()) @map("last_used_at")
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  /// The refresh token this one replaced: a replay outside the grace window means it was stolen.
+  prevTokenHash String?   @unique @map("prev_token_hash")
+  rotatedAt     DateTime? @map("rotated_at")
+  userAgent     String?   @map("user_agent")
+  expiresAt     DateTime  @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastUsedAt    DateTime  @default(now()) @map("last_used_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -178,7 +186,24 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  /// The address being verified — a token stops working if the user's email changes.
+  email     String
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 model Follow {
@@ -196,15 +221,15 @@ model Follow {
 
 // ── Destinations & places ───────────────────────────────────────────────
 model Destination {
-  id       String  @id @default(uuid()) @db.Uuid
-  slug     String  @unique
-  name     String
-  country  String
-  lat      Float
-  lng      Float
-  blurb    String  @default("")
-  paletteA String  @map("palette_a")
-  paletteB String  @map("palette_b")
+  id         String @id @default(uuid()) @db.Uuid
+  slug       String @unique
+  name       String
+  country    String
+  lat        Float
+  lng        Float
+  blurb      String @default("")
+  paletteA   String @map("palette_a")
+  paletteB   String @map("palette_b")
   /// Accent-free "name country" for fuzzy search ("hoi an" finds "Hội An").
   searchText String @default("") @map("search_text")
 
@@ -282,6 +307,7 @@ model Trip {
   @@index([ownerId])
   @@index([visibility, deletedAt])
   @@index([updatedAt])
+  @@index([forkedFromId])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("trips")
 }
@@ -331,6 +357,7 @@ model TripInvitation {
 
   @@index([tripId])
   @@index([email])
+  @@index([invitedBy])
   @@map("trip_invitations")
 }
 
@@ -397,6 +424,7 @@ model Post {
   @@index([userId])
   @@index([tripId])
   @@index([createdAt])
+  @@index([visibility, deletedAt, createdAt])
   @@map("posts")
 }
 
@@ -413,6 +441,7 @@ model PostMedia {
   media Media? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
 
   @@index([postId])
+  @@index([mediaId])
   @@map("post_media")
 }
 
@@ -453,6 +482,7 @@ model SavedTrip {
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   @@id([userId, tripId])
+  @@index([tripId])
   @@map("saved_trips")
 }
 
@@ -465,6 +495,7 @@ model SavedPost {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@id([userId, postId])
+  @@index([postId])
   @@map("saved_posts")
 }
 
@@ -516,23 +547,23 @@ model Report {
 
 /// Binary data lives in object storage; only metadata is stored here (spec §32).
 model Media {
-  id         String   @id @default(uuid()) @db.Uuid
-  ownerId    String   @map("owner_id") @db.Uuid
-  storageKey String   @unique @map("storage_key")
-  thumbKey   String?  @map("thumb_key")
-  mediumKey  String?  @map("medium_key")
+  id            String   @id @default(uuid()) @db.Uuid
+  ownerId       String   @map("owner_id") @db.Uuid
+  storageKey    String   @unique @map("storage_key")
+  thumbKey      String?  @map("thumb_key")
+  mediumKey     String?  @map("medium_key")
   /// Average colour (#rrggbb) shown as a placeholder while the image loads.
-  dominantColor String? @map("dominant_color")
-  mimeType   String   @map("mime_type")
-  sizeBytes  Int      @map("size_bytes")
-  width      Int
-  height     Int
-  createdAt  DateTime @default(now()) @map("created_at")
+  dominantColor String?  @map("dominant_color")
+  mimeType      String   @map("mime_type")
+  sizeBytes     Int      @map("size_bytes")
+  width         Int
+  height        Int
+  createdAt     DateTime @default(now()) @map("created_at")
 
-  owner      User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  avatarOf   UserProfile[] @relation("Avatar")
-  coverOf    Trip[]        @relation("TripCover")
-  postMedia  PostMedia[]
+  owner     User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  avatarOf  UserProfile[] @relation("Avatar")
+  coverOf   Trip[]        @relation("TripCover")
+  postMedia PostMedia[]
 
   @@index([ownerId])
   @@map("media")

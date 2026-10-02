@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { CreateItemInput, DayView, ItemView, ReorderItemInput, UpdateItemInput } from "@triply/shared";
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
+import { lockTrip, writeSortOrder } from "../../common/locks";
 import { dayInclude, toDayView, toItemView } from "../../common/presenters";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications";
@@ -39,8 +40,8 @@ export class ItineraryService {
     if (placeId && !(await this.prisma.place.findUnique({ where: { id: placeId }, select: { id: true } }))) throw Errors.invalid("That place doesn't exist.");
   }
 
-  private async writeOrder(tx: Tx, ids: string[], dayId?: string) {
-    for (const [i, id] of ids.entries()) await tx.itineraryItem.update({ where: { id }, data: { sortOrder: i, ...(dayId ? { dayId } : {}) } });
+  private writeOrder(tx: Tx, ids: string[]) {
+    return writeSortOrder(tx, ids);
   }
 
   private async touch(tx: Tx, tripId: string) {
@@ -56,7 +57,8 @@ export class ItineraryService {
 
   async addDay(tripId: string, viewerId: string): Promise<DayView> {
     const trip = await this.access.require("itinerary.add", tripId, viewerId);
-    const day = await this.prisma.$transaction(async (tx) => {
+    const day = await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, tripId);
       const last = await tx.tripDay.findFirst({ where: { tripId }, orderBy: { dayNumber: "desc" } });
       const n = (last?.dayNumber ?? 0) + 1;
       if (n > MAX_TRIP_DAYS) throw Errors.invalid(`Trips can be up to ${MAX_TRIP_DAYS} days long.`);
@@ -84,7 +86,8 @@ export class ItineraryService {
     const trip = await this.access.require("itinerary.delete", tripId, viewerId);
     const day = await this.dayWithTrip(dayId);
     if (day.tripId !== tripId) throw Errors.notFound("That day");
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, tripId);
       const count = await tx.tripDay.count({ where: { tripId } });
       if (count <= 1) throw Errors.invalid("A trip needs at least one day.");
       await tx.tripDay.delete({ where: { id: dayId } });
@@ -105,7 +108,8 @@ export class ItineraryService {
     const day = await this.dayWithTrip(dayId);
     const trip = await this.access.require("itinerary.add", day.tripId, viewerId);
     await this.assertPlace(input.placeId);
-    const item = await this.prisma.$transaction(async (tx) => {
+    const item = await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
       const count = await tx.itineraryItem.count({ where: { dayId } });
       const created = await tx.itineraryItem.create({
         data: { ...input, placeId: input.type === "NOTE" ? null : input.placeId, dayId, sortOrder: count, updatedById: viewerId },
@@ -127,13 +131,14 @@ export class ItineraryService {
     const merged = { startTime: input.startTime !== undefined ? input.startTime : item.startTime, endTime: input.endTime !== undefined ? input.endTime : item.endTime };
     if (merged.startTime && merged.endTime && merged.endTime < merged.startTime)
       throw Errors.invalid("End time should be after the start time.", { endTime: "End time should be after the start time." });
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
       const updated = await tx.itineraryItem.update({
         where: { id: itemId },
         data: { ...input, ...(input.type === "NOTE" ? { placeId: null } : {}), updatedById: viewerId },
       });
       if (input.startTime !== undefined && input.startTime !== item.startTime) {
-        const siblings = await tx.itineraryItem.findMany({ where: { dayId: item.dayId } });
+        const siblings = await tx.itineraryItem.findMany({ where: { dayId: updated.dayId } });
         await this.writeOrder(tx, orderByTime(siblings));
       }
       await this.touch(tx, trip.id);
@@ -146,9 +151,13 @@ export class ItineraryService {
   async deleteItem(itemId: string, viewerId: string) {
     const item = await this.itemWithDay(itemId);
     const trip = await this.access.require("itinerary.delete", item.day.tripId, viewerId);
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      // Re-read under the lock: the item may have moved to another day (or gone) meanwhile.
+      const cur = await tx.itineraryItem.findUnique({ where: { id: itemId }, select: { dayId: true } });
+      if (!cur) throw Errors.notFound("That item (someone may have removed it)");
       await tx.itineraryItem.delete({ where: { id: itemId } });
-      const rest = await tx.itineraryItem.findMany({ where: { dayId: item.dayId }, orderBy: { sortOrder: "asc" } });
+      const rest = await tx.itineraryItem.findMany({ where: { dayId: cur.dayId }, orderBy: { sortOrder: "asc" } });
       await this.writeOrder(tx, rest.map((r) => r.id));
       await this.touch(tx, trip.id);
     });
@@ -159,11 +168,13 @@ export class ItineraryService {
   async duplicateItem(itemId: string, viewerId: string): Promise<ItemView> {
     const item = await this.itemWithDay(itemId);
     const trip = await this.access.require("itinerary.add", item.day.tripId, viewerId);
-    const copy = await this.prisma.$transaction(async (tx) => {
-      const ids = (await tx.itineraryItem.findMany({ where: { dayId: item.dayId }, orderBy: { sortOrder: "asc" } })).map((i) => i.id);
+    const copy = await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      const cur = await this.itemWithDay(itemId, tx);
+      const ids = (await tx.itineraryItem.findMany({ where: { dayId: cur.dayId }, orderBy: { sortOrder: "asc" } })).map((i) => i.id);
       const created = await tx.itineraryItem.create({
         data: {
-          dayId: item.dayId,
+          dayId: cur.dayId,
           type: item.type,
           title: `${item.title} (copy)`,
           description: item.description,
@@ -189,14 +200,19 @@ export class ItineraryService {
     const trip = await this.access.require("itinerary.reorder", item.day.tripId, viewerId);
     const target = await this.dayWithTrip(to.dayId);
     if (target.tripId !== trip.id) throw Errors.invalid("Items can only move within the same trip.");
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
+      // Under the trip lock, read the item's CURRENT day and the target day's CURRENT list, and
+      // change dayId only on the moved item: a concurrent move by someone else is never undone.
+      await lockTrip(tx, trip.id);
+      const cur = await tx.itineraryItem.findUnique({ where: { id: itemId }, select: { dayId: true } });
+      if (!cur) throw Errors.notFound("That item (someone may have removed it)");
+      await tx.itineraryItem.update({ where: { id: itemId }, data: { dayId: to.dayId, updatedById: viewerId } });
       const targetIds = (await tx.itineraryItem.findMany({ where: { dayId: to.dayId }, orderBy: { sortOrder: "asc" } })).map((i) => i.id);
-      await this.writeOrder(tx, insertAt(targetIds, itemId, to.index), to.dayId);
-      if (item.dayId !== to.dayId) {
-        const rest = await tx.itineraryItem.findMany({ where: { dayId: item.dayId }, orderBy: { sortOrder: "asc" } });
+      await this.writeOrder(tx, insertAt(targetIds, itemId, to.index));
+      if (cur.dayId !== to.dayId) {
+        const rest = await tx.itineraryItem.findMany({ where: { dayId: cur.dayId }, orderBy: { sortOrder: "asc" } });
         await this.writeOrder(tx, rest.map((r) => r.id));
       }
-      await tx.itineraryItem.update({ where: { id: itemId }, data: { updatedById: viewerId } });
       await this.touch(tx, trip.id);
     });
     this.realtime.trip(trip.id, viewerId, "trip.item.reordered", itemId);

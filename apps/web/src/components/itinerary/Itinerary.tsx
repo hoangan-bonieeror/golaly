@@ -2,7 +2,7 @@
 
 import type { ItemView, TripDetail } from "@triply/shared";
 import { ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { cx, timeAgo } from "../ui";
@@ -45,10 +45,10 @@ export function Itinerary({
         const items = day.items;
         return (
           <section key={day.id} aria-labelledby={`day-${day.id}`}>
-            <header className="sticky top-14 z-10 -mx-1 mb-2 flex items-baseline gap-3 bg-sand/90 px-1 py-2 backdrop-blur md:top-0">
-              <h3 id={`day-${day.id}`} className="font-display text-xl font-semibold">
+            <header className="sticky top-[100px] z-10 -mx-1 mb-2 flex items-baseline gap-3 bg-sand/90 px-1 py-2 backdrop-blur md:top-0">
+              <h2 id={`day-${day.id}`} className="font-display text-xl font-semibold">
                 Day {day.dayNumber}
-              </h3>
+              </h2>
               <span className="text-sm text-muted">
                 {day.date && new Date(day.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
                 {day.title && ` · ${day.title}`}
@@ -179,7 +179,7 @@ export function Itinerary({
       {canAdd && (
         <button
           onClick={() => setSheet({ open: true, dayId: days[0]?.id })}
-          className="fixed bottom-20 left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-lagoon px-5 font-semibold text-white shadow-pop md:hidden"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-lagoon px-5 font-semibold text-white shadow-pop md:hidden"
         >
           <Plus className="size-5" /> Add item
         </button>
@@ -207,46 +207,83 @@ function ItemMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
     document.addEventListener("mousedown", close);
+    // Keyboard users land on the first action.
+    ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
+  const dismiss = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  /** WAI-ARIA menu keys: ↑/↓ (wrapping), Home/End, Escape closes and returns focus, Tab closes. */
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    const go = (n: number) => {
+      e.preventDefault();
+      items[(n + items.length) % items.length]?.focus();
+    };
+    if (e.key === "ArrowDown") go(i + 1);
+    else if (e.key === "ArrowUp") go(i - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(items.length - 1);
+    else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      dismiss();
+    } else if (e.key === "Tab") setOpen(false);
+  };
   const item = (icon: React.ReactNode, label: string, fn: () => void, danger?: boolean, disabled?: boolean) => (
     <button
+      role="menuitem"
+      tabIndex={-1}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
-        setOpen(false);
+        dismiss();
         fn();
       }}
-      className={cx("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-sand-2 disabled:opacity-40", danger ? "text-danger" : "text-ink-2")}
+      className={cx("flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm hover:bg-sand-2 focus:bg-sand-2 focus:outline-none disabled:opacity-40 md:min-h-0", danger ? "text-danger" : "text-ink-2")}
     >
-      {icon}
+      <span aria-hidden>{icon}</span>
       {label}
     </button>
   );
   return (
     <div ref={ref} className="relative -mr-1.5 -mt-1">
       <button
+        ref={button}
         aria-label="Item actions"
+        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="flex size-8 items-center justify-center rounded-full text-muted hover:bg-sand-2 hover:text-ink"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && !open) {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+        className="flex size-11 items-center justify-center rounded-full text-muted hover:bg-sand-2 hover:text-ink md:size-8"
       >
         <MoreHorizontal className="size-4" />
       </button>
       {open && (
-        <div className="animate-rise absolute right-0 top-9 z-20 w-44 rounded-xl border border-line bg-surface p-1 shadow-pop">
+        <div id={menuId} role="menu" aria-label="Item actions" onKeyDown={onMenuKey} className="animate-rise absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border border-line bg-surface p-1 shadow-pop">
           {item(<Pencil className="size-4" />, "Edit", onEdit)}
           {item(<Copy className="size-4" />, "Duplicate", onDuplicate)}
           {item(<ArrowUp className="size-4" />, "Move up", () => onMove(-1), false, first)}
           {item(<ArrowDown className="size-4" />, "Move down", () => onMove(1), false, last)}
-          <div className="my-1 h-px bg-line" />
+          <div role="separator" className="my-1 h-px bg-line" />
           {item(<Trash2 className="size-4" />, "Delete", onDelete, true)}
         </div>
       )}

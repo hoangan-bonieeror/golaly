@@ -12,7 +12,9 @@ import { Cover } from "./Cover";
  * "Understand a trip in < 5 seconds" (spec §36): destination, duration,
  * creator, places and cover are all visible without interaction.
  */
-export function TripCard({ trip, compact, showRole }: { trip: TripSummary; compact?: boolean; showRole?: boolean }) {
+/** `level`: the card title's heading level — h2 when the page has no section headings above the grid. */
+export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: TripSummary; compact?: boolean; showRole?: boolean; level?: "h2" | "h3" }) {
+  const H = level;
   const me = useMe().data;
   const save = useAction((on: boolean) => (on ? api.post<TripSummary>(`/trips/${trip.id}/save`) : api.delete<TripSummary>(`/trips/${trip.id}/save`)), {
     invalidate: [["trips"], ["explore"], ["search"], ["destination"], ["profile"], ["trip", trip.id]],
@@ -38,7 +40,7 @@ export function TripCard({ trip, compact, showRole }: { trip: TripSummary; compa
               )}
             </div>
             <div className="text-white">
-              <h3 className="font-display text-xl font-semibold leading-tight drop-shadow-sm">{trip.title}</h3>
+              <H className="font-display text-xl font-semibold leading-tight drop-shadow-sm">{trip.title}</H>
               <p className="mt-0.5 flex items-center gap-1 text-[13px] text-white/90">
                 <MapPin className="size-3.5" /> {trip.route || "Destination TBD"}
               </p>

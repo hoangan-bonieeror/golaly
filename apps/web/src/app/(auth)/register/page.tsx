@@ -3,10 +3,11 @@
 import { registerSchema } from "@triply/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button, Field, inputCls } from "@/components/ui";
 import { ApiError } from "@/lib/api/client";
+import { useMe } from "@/lib/api/queries";
 import { useSession } from "@/lib/session";
 import { useToast } from "@/lib/toast";
 
@@ -18,6 +19,12 @@ export default function Register() {
   const [touched, setTouched] = useState(false);
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // Already signed in? This page isn't for you. (Skipped while our own sign-up redirects.)
+  const me = useMe().data;
+  const submitting = useRef(false);
+  useEffect(() => {
+    if (me && !submitting.current) router.replace("/home");
+  }, [me, router]);
 
   // Same Zod schema the API enforces.
   const parsed = registerSchema.safeParse(form);
@@ -30,6 +37,7 @@ export default function Register() {
     setTouched(true);
     if (!parsed.success) return;
     setBusy(true);
+    submitting.current = true;
     setServerErrors({});
     try {
       await register(parsed.data);
@@ -40,6 +48,7 @@ export default function Register() {
         const key = /username/i.test(e.message) ? "username" : /email/i.test(e.message) ? "email" : "password";
         setServerErrors(e.fields ?? { [key]: e.message });
       } else toast("Something went wrong. Please try again.", "error");
+      submitting.current = false;
     } finally {
       setBusy(false);
     }
@@ -71,7 +80,7 @@ export default function Register() {
       <GoogleButton />
       <p className="text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-lagoon hover:underline">
+        <Link href="/login" className="inline-block py-2.5 font-semibold text-lagoon hover:underline">
           Log in
         </Link>
       </p>

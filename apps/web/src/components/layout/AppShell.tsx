@@ -19,6 +19,7 @@ import { Avatar, Button, PageLoader, cx } from "../ui";
 import { CreateSheet } from "./CreateSheet";
 import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
+import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
 const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
 const PROTECTED_PREFIX = ["/invitations/", "/trips/new"];
@@ -45,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const desktop = [
     { href: "/home", label: "Home", icon: Home },
     { href: "/explore", label: "Explore", icon: Compass },
-    { href: "/trips", label: "My Trips", icon: Luggage },
+    { href: "/trips", label: "Trips", icon: Luggage },
     { href: "/saved", label: "Saved", icon: Bookmark },
     { href: "/notifications", label: "Notifications", icon: Bell, badge: unread },
     { href: profileHref, label: "Profile", icon: UserRound },
@@ -54,16 +55,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh md:pl-64">
+      <a
+        href="#main"
+        className="sr-only z-[60] rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-surface/80 px-4 py-6 backdrop-blur md:flex">
         <Link href="/home" className="mb-8 px-2">
           <Logo />
         </Link>
-        <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
+        <nav className="flex flex-1 flex-col gap-1" aria-label="Sidebar">
           {desktop.map(({ href, label, icon: Icon, badge }) => (
             <Link
               key={label}
               href={href}
+              aria-current={isActive(href) ? "page" : undefined}
+              aria-label={badge ? `${label}, ${badge} unread` : undefined}
               className={cx(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors",
                 isActive(href) ? "bg-lagoon-50 text-lagoon" : "text-ink-2 hover:bg-sand-2",
@@ -71,7 +80,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon className="size-5" strokeWidth={isActive(href) ? 2.4 : 1.8} />
               {label}
-              {!!badge && <span className="ml-auto rounded-full bg-sunset px-2 text-xs font-bold text-white">{badge}</span>}
+              {!!badge && (
+                <span aria-hidden className="ml-auto rounded-full bg-sunset-700 px-2 text-xs font-bold text-white">
+                  {badge}
+                </span>
+              )}
             </Link>
           ))}
           <Button className="mt-4" size="lg" onClick={() => (me ? setCreateOpen(true) : router.push("/login"))}>
@@ -103,13 +116,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-4 md:px-8 md:pb-16 md:pt-8">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 pb-28 pt-4 focus:outline-none md:px-8 md:pb-16 md:pt-8">
+        {me && !me.emailVerified && <VerifyEmailBanner email={me.email} />}
         {needsAuth && !me ? <PageLoader /> : children}
       </main>
 
       {/* Mobile bottom nav: Home · Explore · Trips · Create · Notifications · Profile */}
       <nav
-        aria-label="Main"
+        aria-label="Tab bar"
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         {[
@@ -126,7 +140,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <PlusCircle className="size-5" />
           </span>
         </button>
-        <MobileTab href="/notifications" label="Alerts" active={isActive("/notifications")}>
+        <MobileTab href="/notifications" label="Alerts" a11yLabel={unread ? `Notifications, ${unread} unread` : "Notifications"} active={isActive("/notifications")}>
           <span className="relative">
             <Bell className="size-[22px]" strokeWidth={isActive("/notifications") ? 2.4 : 1.8} />
             {!!unread && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-sunset ring-2 ring-surface" />}
@@ -143,10 +157,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MobileTab({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
+function MobileTab({ href, label, a11yLabel, active, children }: { href: string; label: string; a11yLabel?: string; active: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}
+      aria-label={a11yLabel}
       aria-current={active ? "page" : undefined}
       className={cx("flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium", active ? "text-lagoon" : "text-muted")}
     >

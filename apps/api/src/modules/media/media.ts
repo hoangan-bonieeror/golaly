@@ -1,3 +1,4 @@
+import { Throttle } from "@nestjs/throttler";
 import { Controller, Delete, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { MediaView } from "@triply/shared";
@@ -38,6 +39,10 @@ export class LocalStorageDriver implements StorageDriver {
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MIN_DIM = 64;
 const MAX_DIM = 10_000;
+/** Decoding cost is width × height: cap it so one upload can't eat hundreds of MB of RAM. */
+const MAX_PIXELS = 40_000_000;
+/** Per-user upload quota (abuse/storage protection). */
+const DAILY_UPLOADS = 200;
 const MAX_STORED_DIM = 2400;
 const MEDIUM_DIM = 1280;
 const THUMB_DIM = 640;
@@ -59,7 +64,7 @@ export class MediaService {
     if (file.size > env.MEDIA_MAX_BYTES) throw new AppError(413, `Photos can be up to ${Math.round(env.MEDIA_MAX_BYTES / 1024 / 1024)} MB.`);
     let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>;
     try {
-      meta = await sharp(file.buffer).metadata();
+      meta = await sharp(file.buffer, { limitInputPixels: MAX_PIXELS }).metadata();
     } catch {
       throw new AppError(415, "That file isn't a valid image.");
     }
@@ -67,9 +72,11 @@ export class MediaService {
     const w = meta.width ?? 0;
     const h = meta.height ?? 0;
     if (w < MIN_DIM || h < MIN_DIM) throw Errors.invalid(`Images need to be at least ${MIN_DIM}×${MIN_DIM} pixels.`);
-    if (w > MAX_DIM || h > MAX_DIM) throw Errors.invalid(`Images can be at most ${MAX_DIM} pixels on a side.`);
+    if (w > MAX_DIM || h > MAX_DIM || w * h > MAX_PIXELS) throw Errors.invalid(`Images can be at most ${MAX_DIM} pixels on a side and ${MAX_PIXELS / 1_000_000} megapixels.`);
+    const today = await this.prisma.media.count({ where: { ownerId, createdAt: { gt: new Date(Date.now() - 86_400_000) } } });
+    if (today >= DAILY_UPLOADS) throw new AppError(429, `You've uploaded ${DAILY_UPLOADS} photos today — that's the daily limit. Try again tomorrow.`);
 
-    const base = sharp(file.buffer).rotate();
+    const base = sharp(file.buffer, { limitInputPixels: MAX_PIXELS }).rotate();
     const main = await base.clone().resize({ width: MAX_STORED_DIM, height: MAX_STORED_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer({ resolveWithObject: true });
     const medium = await base.clone().resize({ width: MEDIUM_DIM, height: MEDIUM_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
     const thumb = await base.clone().resize({ width: THUMB_DIM, height: THUMB_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
@@ -103,6 +110,7 @@ export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor("file", { limits: { fileSize: env.MEDIA_MAX_BYTES + 1, files: 1 } }))
   upload(@ViewerId() me: string | null, @UploadedFile() file: Express.Multer.File | undefined) {
     return this.media.upload(requireUser(me), file);

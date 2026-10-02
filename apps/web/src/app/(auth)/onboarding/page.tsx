@@ -73,7 +73,7 @@ export default function Onboarding() {
                   onClick={() => setInterests(on ? interests.filter((x) => x !== value) : [...interests, value])}
                   className={cx(
                     "flex flex-col items-start gap-3 rounded-2xl border p-4 text-left text-sm font-semibold transition-colors",
-                    on ? "border-sunset bg-sunset-50 text-sunset" : "border-line bg-surface hover:border-ink-2",
+                    on ? "border-sunset bg-sunset-50 text-sunset-700" : "border-line bg-surface hover:border-ink-2",
                   )}
                 >
                   <Icon className="size-6" /> {label}

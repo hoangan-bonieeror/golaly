@@ -3,7 +3,7 @@
 import { Luggage, Plus } from "lucide-react";
 import { useState } from "react";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, Chip, EmptyState, ErrorState, Skeleton } from "@/components/ui";
+import { Button, Chip, EmptyState, ErrorState, LoadMore, Skeleton } from "@/components/ui";
 import { useMyTrips } from "@/lib/api/queries";
 
 type Filter = "all" | "mine" | "shared" | "past";
@@ -16,7 +16,7 @@ export default function TripsPage() {
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold md:text-4xl">My trips</h1>
+          <h1 className="font-display text-3xl font-semibold md:text-4xl">Trips</h1>
           <p className="text-sm text-muted">Trips you own and trips you&apos;ve been invited to.</p>
         </div>
         <Button href="/trips/new" className="hidden sm:inline-flex">
@@ -47,7 +47,7 @@ export default function TripsPage() {
         </div>
       ) : trips.isError ? (
         <ErrorState error={trips.error} onRetry={() => trips.refetch()} />
-      ) : !trips.data?.length ? (
+      ) : !trips.items?.length ? (
         <EmptyState
           icon={<Luggage className="size-7" />}
           title="Your next adventure starts here."
@@ -62,11 +62,14 @@ export default function TripsPage() {
           }
         />
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.data.map((t) => (
-            <TripCard key={t.id} trip={t} showRole />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {trips.items.map((t) => (
+              <TripCard key={t.id} trip={t} showRole level="h2" />
+            ))}
+          </div>
+          <LoadMore hasMore={trips.hasNextPage} loading={trips.isFetchingNextPage} onClick={() => trips.fetchNextPage()} label="Show more trips" />
+        </>
       )}
     </div>
   );

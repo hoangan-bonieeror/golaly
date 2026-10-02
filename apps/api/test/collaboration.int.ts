@@ -41,7 +41,7 @@ describe("invitations", () => {
 
   it("email invites are bound to that email, notify existing users, and are single-use", async () => {
     const { owner, trip } = await tripWithEditor();
-    const invitee = await t.register("inv");
+    const invitee = await t.register("inv", { verified: true });
     const inv = (await owner.post(`/trips/${trip.id}/invitations`, { email: invitee.email, role: "EDITOR" })).body;
     expect((await owner.post(`/trips/${trip.id}/invitations`, { email: invitee.email, role: "EDITOR" })).status).toBe(409);
 
@@ -55,6 +55,30 @@ describe("invitations", () => {
     expect((await invitee.post(`/invitations/id/${inv.id}/accept`)).status).toBe(200);
     expect((await invitee.get(`/trips/${trip.id}`)).body.myRole).toBe("EDITOR");
     expect((await invitee.post(`/invitations/${inv.token}/accept`)).status).toBe(422);
+  });
+
+  it("an account that hasn't confirmed the address can't claim (or even be told about) an email invite", async () => {
+    const { owner, trip } = await tripWithEditor();
+    // Attacker registered the invitee's address first, without access to that inbox.
+    const squatter = await t.register("squat");
+    const inv = (await owner.post(`/trips/${trip.id}/invitations`, { email: squatter.email, role: "EDITOR" })).body;
+    expect((await squatter.get("/notifications")).body.items).toHaveLength(0);
+    const res = await squatter.post(`/invitations/${inv.token}/accept`);
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/Confirm your email/);
+    expect((await squatter.get(`/trips/${trip.id}`)).status).toBe(403);
+    // Once the real owner of the inbox confirms it, the invitation works.
+    await t.verifyEmail(squatter.id);
+    expect((await squatter.post(`/invitations/${inv.token}/accept`)).status).toBe(200);
+  });
+
+  it("link invitations can only be opened with their secret token, never by id", async () => {
+    const { owner, trip } = await tripWithEditor();
+    const inv = (await owner.post(`/trips/${trip.id}/invitations`, { role: "VIEWER" })).body;
+    const outsider = await t.register("byid", { verified: true });
+    expect((await outsider.get(`/invitations/id/${inv.id}`)).body).toEqual({ status: "invalid" });
+    expect((await outsider.post(`/invitations/id/${inv.id}/accept`)).status).toBe(404);
+    expect((await outsider.post(`/invitations/${inv.token}/accept`)).status).toBe(200);
   });
 
   it("expired invitations are rejected with a friendly message", async () => {
@@ -112,7 +136,7 @@ describe("roles", () => {
     const m = await t.register("leave");
     await m.post(`/invitations/${inv.token}/accept`);
     expect((await m.delete(`/trips/${trip.id}/members/${m.id}`)).status).toBe(200);
-    expect((await m.get("/trips")).body.find((x: { id: string }) => x.id === trip.id)).toBeUndefined();
+    expect((await m.get("/trips")).body.items.find((x: { id: string }) => x.id === trip.id)).toBeUndefined();
   });
 
   it("public viewers don't see the private member list", async () => {

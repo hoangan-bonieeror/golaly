@@ -129,6 +129,7 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 | `npm run test:unit` | Unit tests only (no database needed) |
 | `npm run e2e` | Playwright Definition-of-Done journey against a running stack |
 | `npm run typecheck` | TypeScript, strict, all packages |
+| `npm run lint` | ESLint (typescript-eslint, React Hooks, Next.js rules) |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run db:deploy` | Apply committed migrations (first-time setup, CI, production) |
 | `npm run db:migrate` | After you change `schema.prisma`: create + apply a new migration (`prisma migrate dev`, needs CREATEDB for its shadow database) |
@@ -140,19 +141,20 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 
 | Area | Details |
 |---|---|
-| **Auth** | Register, login, logout, refresh-token rotation (reuse is rejected), forgot/reset password (single-use, 30-min tokens; logs out other sessions), onboarding, **Google sign-in** (authorization-code flow with PKCE + state, ID token verified, accounts linked by verified email), set/change password. |
+| **Auth** | Register with **email confirmation**, login with **per-account lockout** (5 wrong passwords → 15 min), logout that ends the session **immediately** (every request re-checks the session), refresh-token rotation with **theft detection** (a replayed old token revokes the session; a same-moment multi-tab refresh is tolerated), forgot/reset password (single-use, 30-min tokens; logs out everywhere), onboarding, **Google sign-in** (authorization-code flow with PKCE + state, ID token verified; linking to an unconfirmed account removes its password and sessions), set/change password. |
 | **Users** | Profile with traveler type, interests, trips / countries / followers / following stats, "Follows you" badge and follower lists, avatar upload, bio, home base, public trips & posts, account deletion (confirmed with password, or username for Google-only accounts; soft delete + anonymise). |
 | **Trips** | CRUD, destinations (multi-stop route), dates that keep days in sync and **never silently delete plans**, cover upload, budget, visibility `PRIVATE` (default) / `LINK_ONLY` / `PUBLIC`, allow comments, allow fork, soft delete. |
-| **Itinerary** | Days (add, rename, delete with renumbering), items of 7 types, place search, times (chronological auto-ordering; untimed notes keep their slot), notes, duplicate, reorder within or across days (drag & drop or menu), "Edited by …" trail. |
-| **Collaboration** | Owner / Editor / Viewer enforced **server-side on every request**. Invite by email (bound to that address, single-use) or link (reusable until expiry/revoke). Tokens are 256-bit, stored as SHA-256 hashes, expire in 7 days and are revocable. Owners change roles and remove members; members can leave. Audit log for every permission change. |
-| **Realtime** | Socket.IO rooms per trip (joining re-checks permission). Item, day and member events refresh collaborators' screens; removed members are kicked from the room. Notifications are pushed live. |
+| **Itinerary** | Days (add, rename, delete with renumbering), items of 7 types, place search, times (chronological auto-ordering; untimed notes keep their slot), notes, duplicate, reorder within or across days (drag & drop or a keyboard-accessible menu), "Edited by …" trail. Concurrent edits to one trip are serialised with a row lock, so two people reordering at once can't undo each other. |
+| **Collaboration** | Owner / Editor / Viewer enforced **server-side on every request**. Invite by email (bound to that address, single-use, and only claimable once the address is confirmed) or link (reusable until expiry/revoke). Tokens are 256-bit, stored as SHA-256 hashes, expire in 7 days and are revocable. Owners change roles and remove members; members can leave. Audit log for every permission change. |
+| **Realtime** | Socket.IO rooms per trip (handshake checks the live session; joining re-checks permission). Item, day and member events refresh collaborators' screens; removed members are kicked, outsiders are evicted when a trip goes private, revoked sessions are disconnected. Notifications are pushed live — only after their transaction commits. The client refreshes its session and reconnects on its own. |
 | **Fork / Remix** | Copies title, description, dates, destinations, days, items and places. Does **not** copy members, invites, comments, media or counters. New owner = forker; copy starts Private; "Based on … by @…" attribution survives even if the source is deleted. |
-| **Social** | Feed (For You / Following, cursor pagination), posts linked to trips (public post of a private trip is refused), drafts, photos, likes, comments (author can moderate), saves, follows, share, reports (5 reasons, one per user per target). |
+| **Social** | Feed (For You / Following), cursor pagination on every list that can grow (trips, saved, comments, notifications), posts linked to trips (public post of a private trip is refused), drafts, photos, likes and saves that are idempotent under double-clicks, comments (author can moderate), follows, share, reports (5 reasons, one per user per target). |
 | **Discovery** | Search across trips, places, people and destinations: **accent-insensitive and typo-tolerant** (`hoi an` → Hội An, `tokio` → Tokyo) using `pg_trgm` trigram indexes, every word must match, best matches first (behind a `SearchProvider` interface, so it can move to OpenSearch/Algolia later), destination pages, explore, recent searches. Interactive **MapLibre** trip maps with numbered pins and the day's route. |
-| **Privacy** | Private trips never appear in Explore, search, feeds or public profiles. Non-members of public trips don't see the member list or invites. Posts drop out of feeds when their trip goes private. |
-| **Media** | JPEG/PNG/WebP validated by content, size and dimensions; re-encoded to WebP (**strips EXIF/GPS**) in three sizes (640 / 1280 / 2400px) served with `srcset`, plus a dominant-colour placeholder while loading. The storage driver interface keeps local disk now and S3/R2 later. |
+| **Privacy** | Private trips never appear in Explore, search, feeds or public profiles. Non-members of public trips don't see the member list or invites. Posts about a trip that goes private leave feeds and hide that trip everywhere (spec §34); remixes stop linking to it. Reports can't be used to probe for private content. |
+| **Media** | JPEG/PNG/WebP validated by content, size and dimensions; re-encoded to WebP (**strips EXIF/GPS**) in three sizes (640 / 1280 / 2400px) served with `srcset`, plus a dominant-colour placeholder while loading. Uploads are capped at 40 MP, 30/min and 200/day per user. The storage driver interface keeps local disk now and S3/R2 later. |
 | **Notifications** | All 9 spec types, unread badge, mark one or all as read, deep links, coalescing of rapid item edits. |
-| **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; CORS locked to the web origin; Helmet; rate limits (stricter on auth); validated env; friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
+| **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; typed JWTs (an OAuth state token can't pass as an access token); CORS locked to the web origin; Helmet on the API and anti-clickjacking headers on the web app; per-IP rate limits that can't be dodged by forging `X-Forwarded-For` behind the edge proxy; validated env (refuses insecure cookies in production); friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
+| **Accessibility** | WCAG AA colour contrast, focus-trapped dialogs that return focus, ARIA tabs and menus with arrow-key support, labelled and described form errors, skip link, one `<title>` per page, logical headings, 44px touch targets. An axe-core gate in the E2E run fails the build on any serious/critical issue (desktop and mobile). |
 
 Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking, moderation dashboard.
 
@@ -163,10 +165,12 @@ API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](d
 ## Testing
 
 - **Unit** (`src/**/*.spec.ts`): the permission matrix and `TripAccessService`, itinerary ordering logic, crypto, dates and the shared Zod schemas.
-- **Integration** (`test/*.int.ts`): boots the real Nest app against `triply_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads.
-- **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept, plus a privacy check.
+- **Integration** (`test/*.int.ts`): boots the real Nest app against `triply_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads. `hardening.int.ts` covers the security/concurrency fixes: immediate logout, lockout, email confirmation, Google takeover of a squatted account, refresh-token theft detection, concurrent comment deletes / likes / reorders, socket handshake and eviction, pagination and input validation.
+- **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept, plus a privacy check, an **axe-core accessibility gate** (8 screens at desktop and mobile widths; also fails on sideways scrolling) and cleanup of the trips it created.
 
-Current status: **65/65** API tests and **all 16 Definition-of-Done steps** pass.
+Also `npm run lint` (ESLint 9 with typescript-eslint, React Hooks and Next rules) runs in CI.
+
+Current status: **102/102** API tests, lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
 
 ---
 
@@ -176,18 +180,21 @@ The repo has a Dockerfile for each app and a `full` Compose profile:
 
 ```bash
 export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))")
-docker compose --profile full up --build      # db + api (runs migrations on start) + web
+docker compose --profile full up --build      # → http://localhost:3000
 ```
+
+Services: `db` (bound to 127.0.0.1 only) → `migrate` (runs `prisma migrate deploy` once) → `api` → `web` → `edge` (nginx, the only published port). The edge overwrites `X-Forwarded-For` with the real client address, so per-IP rate limits can't be bypassed, and it serves Socket.IO on the same origin, so the API port is never exposed. Images are small and run as the unprivileged `node` user (Next.js `standalone` output, production-only dependencies).
 
 For a real deployment (for example Render, Railway or Fly for the API, Vercel for the web app, and a managed Postgres):
 
-1. **API**: set `DATABASE_URL`, `JWT_SECRET` (48+ random bytes), `WEB_ORIGIN=https://your-web-domain`, `COOKIE_SECURE=true` and `NODE_ENV=production`. Run `npm run db:deploy` on release, then `node apps/api/dist/main.js`.
+1. **API**: set `DATABASE_URL`, `JWT_SECRET` (48+ random bytes), `WEB_ORIGIN=https://your-web-domain`, `COOKIE_SECURE=true` (the API refuses to start in production without it), `NODE_ENV=production` and `TRUST_PROXY` (the subnet or hop count of the proxies in front — never `true`). Run `npm run db:deploy` on release, then `node apps/api/dist/main.js`.
 2. **Web**: set `API_ORIGIN=https://your-api-domain` **at build time** (Next rewrites are compiled in) and `NEXT_PUBLIC_REALTIME_URL=https://your-api-domain`.
-3. Serve both under the same parent domain (for example `app.example.com` and `api.example.com`) so cookies and WebSockets work, or put both behind one reverse proxy.
-4. Swap the local media driver for S3/R2, and the dev-outbox mail driver for SMTP/Resend/SES (both are small interfaces in `apps/api/src/modules/`).
-5. Never run `db:seed` in production. It refuses when `NODE_ENV=production`.
+3. Serve both under the same parent domain (for example `app.example.com` and `api.example.com`) so cookies and WebSockets work, or put both behind one reverse proxy like `deploy/nginx.conf`.
+4. **Client IPs:** Next.js forwards `X-Forwarded-For` untouched, so the first hop must overwrite it with the real address (Vercel does; with nginx use `proxy_set_header X-Forwarded-For $remote_addr`). In plain `npm run dev` there's no edge, so anyone hitting your laptop could forge it — per-account login lockout still applies.
+5. Swap the local media driver for S3/R2, and the dev-outbox mail driver for SMTP/Resend/SES (both are small interfaces in `apps/api/src/modules/`).
+6. Never run `db:seed` in production. It refuses when `NODE_ENV=production`.
 
-> The Docker files follow standard multi-stage patterns but were not run in the environment this was built in. Test `docker compose --profile full up --build` once on your machine.
+> The Compose file and nginx config were validated (`docker compose config`, `nginx -t`, and the edge was exercised against the running stack), but the images themselves couldn't be built where this was developed (no Docker Hub access). Run `docker compose --profile full up --build` once on your machine.
 
 ---
 
@@ -196,5 +203,6 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 - **Lead with the loop:** a 30-second recording of *Sarah remixes An's public trip → edits her copy → An's original is untouched* explains the product immediately.
 - **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
-- **Point to the tests:** 65 API tests plus a Playwright script that proves the spec's Definition of Done.
+- **Point to the tests:** 102 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
+- **Tell the hardening story:** an honest self-review found a rate-limit bypass, Google account pre-hijacking and two race conditions; each fix landed with a test that reproduces the problem (`apps/api/test/hardening.int.ts`). Interviewers love this.
 - **Suggested headline:** *"TRIPLY: collaborative trip planning with GitHub-style fork/remix for itineraries. Next.js 16 · NestJS · Prisma · PostgreSQL · Socket.IO."*

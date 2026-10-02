@@ -53,9 +53,17 @@ describe("auth", () => {
     expect(first.status).toBe(200);
     const rotated = (first.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_rt="))!.split(";")[0];
     expect((await agent.post("/auth/refresh")).status).toBe(200);
-    // Replaying the already-rotated token fails.
+    // Replaying the just-rotated token right away is a benign multi-tab race: no new cookies, no logout.
+    const race = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "triply").set("Cookie", rotated);
+    expect(race.status).toBe(200);
+    expect(race.body).toEqual({ ok: true, raced: true });
+    expect(race.headers["set-cookie"]).toBeUndefined();
+    // Replaying it later means it was copied: rejected, and the whole session is revoked.
+    await t.prisma.session.updateMany({ where: { prevTokenHash: sha256(rotated.slice("triply_rt=".length)) }, data: { rotatedAt: new Date(Date.now() - 60_000) } });
     const replay = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "triply").set("Cookie", rotated);
     expect(replay.status).toBe(401);
+    expect((await agent.post("/auth/refresh")).status).toBe(401);
+    expect((await agent.get("/users/me")).status).toBe(401);
   });
 
   it("logout revokes the session", async () => {

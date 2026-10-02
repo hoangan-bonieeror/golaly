@@ -56,6 +56,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
         username: u.username,
         passwordHash,
         isDemo: true,
+        emailVerifiedAt: new Date(),
         profile: {
           create: {
             displayName: u.displayName,

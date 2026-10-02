@@ -2,7 +2,7 @@
 
 import { ITEM_TYPE_LABEL, createItemSchema, type ItemView, type ItineraryItemType, type PlaceView, type TripDetail } from "@triply/shared";
 import { Search, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api/client";
 import { keys, useAction, usePlaceSearch } from "@/lib/api/queries";
 import { useDebounced } from "@/lib/hooks";
@@ -15,44 +15,31 @@ const TYPES: ItineraryItemType[] = ["PLACE", "RESTAURANT", "HOTEL", "ACTIVITY", 
  * Add / edit itinerary item (spec §13). Optimised for few taps:
  * pick a type → pick a place (title auto-fills) → optional time → Add.
  */
-export function ItemSheet({
-  open,
-  onClose,
-  trip,
-  defaultDayId,
-  item,
-}: {
+type Props = {
   open: boolean;
   onClose: () => void;
   trip: TripDetail;
   defaultDayId?: string;
   item?: ItemView | null;
-}) {
-  const [type, setType] = useState<ItineraryItemType>("PLACE");
-  const [dayId, setDayId] = useState("");
-  const [title, setTitle] = useState("");
-  const [place, setPlace] = useState<PlaceView | null>(null);
-  const [startTime, setStart] = useState("");
-  const [endTime, setEnd] = useState("");
-  const [notes, setNotes] = useState("");
+};
+
+/** Mounted only while open (and re-mounted per item), so the form always starts from the right values. */
+export function ItemSheet(props: Props) {
+  return props.open ? <ItemSheetBody key={props.item?.id ?? `new:${props.defaultDayId ?? ""}`} {...props} /> : null;
+}
+
+function ItemSheetBody({ open, onClose, trip, defaultDayId, item }: Props) {
+  const [type, setType] = useState<ItineraryItemType>(item?.type ?? "PLACE");
+  const [dayId, setDayId] = useState(item?.dayId ?? defaultDayId ?? trip.days[0]?.id ?? "");
+  const [title, setTitle] = useState(item?.title ?? "");
+  const [place, setPlace] = useState<PlaceView | null>(item?.place ?? null);
+  const [startTime, setStart] = useState(item?.startTime ?? "");
+  const [endTime, setEnd] = useState(item?.endTime ?? "");
+  const [notes, setNotes] = useState(item?.notes ?? "");
   const [q, setQ] = useState("");
   const [error, setError] = useState<string>();
   const debouncedQ = useDebounced(q, 200);
   const suggestions = usePlaceSearch(debouncedQ, trip.id);
-
-  useEffect(() => {
-    if (!open) return;
-    setType(item?.type ?? "PLACE");
-    setDayId(item?.dayId ?? defaultDayId ?? trip.days[0]?.id ?? "");
-    setTitle(item?.title ?? "");
-    setPlace(item?.place ?? null);
-    setStart(item?.startTime ?? "");
-    setEnd(item?.endTime ?? "");
-    setNotes(item?.notes ?? "");
-    setQ("");
-    setError(undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, item?.id]);
 
   const invalidate = [keys.trip(trip.id), ["trips"]];
   const create = useAction((body: object) => api.post<ItemView>(`/days/${dayId}/items`, body), { invalidate, success: () => `Added to Day ${trip.days.find((d) => d.id === dayId)?.dayNumber}` });

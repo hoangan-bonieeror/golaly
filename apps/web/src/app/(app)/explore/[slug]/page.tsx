@@ -1,5 +1,6 @@
 "use client";
 
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -13,8 +14,9 @@ import { useDestination } from "@/lib/api/queries";
 export default function DestinationPage() {
   const { slug } = useParams<{ slug: string }>();
   const q = useDestination(slug);
+  useDocumentTitle(q.data ? `${q.data.destination.name}, ${q.data.destination.country}` : null);
   if (q.isLoading) return <PageLoader />;
-  if (q.isError || !q.data) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
+  if (q.isError || !q.data) return <ErrorState page error={q.error} onRetry={() => q.refetch()} />;
   const { destination: dest, popularTrips, remixable, places, posts } = q.data;
 
   return (

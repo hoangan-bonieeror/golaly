@@ -3,7 +3,7 @@
 import { passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
 import { Camera, LogOut, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Avatar, Button, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
@@ -11,19 +11,20 @@ import { useSession } from "@/lib/session";
 
 export default function SettingsPage() {
   const me = useMe().data;
+  if (!me) return <PageLoader />;
+  // Keyed by user: the form starts from that user's saved values (no effect-driven reset).
+  return <Settings key={me.id} me={me} />;
+}
+
+function Settings({ me }: { me: Me }) {
   const { logout } = useSession();
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ displayName: "", bio: "", homeBase: "" });
+  const [form, setForm] = useState({ displayName: me.displayName, bio: me.bio, homeBase: me.homeBase ?? "" });
   const [error, setError] = useState<string>();
   const [deleting, setDeleting] = useState(false);
   const [password, setPassword] = useState("");
   const [deleteError, setDeleteError] = useState<string>();
-
-  useEffect(() => {
-    if (me) setForm({ displayName: me.displayName, bio: me.bio, homeBase: me.homeBase ?? "" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id]);
 
   const save = useAction((body: object) => api.patch<Me>("/users/me", body), { invalidate: [keys.me, ["profile"]], success: "Profile saved" });
   const avatar = useAction(
@@ -33,8 +34,6 @@ export default function SettingsPage() {
     },
     { invalidate: [keys.me, ["profile"], ["feed"]], success: "Photo updated" },
   );
-
-  if (!me) return <PageLoader />;
 
   return (
     <div className="mx-auto max-w-xl space-y-8">
@@ -58,6 +57,8 @@ export default function SettingsPage() {
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
+            aria-label="Upload a profile photo"
+            tabIndex={-1}
             className="sr-only"
             onChange={(e) => {
               const f = e.target.files?.[0];

@@ -10,10 +10,9 @@ export default function Splash() {
   const router = useRouter();
   const me = useMe();
 
+  // Go as soon as we know who's here — no artificial delay.
   useEffect(() => {
-    if (me.isLoading) return;
-    const t = setTimeout(() => router.replace(me.data ? "/home" : "/welcome"), 1200);
-    return () => clearTimeout(t);
+    if (!me.isLoading) router.replace(me.data ? "/home" : "/welcome");
   }, [me.isLoading, me.data, router]);
 
   return (

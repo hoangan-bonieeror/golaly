@@ -3,10 +3,11 @@
 import { loginSchema } from "@triply/shared";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { GoogleButton, OAUTH_ERRORS } from "@/components/auth/GoogleButton";
 import { Button, Field, inputCls } from "@/components/ui";
 import { ApiError } from "@/lib/api/client";
+import { useMe } from "@/lib/api/queries";
 import { useSession } from "@/lib/session";
 import { useToast } from "@/lib/toast";
 import { safeNext } from "@/lib/utils";
@@ -30,18 +31,26 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  // Already signed in? Continue where they were going. (Skipped while our own login redirects.)
+  const me = useMe().data;
+  const submitting = useRef(false);
+  useEffect(() => {
+    if (me && !submitting.current) router.replace(next);
+  }, [me, next, router]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = loginSchema.safeParse({ email, password });
     if (!parsed.success) return setError(parsed.error.issues[0]?.message);
     setBusy(true);
+    submitting.current = true;
     setError(undefined);
     try {
       const user = await login(parsed.data);
       toast(`Welcome back, ${user.displayName}`);
       router.push(user.onboarded ? next : "/onboarding");
     } catch (err) {
+      submitting.current = false;
       setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
     } finally {
       setBusy(false);
@@ -66,7 +75,7 @@ function Login() {
         <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
       <div className="flex justify-end">
-        <Link href="/forgot-password" className="text-sm font-medium text-lagoon hover:underline">
+        <Link href="/forgot-password" className="inline-block py-2.5 text-sm font-medium text-lagoon hover:underline">
           Forgot password?
         </Link>
       </div>
@@ -76,7 +85,7 @@ function Login() {
       <GoogleButton next={next} />
       <p className="text-center text-sm text-muted">
         New to TRIPLY?{" "}
-        <Link href="/register" className="font-semibold text-lagoon hover:underline">
+        <Link href="/register" className="inline-block py-2.5 font-semibold text-lagoon hover:underline">
           Create account
         </Link>
       </p>

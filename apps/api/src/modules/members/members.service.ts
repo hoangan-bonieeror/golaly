@@ -45,14 +45,15 @@ export class MembersService {
     }
     const token = randomToken();
     const url = `${env.WEB_ORIGIN}/invite/${token}`;
-    const inv = await this.prisma.$transaction(async (tx) => {
+    const inv = await this.prisma.transaction(async (tx) => {
       const created = await tx.tripInvitation.create({
         data: { tripId, email: input.email ?? null, role: input.role, tokenHash: sha256(token), invitedBy: viewerId, expiresAt: new Date(Date.now() + INVITE_TTL_MS) },
         include: { inviter: { select: userSummarySelect } },
       });
       await this.audit.log(viewerId, "trip.invitation.created", "trip", tripId, { invitationId: created.id, role: input.role, kind: input.email ? "email" : "link" }, tx);
       if (input.email) {
-        const invitee = await tx.user.findFirst({ where: { email: input.email, deletedAt: null }, select: { id: true } });
+        // Only notify an account that has proven it owns the address.
+        const invitee = await tx.user.findFirst({ where: { email: input.email, deletedAt: null, emailVerifiedAt: { not: null } }, select: { id: true } });
         if (invitee)
           await this.notifications.notify([invitee.id], viewerId, "TRIP_INVITE", `invited you to ${input.role === "EDITOR" ? "edit" : "view"} ${trip.title}`, { tripId, invitationId: created.id }, tx);
       }
@@ -88,7 +89,9 @@ export class MembersService {
 
   private async findInvitation(by: { token: string } | { id: string }) {
     return this.prisma.tripInvitation.findFirst({
-      where: "token" in by ? { tokenHash: sha256(by.token) } : { id: by.id },
+      // By id (from an in-app notification) only works for email invitations: a link invitation
+      // must always be opened with its secret token.
+      where: "token" in by ? { tokenHash: sha256(by.token) } : { id: by.id, email: { not: null } },
       include: {
         inviter: { select: userSummarySelect },
         trip: {
@@ -139,8 +142,10 @@ export class MembersService {
   private async assertInvitee(inv: { email: string | null }, viewerId: string | null) {
     if (!inv.email) return;
     if (!viewerId) throw Errors.unauthorized();
-    const me = await this.prisma.user.findUnique({ where: { id: viewerId }, select: { email: true } });
+    const me = await this.prisma.user.findUnique({ where: { id: viewerId }, select: { email: true, emailVerifiedAt: true } });
     if (me?.email !== inv.email) throw new AppError(403, "This invitation was sent to a different email address. Log in with that account to accept it.");
+    // Anyone can register any address; only a confirmed owner may claim an invitation sent to it.
+    if (!me.emailVerifiedAt) throw new AppError(403, "Confirm your email address first — we sent you a link when you signed up. Then open this invitation again.");
   }
 
   async accept(by: { token: string } | { id: string }, viewerId: string): Promise<{ tripId: string }> {
@@ -152,7 +157,7 @@ export class MembersService {
     if (status === "accepted") throw Errors.invalid("This invitation has already been used.");
     await this.assertInvitee(inv, viewerId);
 
-    const joined = await this.prisma.$transaction(async (tx) => {
+    const joined = await this.prisma.transaction(async (tx) => {
       const existing = await tx.tripMember.findUnique({ where: { tripId_userId: { tripId: inv.tripId, userId: viewerId } } });
       if (!existing) {
         await tx.tripMember.create({ data: { tripId: inv.tripId, userId: viewerId, role: inv.role } });
@@ -184,7 +189,7 @@ export class MembersService {
     const m = trip.members.find((x) => x.userId === userId);
     if (!m) throw Errors.notFound("That member");
     if (m.role !== role) {
-      await this.prisma.$transaction(async (tx) => {
+      await this.prisma.transaction(async (tx) => {
         await tx.tripMember.update({ where: { tripId_userId: { tripId, userId } }, data: { role } });
         await this.audit.log(viewerId, "trip.member.role_changed", "trip", tripId, { userId, from: m.role, to: role }, tx);
         await this.notifications.notify([userId], viewerId, "TRIP_MEMBER_ROLE_CHANGED", `made you ${role === "EDITOR" ? "an Editor" : "a Viewer"} on ${trip.title}`, { tripId }, tx);
@@ -201,7 +206,7 @@ export class MembersService {
     if (!leaving) this.access.assert("members.remove", trip, viewerId);
     if (userId === trip.ownerId) throw Errors.invalid(leaving ? "Owners can't leave their own trip — delete it instead." : "The owner can't be removed.");
     if (!trip.members.some((m) => m.userId === userId)) throw Errors.notFound("That member");
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.transaction(async (tx) => {
       await tx.tripMember.delete({ where: { tripId_userId: { tripId, userId } } });
       await this.audit.log(viewerId, leaving ? "trip.member.left" : "trip.member.removed", "trip", tripId, { userId }, tx);
     });

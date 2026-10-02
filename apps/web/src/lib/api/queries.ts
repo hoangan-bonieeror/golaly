@@ -66,9 +66,23 @@ export function useMe() {
 }
 
 export const useTrip = (id: string) => useQuery({ queryKey: keys.trip(id), queryFn: () => api.get<TripDetail>(`/trips/${id}`), retry: false });
-export const useMyTrips = (filter = "all", enabled = true) =>
-  useQuery({ queryKey: keys.myTrips(filter), queryFn: () => api.get<TripSummary[]>(`/trips${qs({ filter })}`), enabled });
-export const useSavedTrips = () => useQuery({ queryKey: keys.savedTrips, queryFn: () => api.get<TripSummary[]>("/trips/saved") });
+/**
+ * Cursor-paginated list ("Load more"). `items` is every page loaded so far, flattened.
+ * The API returns `{ items, nextCursor }` for all list endpoints that can grow without bound.
+ */
+export function usePagedList<T>(queryKey: QueryKey, path: string, params: Record<string, string | number | undefined> = {}, enabled = true) {
+  const q = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => api.get<Paged<T>>(`${path}${qs({ ...params, cursor: pageParam })}`),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled,
+  });
+  return { ...q, items: q.data?.pages.flatMap((p) => p.items) };
+}
+
+export const useMyTrips = (filter = "all", enabled = true) => usePagedList<TripSummary>(keys.myTrips(filter), "/trips", { filter, limit: 24 }, enabled);
+export const useSavedTrips = () => usePagedList<TripSummary>(keys.savedTrips, "/trips/saved", { limit: 24 });
 export const useExplore = () =>
   useQuery({ queryKey: keys.explore, queryFn: () => api.get<{ destinations: DestinationView[]; trips: TripSummary[]; places: PlaceView[] }>("/explore") });
 export const useDestinations = () => useQuery({ queryKey: keys.destinations, queryFn: () => api.get<DestinationView[]>("/destinations"), staleTime: 5 * 60_000 });
@@ -79,8 +93,8 @@ export const usePlaceSearch = (q: string, tripId?: string) =>
   useQuery({ queryKey: keys.places(q, tripId), queryFn: () => api.get<PlaceView[]>(`/places/search${qs({ q, tripId, limit: 8 })}`), placeholderData: (prev) => prev });
 export const useSavedPlaces = () => useQuery({ queryKey: keys.savedPlaces, queryFn: () => api.get<PlaceView[]>("/places/saved") });
 export const usePost = (id: string) => useQuery({ queryKey: keys.post(id), queryFn: () => api.get<PostView>(`/posts/${id}`), retry: false });
-export const useComments = (id: string) => useQuery({ queryKey: keys.comments(id), queryFn: () => api.get<CommentView[]>(`/posts/${id}/comments`) });
-export const useSavedPosts = () => useQuery({ queryKey: keys.savedPosts, queryFn: () => api.get<PostView[]>("/posts/saved") });
+export const useComments = (id: string) => usePagedList<CommentView>(keys.comments(id), `/posts/${id}/comments`, { limit: 50 });
+export const useSavedPosts = () => usePagedList<PostView>(keys.savedPosts, "/posts/saved", { limit: 20 });
 export const useProfile = (handle: string) => useQuery({ queryKey: keys.profile(handle), queryFn: () => api.get<ProfileView>(`/users/${handle}`), retry: false });
 export const useUserTrips = (handle: string) => useQuery({ queryKey: keys.userTrips(handle), queryFn: () => api.get<TripSummary[]>(`/users/${handle}/trips`) });
 export const useUserPosts = (handle: string) => useQuery({ queryKey: keys.userPosts(handle), queryFn: () => api.get<PostView[]>(`/users/${handle}/posts`) });

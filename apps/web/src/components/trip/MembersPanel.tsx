@@ -29,7 +29,7 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-xl font-semibold">Trip members · {trip.myRole ? trip.members.length : trip.stats.travelers}</h3>
+        <h2 className="font-display text-xl font-semibold">Trip members · {trip.myRole ? trip.members.length : trip.stats.travelers}</h2>
         {may("members.invite") && (
           <Button size="sm" onClick={() => setInviteOpen(true)}>
             <UserPlus className="size-4" /> Invite
@@ -40,7 +40,7 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
       <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
         {trip.members.map((m) => (
           <li key={m.user.id} className="flex items-center gap-3 p-3.5">
-            <Link href={`/u/${m.user.username}`}>
+            <Link href={`/u/${m.user.username}`} aria-label={`${m.user.displayName}'s profile`}>
               <Avatar user={m.user} size={42} />
             </Link>
             <div className="min-w-0 flex-1">
@@ -83,7 +83,7 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
 
       {isOwner && (trip.pendingInvitations?.length ?? 0) > 0 && (
         <section>
-          <h4 className="mb-2 text-sm font-semibold text-ink-2">Pending invitations</h4>
+          <h3 className="mb-2 text-sm font-semibold text-ink-2">Pending invitations</h3>
           <ul className="space-y-2">
             {trip.pendingInvitations!.map((inv) => (
               <li key={inv.id} className="flex items-center gap-3 rounded-2xl border border-dashed border-line bg-surface/60 p-3">

@@ -63,7 +63,7 @@ describe("social actions", () => {
     expect(c).toMatchObject({ body: "Great!", canDelete: true });
     expect((await fan.post(`/posts/${post.id}/comments`, { body: "" })).status).toBe(422);
     expect((await fan.post(`/posts/${post.id}/save`)).body.savedByMe).toBe(true);
-    expect((await fan.get("/posts/saved")).body.map((p: { id: string }) => p.id)).toContain(post.id);
+    expect((await fan.get("/posts/saved")).body.items.map((p: { id: string }) => p.id)).toContain(post.id);
     expect((await fan.post(`/users/${author.username}/follow`)).body).toMatchObject({ followers: 1, followedByMe: true });
     expect((await fan.get("/feed?mode=following")).body.posts.map((p: { id: string }) => p.id)).toContain(post.id);
 
@@ -94,7 +94,7 @@ describe("social actions", () => {
     const u = await t.register("saver");
     const saved = (await u.post(`/trips/${vietnam.id}/save`)).body;
     expect(saved).toMatchObject({ savedByMe: true, saveCount: vietnam.saveCount + 1 });
-    expect((await u.get("/trips/saved")).body.map((x: { id: string }) => x.id)).toContain(vietnam.id);
+    expect((await u.get("/trips/saved")).body.items.map((x: { id: string }) => x.id)).toContain(vietnam.id);
     const place = await t.prisma.place.findFirstOrThrow({ where: { name: "Hoàn Kiếm Lake" } });
     expect((await u.post(`/places/${place.id}/save`)).body.savedByMe).toBe(true);
     expect((await u.get("/places/saved")).body).toHaveLength(1);

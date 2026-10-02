@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
-import { createTripSchema, updateTripSchema, type UpdateTripInput } from "@triply/shared";
+import { createTripSchema, pageQuerySchema, updateTripSchema, type UpdateTripInput } from "@triply/shared";
 import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { TripAccessService } from "./trip-access.service";
 import { TripsService } from "./trips.service";
 
-const listQuery = z.object({ filter: z.enum(["all", "mine", "shared", "past"]).default("all") });
+const listQuery = pageQuerySchema.extend({ filter: z.enum(["all", "mine", "shared", "past"]).default("all") });
 
 @Controller("trips")
 export class TripsController {
@@ -20,12 +20,12 @@ export class TripsController {
   /** GET /trips — trips the viewer owns or is a member of. */
   @Get()
   list(@ViewerId() me: string | null, @Query(new ZodPipe(listQuery)) q: z.infer<typeof listQuery>) {
-    return this.trips.mine(requireUser(me), q.filter);
+    return this.trips.mine(requireUser(me), q.filter, q.cursor, q.limit);
   }
 
   @Get("saved")
-  saved(@ViewerId() me: string | null) {
-    return this.trips.saved(requireUser(me));
+  saved(@ViewerId() me: string | null, @Query(new ZodPipe(pageQuerySchema)) q: { cursor?: string; limit: number }) {
+    return this.trips.saved(requireUser(me), q.cursor, q.limit);
   }
 
   @Public()

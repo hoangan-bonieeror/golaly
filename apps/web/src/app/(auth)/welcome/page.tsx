@@ -9,7 +9,7 @@ export default function Welcome() {
         <br />
         Discover together.
         <br />
-        <span className="text-sunset">Travel together.</span>
+        <span className="text-sunset-700">Travel together.</span>
       </h1>
       <ul className="mt-8 space-y-4 text-[15px] text-ink-2">
         {[

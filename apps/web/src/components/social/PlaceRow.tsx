@@ -14,7 +14,7 @@ export function PlaceRow({ place }: { place: PlaceView }) {
     success: (r) => (r.savedByMe ? "Place saved" : "Removed from saved"),
   });
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3">
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-line bg-surface p-3">
       <ItemTypeIcon type={place.category} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-semibold">{place.name}</div>

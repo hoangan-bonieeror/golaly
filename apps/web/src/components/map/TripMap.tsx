@@ -3,7 +3,7 @@
 import { ITEM_TYPE_LABEL, type ItemView, type PlaceView, type TripDetail } from "@triply/shared";
 import { Navigation, Star } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Chip, cx } from "../ui";
 
 const TileMap = dynamic(() => import("./TileMap").then((m) => m.TileMap), { ssr: false });
@@ -54,11 +54,14 @@ export function TripMap({
     return out;
   }, [days]);
 
-  // Selecting an item (in the list or on the map) focuses its day.
-  useEffect(() => {
+  // Selecting an item (in the list or on the map) focuses its day. Adjusted during render
+  // (React's "state from a changed prop" pattern) rather than in an effect, to avoid a second pass.
+  const [seenSelection, setSeenSelection] = useState(selectedId);
+  if (selectedId !== seenSelection) {
+    setSeenSelection(selectedId);
     const s = stops.find((x) => x.item.id === selectedId);
-    if (s) setDayFilter((cur) => (cur === "all" || cur === s.dayNumber ? cur : s.dayNumber));
-  }, [selectedId, stops]);
+    if (s && dayFilter !== "all" && dayFilter !== s.dayNumber) setDayFilter(s.dayNumber);
+  }
 
   const visible = stops.filter((s) => dayFilter === "all" || s.dayNumber === dayFilter);
   const selected = stops.find((s) => s.item.id === selectedId) ?? null;

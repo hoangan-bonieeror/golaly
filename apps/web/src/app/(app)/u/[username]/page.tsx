@@ -1,5 +1,6 @@
 "use client";
 
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { Bookmark, Flag, Luggage, MapPin, PenLine, Settings } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -8,7 +9,7 @@ import { ReportSheet } from "@/components/social/ReportSheet";
 import { TripCard } from "@/components/trip/TripCard";
 import { INTERESTS, TRAVELER_TYPES } from "@triply/shared";
 import Link from "next/link";
-import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, Tabs } from "@/components/ui";
+import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, TabPanel, Tabs } from "@/components/ui";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useFollowList, useMe, useProfile, useUserPosts, useUserTrips } from "@/lib/api/queries";
 
@@ -20,6 +21,7 @@ export default function ProfilePage() {
   const me = useMe().data;
   const router = useRouter();
   const profile = useProfile(handle);
+  useDocumentTitle(profile.data ? `${profile.data.user.displayName} (@${profile.data.user.username})` : null);
   const trips = useUserTrips(handle);
   const posts = useUserPosts(handle);
   const [tab, setTab] = useState<Tab>("trips");
@@ -30,7 +32,7 @@ export default function ProfilePage() {
   });
 
   if (profile.isLoading) return <PageLoader />;
-  if (profile.isError || !profile.data) return <ErrorState error={profile.error} />;
+  if (profile.isError || !profile.data) return <ErrorState page error={profile.error} />;
   const p = profile.data;
   const u = p.user;
 
@@ -78,29 +80,32 @@ export default function ProfilePage() {
               ))}
             </div>
           )}
-          <dl className="mt-4 flex justify-center gap-6 md:justify-start">
+          <ul aria-label="Profile stats" className="mt-4 flex justify-center gap-6 md:justify-start">
             <Stat label="Trips" value={p.trips} />
             <Stat label="Countries" value={p.countries} />
             <Stat label="Followers" value={p.followers} onClick={() => setList("followers")} />
             <Stat label="Following" value={p.following} onClick={() => setList("following")} />
-          </dl>
+          </ul>
           <p className="mt-2 text-xs text-muted">Joined {new Date(u.joinedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
         </div>
       </header>
 
       <Tabs
+        id="profile-tabs"
+        label="Profile content"
         value={tab}
         onChange={setTab}
         tabs={[{ value: "trips" as const, label: "Trips" }, { value: "posts" as const, label: "Posts" }, ...(p.isMe ? [{ value: "saved" as const, label: "Saved" }] : [])]}
       />
 
+      <TabPanel tabsId="profile-tabs" value={tab}>
       {tab === "trips" &&
         (trips.isLoading ? (
           <Skeleton className="aspect-[5/4] max-w-sm" />
         ) : trips.data?.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {trips.data.map((t) => (
-              <TripCard key={t.id} trip={t} />
+              <TripCard key={t.id} trip={t} level="h2" />
             ))}
           </div>
         ) : (
@@ -119,7 +124,7 @@ export default function ProfilePage() {
             {posts.data.map((post) => (
               <div key={post.id} className="relative">
                 {post.visibility === "DRAFT" && <span className="absolute left-3 top-3 z-10 rounded-full bg-gold px-2.5 py-1 text-xs font-bold text-white">Draft</span>}
-                <PostCard post={post} />
+                <PostCard post={post} level="h2" />
               </div>
             ))}
           </div>
@@ -128,6 +133,7 @@ export default function ProfilePage() {
         ))}
 
       {tab === "saved" && p.isMe && <EmptyState icon={<Bookmark className="size-7" />} title="Everything you've saved lives in Saved" action={<Button href="/saved">Open Saved</Button>} />}
+      </TabPanel>
 
       {reportOpen && <ReportSheet open onClose={() => setReportOpen(false)} target="USER" targetId={u.id} />}
       <FollowSheet handle={handle} which={list} onClose={() => setList(null)} />
@@ -137,17 +143,21 @@ export default function ProfilePage() {
 
 function Stat({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   const inner = (
-    <>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className="text-lg font-semibold">{value}</dd>
-    </>
+    <span className="flex flex-col">
+      <span className="text-xs text-muted">{label}</span>
+      <span className="text-lg font-semibold">{value}</span>
+    </span>
   );
-  return onClick ? (
-    <button type="button" onClick={onClick} className="rounded-lg text-left hover:opacity-80" aria-label={`${value} ${label} — show list`}>
-      {inner}
-    </button>
-  ) : (
-    <div>{inner}</div>
+  return (
+    <li>
+      {onClick ? (
+        <button type="button" onClick={onClick} className="min-h-11 rounded-lg text-left hover:opacity-80" aria-label={`${value} ${label}. Show list`}>
+          {inner}
+        </button>
+      ) : (
+        <span aria-label={`${value} ${label}`}>{inner}</span>
+      )}
+    </li>
   );
 }
 

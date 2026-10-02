@@ -8,6 +8,7 @@ import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
 import { Avatar, Chip, EmptyState, ErrorState, SectionTitle, Skeleton, cx, inputCls } from "@/components/ui";
 import { useSearch } from "@/lib/api/queries";
+import { useRecentSearches } from "@/lib/recentSearches";
 import { useDebounced } from "@/lib/hooks";
 
 const CATS = [
@@ -19,32 +20,18 @@ const CATS = [
 ] as const;
 type Cat = (typeof CATS)[number][1];
 
-const RECENT_KEY = "triply.recentSearches";
-function readRecent(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]").slice(0, 6);
-  } catch {
-    return [];
-  }
-}
-
 export default function ExplorePage() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Cat>("all");
   const dq = useDebounced(q.trim(), 250);
   // Recent searches are a per-device convenience (browser storage), not account data.
-  const [recent, setRecent] = useState<string[]>([]);
-  useEffect(() => setRecent(readRecent()), []);
+  const { recent, remember, clear } = useRecentSearches();
   useEffect(() => {
     if (dq.length < 2) return;
-    const t = setTimeout(() => {
-      const next = [dq, ...readRecent().filter((x) => x.toLowerCase() !== dq.toLowerCase())].slice(0, 6);
-      try {
-        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-      } catch {}
-      setRecent(next);
-    }, 1200);
+    const t = setTimeout(() => remember(dq), 1200);
     return () => clearTimeout(t);
+    // `remember` is a stable module function in practice; only a new query should restart the timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dq]);
   const res = useSearch(dq, cat);
   const r = res.data;
@@ -71,19 +58,11 @@ export default function ExplorePage() {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Recent:</span>
             {recent.map((r) => (
-              <button key={r} onClick={() => setQ(r)} className="rounded-full bg-sand-2 px-3 py-1 text-ink-2 hover:bg-line">
+              <button key={r} onClick={() => setQ(r)} className="min-h-9 rounded-full bg-sand-2 px-3 py-1 text-ink-2 hover:bg-line">
                 {r}
               </button>
             ))}
-            <button
-              onClick={() => {
-                try {
-                  localStorage.removeItem(RECENT_KEY);
-                } catch {}
-                setRecent([]);
-              }}
-              className="text-xs text-muted underline-offset-2 hover:underline"
-            >
+            <button onClick={clear} className="min-h-11 px-1 text-xs text-muted underline-offset-2 hover:underline" aria-label="Clear recent searches">
               Clear
             </button>
           </div>

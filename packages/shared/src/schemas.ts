@@ -40,6 +40,7 @@ export const loginSchema = z.object({ email: emailSchema, password: z.string().m
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export const changePasswordSchema = z.object({ currentPassword: z.string().max(128).optional(), newPassword: passwordSchema });
 export const resetPasswordSchema = z.object({ token: z.string().min(20).max(200), password: passwordSchema });
+export const verifyEmailSchema = z.object({ token: z.string().min(20).max(200) });
 
 // ── Users ───────────────────────────────────────────────────────────────
 export const updateProfileSchema = z
@@ -54,12 +55,18 @@ export const updateProfileSchema = z
   .partial();
 
 // ── Trips ───────────────────────────────────────────────────────────────
+/** A route can't visit the same destination twice (it's a set with an order). */
+const destinationIdsSchema = z
+  .array(uuid)
+  .max(20)
+  .refine((ids) => new Set(ids).size === ids.length, "Each destination can only be added once.");
+
 export const tripTitleSchema = z.string().trim().min(2, "Give your trip a name (at least 2 characters).").max(120);
 export const createTripSchema = z
   .object({
     title: tripTitleSchema,
     description: z.string().trim().max(2000).optional(),
-    destinationIds: z.array(uuid).max(20).default([]),
+    destinationIds: destinationIdsSchema.default([]),
     startDate: isoDate.optional().nullable(),
     endDate: isoDate.optional().nullable(),
   })
@@ -69,7 +76,7 @@ export const updateTripSchema = z
   .object({
     title: tripTitleSchema,
     description: z.string().trim().max(2000),
-    destinationIds: z.array(uuid).max(20),
+    destinationIds: destinationIdsSchema,
     startDate: isoDate.nullable(),
     endDate: isoDate.nullable(),
     visibility: visibilitySchema,
@@ -130,7 +137,8 @@ export const searchQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 export const pageQuerySchema = z.object({
-  cursor: z.string().max(100).optional(),
+  // Cursors are row ids; anything else is a 422, never a database error.
+  cursor: z.uuid("That page link is invalid.").optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 

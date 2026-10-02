@@ -12,7 +12,8 @@ export async function createApp() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: env.NODE_ENV === "test" ? ["error"] : ["log", "warn", "error"],
   });
-  app.set("trust proxy", 1);
+  // Only trusted hops may set the client IP that rate limits key on (see TRUST_PROXY in env.ts).
+  app.set("trust proxy", env.TRUST_PROXY);
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
   app.enableCors({ origin: env.WEB_ORIGIN, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With"] });

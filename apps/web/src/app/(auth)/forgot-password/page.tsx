@@ -63,7 +63,7 @@ export default function ForgotPassword() {
         Send reset link
       </Button>
       <p className="text-center text-sm">
-        <Link href="/login" className="font-semibold text-lagoon hover:underline">
+        <Link href="/login" className="inline-block py-2.5 font-semibold text-lagoon hover:underline">
           Back to log in
         </Link>
       </p>

@@ -123,7 +123,7 @@ fs.mkdirSync(shots, { recursive: true });
     await B.reload();
     await B.getByText("You · Editor").waitFor();
     await B.getByRole("button", { name: "Item actions", exact: true }).first().click();
-    await B.getByRole("button", { name: "Edit", exact: true }).click();
+    await B.getByRole("menuitem", { name: "Edit", exact: true }).click();
     await B.getByLabel("Title").fill("Shibuya at night (Minh)");
     await B.getByRole("button", { name: "Save changes" }).click();
     await A.getByText("Shibuya at night (Minh)").waitFor({ timeout: 10000 });
@@ -159,7 +159,7 @@ fs.mkdirSync(shots, { recursive: true });
     await C.getByText("You · Owner").waitFor();
     await C.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 3);
     await C.getByRole("button", { name: "Item actions", exact: true }).first().click();
-    await C.getByRole("button", { name: "Delete", exact: true }).click();
+    await C.getByRole("menuitem", { name: "Delete", exact: true }).click();
     await C.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 2);
     await C.goto(`${forkUrl}?tab=members`);
     await C.getByText("Trip members · 1").waitFor();
@@ -187,6 +187,35 @@ fs.mkdirSync(shots, { recursive: true });
     await C.getByLabel("Search").fill("Japan — 7");
     await C.waitForTimeout(800);
     if (await C.getByRole("link", { name: /Japan — 7 Days/ }).count()) throw new Error("private trip in search");
+  });
+
+  // Accessibility gate: no serious/critical axe-core violations on the main screens.
+  await step("accessibility: no serious or critical axe violations", async () => {
+    const axeSource = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    const routes = ["/home", "/explore", "/trips", tripUrl.replace(BASE, ""), "/u/an.nguyen", "/saved", "/notifications", "/settings"];
+    const problems = [];
+    for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
+      await C.setViewportSize(vp);
+      for (const r of routes) {
+        await C.goto(`${BASE}${r}`);
+        await C.waitForLoadState("networkidle");
+        await C.addScriptTag({ content: axeSource });
+        const res = await C.evaluate(() => window.axe.run(document, { resultTypes: ["violations"] }));
+        for (const v of res.violations.filter((v) => v.impact === "serious" || v.impact === "critical")) problems.push(`${vp.width}px ${r}: ${v.id} (${v.nodes.length})`);
+        // No sideways scrolling on phones.
+        const overflow = await C.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        if (overflow > 1) problems.push(`${vp.width}px ${r}: page is ${overflow}px wider than the screen`);
+      }
+    }
+    await C.setViewportSize({ width: 1360, height: 900 });
+    if (problems.length) throw new Error(problems.join("; "));
+  });
+
+  // Leave the shared dev database as we found it: test trips must not linger in public Explore.
+  await step("cleanup: delete the trips this run created", async () => {
+    const del = (p, url) => p.evaluate((id) => fetch(`/api/v1/trips/${id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status), url.split("/trips/")[1].split(/[?#]/)[0]);
+    if (forkUrl && (await del(C, forkUrl)) !== 200) throw new Error("fork not deleted");
+    if ((await del(A, tripUrl)) !== 200) throw new Error("trip not deleted");
   });
 
   await A.screenshot({ path: path.join(shots, "owner-final.png") });

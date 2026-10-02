@@ -2,14 +2,21 @@
 
 import { ROLE_LABEL, emailSchema, type CreatedInvitation, type TripRole } from "@triply/shared";
 import { Check, Copy, Link2, Mail } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api/client";
 import { keys, useAction } from "@/lib/api/queries";
 import { Button, Field, Sheet, Tabs, cx, inputCls } from "../ui";
 
 type InvRole = Exclude<TripRole, "OWNER">;
 
-export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose: () => void; tripId: string }) {
+type Props = { open: boolean; onClose: () => void; tripId: string };
+
+/** Mounted only while open, so every opening starts with a clean form. */
+export function InviteSheet(props: Props) {
+  return props.open ? <InviteSheetBody {...props} /> : null;
+}
+
+function InviteSheetBody({ open, onClose, tripId }: Props) {
   const [mode, setMode] = useState<"email" | "link">("email");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InvRole>("EDITOR");
@@ -17,15 +24,6 @@ export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose:
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string>();
   const invite = useAction((body: { email?: string; role: InvRole }) => api.post<CreatedInvitation>(`/trips/${tripId}/invitations`, body), { invalidate: [keys.trip(tripId)] });
-
-  useEffect(() => {
-    if (open) {
-      setEmail("");
-      setLink(null);
-      setCopied(false);
-      setError(undefined);
-    }
-  }, [open]);
 
   const sendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +43,8 @@ export function InviteSheet({ open, onClose, tripId }: { open: boolean; onClose:
   return (
     <Sheet open={open} onClose={onClose} title="Invite to trip">
       <Tabs
+        id="invite-tabs"
+        label="Invite by"
         value={mode}
         onChange={(m) => {
           setMode(m);

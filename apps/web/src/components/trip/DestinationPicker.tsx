@@ -41,7 +41,7 @@ export function DestinationPicker({ value, onChange }: { value: string[]; onChan
               onChange([...value, d.id]);
               setQ("");
             }}
-            className="rounded-full border border-line bg-surface px-3 py-1 text-sm text-ink-2 hover:border-lagoon hover:text-lagoon"
+            className="min-h-9 rounded-full border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:border-lagoon hover:text-lagoon"
           >
             + {d.name}, <span className="text-muted">{d.country}</span>
           </button>

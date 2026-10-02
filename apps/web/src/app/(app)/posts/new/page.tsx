@@ -21,7 +21,7 @@ function NewPost() {
   const me = useMe().data;
   const router = useRouter();
   const params = useSearchParams();
-  const own = (useMyTrips("mine").data ?? []).filter((t) => t.myRole === "OWNER");
+  const own = (useMyTrips("mine").items ?? []).filter((t) => t.myRole === "OWNER");
   const [tripId, setTripId] = useState<string>(params.get("trip") ?? "");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -90,6 +90,8 @@ function NewPost() {
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple
+          aria-label="Add photos"
+          tabIndex={-1}
           className="sr-only"
           onChange={async (e) => {
             const files = [...(e.target.files ?? [])].slice(0, 10 - photos.length);

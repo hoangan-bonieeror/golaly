@@ -93,6 +93,7 @@ export const tripSummaryInclude = (viewerId: string | null) =>
     days: { select: { id: true, items: { select: { placeId: true } } } },
     members: { select: { userId: true, role: true } },
     savedBy: { where: { userId: viewerId ?? NO_USER }, select: { userId: true } },
+    forkedFrom: { select: { visibility: true, deletedAt: true } },
   }) satisfies Prisma.TripInclude;
 
 export type TripSummaryRow = Prisma.TripGetPayload<{ include: ReturnType<typeof tripSummaryInclude> }>;
@@ -134,7 +135,12 @@ export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripS
     estimatedBudget: t.estimatedBudget,
     forkedFrom:
       t.forkedFromTitle && t.forkedFromOwner
-        ? { tripId: t.forkedFromId ?? "", title: t.forkedFromTitle, ownerUsername: t.forkedFromOwner }
+        ? {
+            // Credit always stays; the link only while the source is still viewable (not deleted, not private).
+            tripId: t.forkedFrom && !t.forkedFrom.deletedAt && t.forkedFrom.visibility !== "PRIVATE" ? (t.forkedFromId ?? "") : "",
+            title: t.forkedFromTitle,
+            ownerUsername: t.forkedFromOwner,
+          }
         : null,
     updatedAt: t.updatedAt.toISOString(),
   };

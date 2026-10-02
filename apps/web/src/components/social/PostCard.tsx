@@ -37,7 +37,8 @@ export function usePostActions(post: PostView) {
   return { like, save };
 }
 
-export function PostCard({ post }: { post: PostView }) {
+export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" | "h3" }) {
+  const H = level;
   const me = useMe().data;
   const router = useRouter();
   const share = useShare();
@@ -49,7 +50,7 @@ export function PostCard({ post }: { post: PostView }) {
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">
       <header className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/u/${post.author.username}`}>
+        <Link href={`/u/${post.author.username}`} aria-label={`${post.author.displayName}'s profile`} tabIndex={-1}>
           <Avatar user={post.author} size={38} />
         </Link>
         <div className="min-w-0 flex-1 leading-tight">
@@ -90,7 +91,7 @@ export function PostCard({ post }: { post: PostView }) {
           </div>
         )}
         <Link href={`/posts/${post.id}`}>
-          <h3 className="font-semibold leading-snug">{post.title}</h3>
+          <H className="font-semibold leading-snug">{post.title}</H>
           {post.body && <p className="mt-1 line-clamp-2 text-sm text-ink-2">{post.body}</p>}
         </Link>
       </div>

@@ -24,6 +24,8 @@ export interface UserSummary {
 
 export interface Me extends UserSummary {
   email: string;
+  /** False until the user opens the confirmation link (Google sign-in counts as verified). */
+  emailVerified: boolean;
   bio: string;
   homeBase: string | null;
   travelerType: TravelerType | null;

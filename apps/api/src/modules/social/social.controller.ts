@@ -13,6 +13,7 @@ import { ZodPipe } from "../../common/http";
 import { SocialService } from "./social.service";
 
 const Uuid = new ParseUUIDPipe();
+const commentsQuery = pageQuerySchema.extend({ limit: z.coerce.number().int().min(1).max(100).default(50) });
 const feedQuery = pageQuerySchema.extend({ mode: z.enum(["for-you", "following"]).default("for-you") });
 
 @Controller()
@@ -31,8 +32,8 @@ export class SocialController {
   }
 
   @Get("posts/saved")
-  saved(@ViewerId() me: string | null) {
-    return this.social.savedPosts(requireUser(me));
+  saved(@ViewerId() me: string | null, @Query(new ZodPipe(pageQuerySchema)) q: { cursor?: string; limit: number }) {
+    return this.social.savedPosts(requireUser(me), q.cursor, q.limit);
   }
 
   @Public()
@@ -74,8 +75,8 @@ export class SocialController {
 
   @Public()
   @Get("posts/:id/comments")
-  comments(@Param("id", Uuid) id: string, @ViewerId() me: string | null) {
-    return this.social.comments(id, me);
+  comments(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Query(new ZodPipe(commentsQuery)) q: { cursor?: string; limit: number }) {
+    return this.social.comments(id, me, q.cursor, q.limit);
   }
 
   @Post("posts/:id/comments")

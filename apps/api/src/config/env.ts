@@ -27,6 +27,17 @@ const schema = z.object({
   /** Requests per minute per IP for the general limiter. Auth routes use a stricter limit. */
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(300),
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().default(10),
+  /**
+   * Which hops in front of the API may set X-Forwarded-For (Express "trust proxy").
+   * Default: only loopback — i.e. the Next.js web server on the same machine, which overwrites
+   * X-Forwarded-For with the real client address. Behind other proxies use their subnet
+   * (e.g. "loopback, uniquelocal" in Docker) or a hop count. Never "true": then any client
+   * could spoof its IP and dodge rate limits.
+   */
+  TRUST_PROXY: z
+    .string()
+    .default("loopback")
+    .transform((v) => (/^\d+$/.test(v) ? Number(v) : v === "false" ? false : v)),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -40,6 +51,10 @@ function load(): Env {
   if (parsed.data.NODE_ENV === "production" && parsed.data.JWT_SECRET.startsWith("change-me")) {
     throw new Error("Set a real JWT_SECRET in production.");
   }
+  if (parsed.data.NODE_ENV === "production" && !parsed.data.COOKIE_SECURE && !process.env.ALLOW_INSECURE_COOKIES) {
+    throw new Error("Set COOKIE_SECURE=true in production (serve over HTTPS). For a local HTTP-only demo set ALLOW_INSECURE_COOKIES=1.");
+  }
+  if (parsed.data.TRUST_PROXY === "true") throw new Error('TRUST_PROXY=true lets clients spoof their IP. Use a subnet like "loopback" or a hop count.');
   return parsed.data;
 }
 
