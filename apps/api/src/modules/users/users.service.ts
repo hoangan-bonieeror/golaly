@@ -50,6 +50,7 @@ export class UsersService {
       onboarded: !!u.profile?.onboardedAt,
       hasPassword: !!u.passwordHash,
       providers: u.oauthAccounts.map((a) => a.provider),
+      isAdmin: u.role === "ADMIN",
     };
   }
 

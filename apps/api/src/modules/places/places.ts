@@ -13,10 +13,12 @@ import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { fromDate } from "../../common/dates";
 import { Errors, ZodPipe } from "../../common/http";
-import { listablePlace, placeInclude, toPlaceView, toTripSummary, tripSummaryInclude } from "../../common/presenters";
+import { listablePlace, photoOrder, placeInclude, placePhotoInclude, toPlacePhotoView, toPlaceView, toTripSummary, tripSummaryInclude } from "../../common/presenters";
 import { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
+import { MediaModule } from "../media/media";
 import { DISCOVERABLE } from "../search/search";
+import { PhotoIngestService, PlacePhotosController, PlacePhotosService } from "./photos";
 import { TrigramRanker, byRank, textMatch } from "../search/ranker";
 
 /** Default search radius (km) around a destination / around the device. */
@@ -160,7 +162,7 @@ export class PlacesService {
       },
     });
     const tripWhere = { ...DISCOVERABLE, days: { some: { items: { some: { placeId } } } } };
-    const [nearIds, trips, tripCount] = await Promise.all([
+    const [nearIds, trips, tripCount, photos] = await Promise.all([
       this.prisma.$queryRaw<{ id: string; dist: number }[]>`
         SELECT o.id::text AS id, ST_Distance(o.location, p.location) AS dist
         FROM places p JOIN places o ON o.id <> p.id AND o.status = 'ACTIVE' AND o.merged_into_id IS NULL
@@ -169,6 +171,13 @@ export class PlacesService {
         ORDER BY dist ASC LIMIT 6`,
       this.prisma.trip.findMany({ where: tripWhere, orderBy: [{ saveCount: "desc" }, { updatedAt: "desc" }], take: 3, include: tripSummaryInclude(viewerId) }),
       this.prisma.trip.count({ where: tripWhere }),
+      // Approved photos, plus the viewer's own while they wait for review.
+      this.prisma.placePhoto.findMany({
+        where: { placeId, mediaId: { not: null }, OR: [{ status: "APPROVED" }, ...(viewerId ? [{ uploadedById: viewerId, status: "PENDING" as const }] : [])] },
+        orderBy: photoOrder,
+        take: 12,
+        include: placePhotoInclude,
+      }),
     ]);
     const nearRows = await this.prisma.place.findMany({ where: { id: { in: nearIds.map((n) => n.id) } }, include: placeInclude(viewerId) });
     const nearDist = new Map(nearIds.map((n) => [n.id, n.dist]));
@@ -184,6 +193,7 @@ export class PlacesService {
       areaName: p.area?.name ?? null,
       names: p.names.filter((n) => n.name !== p.name),
       attribution: p.sources.map((s) => s.attribution).filter(Boolean),
+      photos: photos.map((ph) => toPlacePhotoView(ph as typeof ph & { media: NonNullable<typeof ph.media> }, viewerId)),
       nearby: byRank(nearRows, nearIds.map((n) => n.id)).map((r) => ({ ...toPlaceView(r), distanceM: Math.round(nearDist.get(r.id) ?? 0) })),
       inTrips: trips.map((t) => toTripSummary(t, viewerId)),
       tripCount,
@@ -310,5 +320,5 @@ export class PlacesController {
   }
 }
 
-@Module({ controllers: [PlacesController], providers: [PlacesService] })
+@Module({ imports: [MediaModule], controllers: [PlacesController, PlacePhotosController], providers: [PlacesService, PlacePhotosService, PhotoIngestService] })
 export class PlacesModule {}

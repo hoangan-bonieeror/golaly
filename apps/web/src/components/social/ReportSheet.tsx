@@ -14,11 +14,13 @@ const REASONS: { value: ReportReason; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
+const TARGET_LABEL: Record<ReportTarget, string> = { POST: "post", COMMENT: "comment", USER: "user", TRIP: "trip", PLACE_PHOTO: "photo" };
+
 export function ReportSheet({ open, onClose, target, targetId }: { open: boolean; onClose: () => void; target: ReportTarget; targetId: string }) {
   const [reason, setReason] = useState<ReportReason>();
   const report = useAction((r: ReportReason) => api.post("/reports", { target, targetId, reason: r }), { success: "Thanks — our team will review this." });
   return (
-    <Sheet open={open} onClose={onClose} title={`Report ${target.toLowerCase()}`}>
+    <Sheet open={open} onClose={onClose} title={`Report ${TARGET_LABEL[target]}`}>
       <div className="space-y-2" role="radiogroup">
         {REASONS.map((r) => (
           <button

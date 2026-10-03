@@ -18,3 +18,5 @@ def test_dags_parse():
     assert set(sync.params.keys()) == {"area", "bbox", "providers", "sync_run_id"}
     assert sync.max_active_runs == 1
     assert bag.get_dag("catalog_bootstrap") is not None
+    photos = bag.get_dag("catalog_photos")
+    assert {t.task_id for t in photos.tasks} == {"queue_photos"} and set(photos.params.keys()) == {"area", "bbox"}

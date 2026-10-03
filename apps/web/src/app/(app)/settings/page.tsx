@@ -1,7 +1,7 @@
 "use client";
 
 import { passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
-import { Camera, LogOut, Trash2 } from "lucide-react";
+import { Camera, LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Avatar, Button, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
@@ -93,6 +93,11 @@ function Settings({ me }: { me: Me }) {
       <PasswordCard hasPassword={me.hasPassword} providers={me.providers} />
 
       <section className="space-y-2">
+        {me.isAdmin && (
+          <Button variant="secondary" className="w-full justify-start" href="/admin/photos">
+            <ShieldCheck className="size-4" /> Moderation: place photos
+          </Button>
+        )}
         <Button
           variant="secondary"
           className="w-full justify-start"

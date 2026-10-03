@@ -202,6 +202,30 @@ fs.mkdirSync(shots, { recursive: true });
     await A.getByText("Omoide Yokochō").first().waitFor();
   });
 
+  // A 96×64 PNG: the smallest image the media pipeline accepts is 64×64.
+  const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAwElEQVR4nO3ZwQnDQADEQNejRtL6lZV/IP6EsH4MXAVCK5/t67xyzncIFzrnVhGAAqhfVsKgAIpB/e9RY2IBFIMysVYXWg0KoBiUiaVBPfO7gkgHUAzKxNKg5j0W6QCKQZlY8+64KAZQDMrEmgfIy2oAxaBMLA1qHmORDqAYlIk1j46LYgDFoEyshxx/VgMoBmViaVDzHot0AMWgTKx5d1wUAygGZWLNA+RlNYBiUCaWBjWPsUgHUAzKxJpH5+O8ATloWbTqlBPYAAAAAElFTkSuQmCC",
+    "base64",
+  );
+  await step("18. a traveler adds a photo to a place page", async () => {
+    await C.goto(placeUrl);
+    await C.getByRole("button", { name: "Be the first to add one" }).click();
+    const sheet = C.getByRole("dialog");
+    await sheet.getByLabel("Choose a photo").setInputFiles({ name: "alley.png", mimeType: "image/png", buffer: PNG });
+    await sheet.getByRole("img", { name: "Your photo" }).waitFor();
+    await sheet.getByLabel("Caption (optional)").fill(`Lanterns ${stamp}`);
+    await sheet.getByRole("checkbox").check();
+    await sheet.getByRole("button", { name: "Share photo" }).click();
+    await sheet.getByRole("status").getByText("Your photo is on the place page").waitFor();
+    await sheet.getByRole("button", { name: "Done" }).click();
+    await C.getByRole("button", { name: new RegExp(`Open photo 1 of 1: Lanterns ${stamp}`) }).click();
+    await C.getByRole("dialog").getByText("Photo by").waitFor();
+    await C.keyboard.press("Escape");
+    // The owner sees it too, with the uploader's credit.
+    await A.goto(placeUrl);
+    await A.getByText("Photo by").first().waitFor();
+  });
+
   await step("privacy: private trips never leak to other users", async () => {
     await C.goto(`${BASE}/u/an.nguyen`);
     await C.getByRole("heading", { name: "An" }).waitFor();
@@ -239,6 +263,16 @@ fs.mkdirSync(shots, { recursive: true });
   await step("cleanup: delete the trips this run created", async () => {
     const del = (p, url) => p.evaluate((id) => fetch(`/api/v1/trips/${id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status), url.split("/trips/")[1].split(/[?#]/)[0]);
     if (forkUrl && (await del(C, forkUrl)) !== 200) throw new Error("fork not deleted");
+    if (placeUrl) {
+      const placeId = placeUrl.split("/places/")[1];
+      const status = await C.evaluate(async (id) => {
+        const place = await fetch(`/api/v1/places/${id}`).then((r) => r.json());
+        const mine = place.photos.filter((p) => p.mine);
+        const res = await Promise.all(mine.map((p) => fetch(`/api/v1/place-photos/${p.id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status)));
+        return res.every((s) => s === 200) ? 200 : 500;
+      }, placeId);
+      if (status !== 200) throw new Error("place photo not deleted");
+    }
     if ((await del(A, tripUrl)) !== 200) throw new Error("trip not deleted");
   });
 

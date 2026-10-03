@@ -85,6 +85,14 @@ enum ReportTarget {
   COMMENT
   USER
   TRIP
+  PLACE_PHOTO
+}
+
+/// PENDING: waiting for a moderator (new uploaders, loose matches). HIDDEN: removed by a moderator or by reports.
+enum PhotoStatus {
+  PENDING
+  APPROVED
+  HIDDEN
 }
 
 enum ReportReason {
@@ -132,6 +140,7 @@ model User {
   actedNotifs   Notification[]           @relation("Actor")
   media         Media[]
   reports       Report[]
+  placePhotos   PlacePhoto[]
   invitationsBy TripInvitation[]         @relation("Inviter")
   itemsEdited   ItineraryItem[]          @relation("ItemEditor")
   auditLogs     AuditLog[]
@@ -312,6 +321,7 @@ model Place {
   savedBy     SavedPlace[]
   sources     PlaceSource[]
   names       PlaceName[]
+  photos      PlacePhoto[]
 
   @@index([destinationId])
   @@index([areaId, categoryId, status])
@@ -475,6 +485,7 @@ model Post {
   trip        Trip?         @relation(fields: [tripId], references: [id], onDelete: SetNull)
   destination Destination?  @relation(fields: [destinationId], references: [id])
   media       PostMedia[]
+  placePhotos PlacePhoto[]
   likes       PostLike[]
   comments    PostComment[]
   savedBy     SavedPost[]
@@ -606,7 +617,8 @@ model Report {
 /// Binary data lives in object storage; only metadata is stored here (spec §32).
 model Media {
   id            String   @id @default(uuid()) @db.Uuid
-  ownerId       String   @map("owner_id") @db.Uuid
+  /// null for images imported from open sources (owned by no user; see place_photos for credits).
+  ownerId       String?  @map("owner_id") @db.Uuid
   storageKey    String   @unique @map("storage_key")
   thumbKey      String?  @map("thumb_key")
   mediumKey     String?  @map("medium_key")
@@ -618,10 +630,11 @@ model Media {
   height        Int
   createdAt     DateTime @default(now()) @map("created_at")
 
-  owner     User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  avatarOf  UserProfile[] @relation("Avatar")
-  coverOf   Trip[]        @relation("TripCover")
-  postMedia PostMedia[]
+  owner      User?         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  avatarOf   UserProfile[] @relation("Avatar")
+  coverOf    Trip[]        @relation("TripCover")
+  postMedia  PostMedia[]
+  placePhoto PlacePhoto[]
 
   @@index([ownerId])
   @@map("media")
@@ -797,4 +810,48 @@ model SyncRun {
 
   @@index([startedAt])
   @@map("sync_runs")
+}
+
+/// A photo shown on a place page: uploaded by a TRIPLY user, or imported from an open source
+/// (Wikimedia Commons) with the credits its licence requires. Imported rows start with `remoteUrl`
+/// and no media; the API's photo ingester downloads and re-encodes them into `media`.
+model PlacePhoto {
+  id             String      @id @default(uuid()) @db.Uuid
+  placeId        String      @map("place_id") @db.Uuid
+  /// "user" | "wikimedia" (later "mapillary", "google").
+  source         String
+  /// Provider's id, e.g. "File:Chua Cau.jpg"; null for user photos.
+  sourceId       String?     @map("source_id")
+  mediaId        String?     @map("media_id") @db.Uuid
+  remoteUrl      String?     @map("remote_url")
+  pageUrl        String?     @map("page_url")
+  title          String?
+  author         String?
+  authorUrl      String?     @map("author_url")
+  license        String?
+  licenseUrl     String?     @map("license_url")
+  caption        String?
+  status         PhotoStatus @default(PENDING)
+  /// Ordering within a place (higher first): approved user photos, then a Wikidata item's main image, then quality images.
+  score          Float       @default(0)
+  uploadedById   String?     @map("uploaded_by_id") @db.Uuid
+  postId         String?     @map("post_id") @db.Uuid
+  reportCount    Int         @default(0) @map("report_count")
+  ingestAttempts Int         @default(0) @map("ingest_attempts")
+  ingestError    String?     @map("ingest_error")
+  nextIngestAt   DateTime?   @map("next_ingest_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  place      Place  @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  media      Media? @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  uploadedBy User?  @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  post       Post?  @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@unique([placeId, source, sourceId])
+  @@unique([placeId, mediaId])
+  @@index([placeId, status, score])
+  @@index([status, createdAt])
+  @@index([mediaId])
+  @@map("place_photos")
 }

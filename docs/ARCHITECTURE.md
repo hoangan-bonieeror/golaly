@@ -85,6 +85,9 @@ places (id kept forever; status ACTIVE/CLOSED/HIDDEN; location geography; catego
 place_sources (provider, external_id unique; raw, normalized, content_hash; missing_runs; last/changed_run_id)
 categories (key, labelVi/labelEn, item_type) ──< category_maps (provider, external_category)
 sync_runs (trigger, params, status running/succeeded/needs_review/partial/failed, stats)
+place_photos (place, source user|wikimedia, source_id, media? | remote_url, credits: title/author/licence/page,
+              status PENDING/APPROVED/HIDDEN, score, uploaded_by?, post?, report_count, ingest attempts/back-off)
+  └─> media (owner_id is null for imported images)
 ```
 
 `places.destination_id` is now optional: imported places belong to an administrative area and get the nearest curated
@@ -106,6 +109,7 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` |
 | Invitations | `GET /invitations/:token` · `POST /invitations/:token/accept\|reject` · `GET /invitations/id/:id` · `POST /invitations/id/:id/accept\|reject` |
 | Discovery | `GET /explore` · `GET /search?q&type` · `GET /destinations` · `GET /destinations/:slug` |
+| Place photos | `POST /places/:id/photos {mediaId, caption?, postId?}` · `DELETE /place-photos/:id` (uploader or moderator) · `PATCH /place-photos/:id {status}` (moderator) · `GET /admin/place-photos?filter=pending\|reported\|hidden` · reports with `target: "PLACE_PHOTO"` |
 | Places | `GET /places/categories` · `GET /places/browse?destination\|near=lat,lng&radius&group&category&q&sort&cursor` · `GET /places/search?q&tripId` · `GET /places/saved` · `GET /places/:id` (detail: hours, contact, other-language names, nearby, public trips using it, data credits) · `GET /places/:id/trip-targets` (trips the viewer can edit, with days) · `POST/DELETE /places/:id/save` |
 | Social | `GET /feed?mode&cursor` · `POST /posts` · `GET /posts/saved` · `GET/PATCH/DELETE /posts/:id` · `POST/DELETE /posts/:id/like` · `POST/DELETE /posts/:id/save` · `GET/POST /posts/:id/comments` · `DELETE /comments/:id` · `POST /reports` |
 | Notifications | `GET /notifications?cursor` · `GET /notifications/unread-count` · `PATCH /notifications/:id/read` · `PATCH /notifications/read-all` |
@@ -150,6 +154,26 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
   unless another source still has it. If more than 10 % of a scope would close, nothing is applied (`needs_review`).
 - **Text**: `normalize_search` in Python mirrors `normalizeSearch` in TypeScript; both test suites read
   `packages/shared/fixtures/normalize-cases.json`.
+
+## Place photos
+
+Photos come in layers and share one table, one ordering (`score`: approved traveler photos 2, a Wikidata item's main
+image 1.5, Commons quality images ~1) and one credit format:
+
+1. **Travelers**: any verified user can add a photo they uploaded (or one of their post's photos) to an active place.
+   Accounts older than 3 days, or with public trips/posts, publish at once; others wait for a moderator. 3 separate
+   reports hide a photo; approving it again resolves those reports. All actions by moderators are audit-logged.
+2. **Wikimedia Commons** (pipeline step `triply-catalog photos`): free licences only, credits stored per photo.
+3. **Later, a paid provider** (Google Places Photos): its terms forbid storing images, so it would be a live, per-view
+   source on the place page with a daily budget — the table already has `source` and `remote_url` for that.
+
+The pipeline never writes image files: it queues rows with `remote_url`. `PhotoIngestService` in the API claims them
+with `FOR UPDATE SKIP LOCKED` (safe with several instances), downloads only over https from `PHOTO_HOSTS`
+(default `upload.wikimedia.org`) without following redirects and with a size cap, and stores them through the same
+`MediaService.store()` as uploads (validation, EXIF removal, three WebP sizes). Failures back off 5→40 min and stop
+after 5 attempts; the same Commons file used by two places is downloaded once. Env: `PHOTO_INGEST=on|off`,
+`PHOTO_HOSTS`, `PHOTO_USER_AGENT` (put a contact URL/email in it). `npm run photos:ingest -w @triply/api` drains
+the queue on demand.
 
 ## Known trade-offs
 

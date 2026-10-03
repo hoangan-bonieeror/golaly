@@ -16,14 +16,17 @@ export type AuditAction =
   | "user.email_verified"
   | "user.google_linked"
   | "user.login_locked"
-  | "session.reuse_detected";
+  | "session.reuse_detected"
+  | "place_photo.approved"
+  | "place_photo.hidden"
+  | "place_photo.removed";
 
 /** Append-only log of sensitive permission changes (spec §42). Never stores tokens or passwords. */
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  log(actorId: string | null, action: AuditAction, entityType: "trip" | "user" | "invitation", entityId: string, meta: Record<string, unknown> = {}, tx: Tx = this.prisma) {
+  log(actorId: string | null, action: AuditAction, entityType: "trip" | "user" | "invitation" | "place_photo", entityId: string, meta: Record<string, unknown> = {}, tx: Tx = this.prisma) {
     return tx.auditLog.create({ data: { actorId, action, entityType, entityId, meta: meta as object } });
   }
 }

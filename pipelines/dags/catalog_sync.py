@@ -2,6 +2,7 @@
 
 catalog_sync       start → plan → extract_load (one mapped task per provider × partition) → finalize → finish
 catalog_bootstrap  taxonomy + adopt seed places → country/province boundaries
+catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them
 
 Trigger catalog_sync from the Airflow UI ("Trigger DAG w/ config") or the REST API:
 
@@ -155,5 +156,33 @@ def catalog_bootstrap():
     boundaries(taxonomy_and_seed())
 
 
+@dag(
+    dag_id="catalog_photos",
+    description="Queue openly licensed photos (Wikimedia Commons via Wikidata) for the places in an area",
+    schedule=None,
+    start_date=datetime(2026, 1, 1),
+    catchup=False,
+    max_active_runs=1,  # one polite client towards Wikimedia at a time
+    default_args={**DEFAULT_ARGS, "retry_delay": timedelta(minutes=10)},
+    tags=["triply", "catalog", "photos"],
+    params={
+        "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
+        "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
+    },
+)
+def catalog_photos():
+    @task(execution_timeout=timedelta(hours=3))
+    def queue_photos() -> dict[str, Any]:
+        from triply_catalog.photos import sync_photos
+
+        p = get_current_context()["params"]
+        if not p.get("area") and not p.get("bbox"):
+            raise ValueError("set either 'area' or 'bbox'")
+        return sync_photos(_settings(), p.get("area"), p.get("bbox"))
+
+    queue_photos()
+
+
 catalog_sync()
 catalog_bootstrap()
+catalog_photos()

@@ -215,7 +215,7 @@ OSM = """<?xml version='1.0' encoding='UTF-8'?>
   <node id="2004" lat="15.87736" lon="108.32575" version="1"/>
   <way id="3001" version="1">
     <nd ref="2001"/><nd ref="2002"/><nd ref="2003"/><nd ref="2004"/><nd ref="2001"/>
-    <tag k="historic" v="yes"/><tag k="tourism" v="attraction"/><tag k="name" v="Chùa Cầu"/><tag k="name:en" v="Japanese Covered Bridge"/>
+    <tag k="historic" v="yes"/><tag k="tourism" v="attraction"/><tag k="name" v="Chùa Cầu"/><tag k="name:en" v="Japanese Covered Bridge"/><tag k="wikidata" v="Q900001"/>
     <tag k="name:ja" v="来遠橋"/><tag k="name:prefix" v="not-a-language"/>
   </way>
 </osm>

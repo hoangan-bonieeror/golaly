@@ -27,7 +27,7 @@ export const visibilitySchema = z.enum(["PRIVATE", "LINK_ONLY", "PUBLIC"]);
 export const itemTypeSchema = z.enum(["PLACE", "RESTAURANT", "HOTEL", "FLIGHT", "TRANSPORTATION", "ACTIVITY", "NOTE"]);
 export const travelerTypeSchema = z.enum(["SOLO", "COUPLE", "FRIENDS", "FAMILY", "ALL"]);
 export const interestSchema = z.enum(["FOOD", "NATURE", "BEACH", "CITY", "CULTURE", "ADVENTURE", "SHOPPING", "PHOTOGRAPHY"]);
-export const reportTargetSchema = z.enum(["POST", "COMMENT", "USER", "TRIP"]);
+export const reportTargetSchema = z.enum(["POST", "COMMENT", "USER", "TRIP", "PLACE_PHOTO"]);
 export const reportReasonSchema = z.enum(["SPAM", "HARASSMENT", "INAPPROPRIATE", "MISLEADING", "OTHER"]);
 
 const dateRange = <T extends { startDate?: string | null; endDate?: string | null }>(v: T) =>
@@ -155,6 +155,17 @@ export const placeBrowseQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(48).default(24),
 });
 export type PlaceBrowseQuery = z.infer<typeof placeBrowseQuerySchema>;
+
+// ── Place photos ────────────────────────────────────────────────────────
+export const addPlacePhotoSchema = z.object({
+  /** An image the viewer uploaded through POST /media (or one of their post's photos). */
+  mediaId: uuid,
+  caption: z.string().trim().max(200).optional(),
+  /** Set when the photo is shared from one of the viewer's posts. */
+  postId: uuid.optional(),
+});
+export const moderatePhotoSchema = z.object({ status: z.enum(["APPROVED", "HIDDEN"]) });
+export type AddPlacePhotoInput = z.infer<typeof addPlacePhotoSchema>;
 
 export const pageQuerySchema = z.object({
   // Cursors are row ids; anything else is a 422, never a database error.

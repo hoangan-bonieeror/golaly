@@ -12,6 +12,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
+    "photos:ingest": "node dist/scripts/ingest-photos.js",
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit",
     "test:int": "jest --selectProjects integration --runInBand",

@@ -19,6 +19,7 @@ import uuid
 from . import db
 from .boundaries import import_boundaries
 from .config import settings as load_settings
+from .photos import sync_photos
 from .pipeline import ScopeError, adopt_manual_places, run_sync
 from .publish import publish
 from .taxonomy import sync_taxonomy
@@ -36,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bbox", help="minLng,minLat,maxLng,maxLat")
     s.add_argument("--providers", default="overture,osm")
     s.add_argument("--dry-run", action="store_true")
+    ph = sub.add_parser("photos", help="queue openly licensed photos (Wikimedia Commons) for places in an area")
+    ph.add_argument("--area", help="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)")
+    ph.add_argument("--bbox", help="minLng,minLat,maxLng,maxLat")
+    ph.add_argument("--dry-run", action="store_true")
     sub.add_parser("stats", help="catalog counts")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -55,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "sync":
             providers = [p.strip() for p in args.providers.split(",") if p.strip()]
             out = run_sync(cfg, args.area, args.bbox, providers, dry_run=args.dry_run)
+        elif args.cmd == "photos":
+            out = sync_photos(cfg, args.area, args.bbox, dry_run=args.dry_run)
         else:
             with db.connect(cfg.database_url) as conn:
                 out = conn.execute(
@@ -63,7 +70,10 @@ def main(argv: list[str] | None = None) -> int:
                               (SELECT count(*) FROM place_sources) AS sources,
                               (SELECT json_object_agg(provider, n) FROM (SELECT provider, count(*) n FROM place_sources GROUP BY 1) x) AS by_provider,
                               (SELECT count(*) FROM place_sources WHERE category_id IS NULL) AS unmapped,
-                              (SELECT count(*) FROM geo_areas) AS areas"""
+                              (SELECT count(*) FROM geo_areas) AS areas,
+                              (SELECT json_object_agg(st, n) FROM (SELECT status::text AS st, count(*) n FROM place_photos GROUP BY 1) x) AS photos,
+                              (SELECT count(*) FROM place_photos
+                               WHERE media_id IS NULL AND remote_url IS NOT NULL AND status <> 'HIDDEN') AS photos_to_download"""
                 ).fetchone()
     except ScopeError as e:
         print(f"error: {e}", file=sys.stderr)

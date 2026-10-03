@@ -37,6 +37,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     prisma.tripMember.deleteMany(),
     prisma.tripDestination.deleteMany(),
     prisma.trip.deleteMany(),
+    prisma.placePhoto.deleteMany(),
     prisma.place.deleteMany(),
     prisma.destination.deleteMany(),
     prisma.follow.deleteMany(),
@@ -71,6 +72,8 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
       },
     });
   }
+  // An moderates place photos in the demo (Settings → Moderation).
+  await prisma.user.update({ where: { username: "an.nguyen" }, data: { role: "ADMIN" } });
   await prisma.follow.createMany({ data: db.follows });
 
   await prisma.destination.createMany({

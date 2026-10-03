@@ -1,13 +1,14 @@
 "use client";
 
-import { createPostSchema, type MediaView, type PostView } from "@triply/shared";
-import { ImagePlus, Lock, X } from "lucide-react";
+import { createPostSchema, type MediaView, type PlacePhotoView, type PlaceView, type PostView } from "@triply/shared";
+import { ImagePlus, Lock, MapPin, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
 import { Cover } from "@/components/trip/Cover";
 import { Button, Field, cx, inputCls } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { useAction, useMe, useMyTrips } from "@/lib/api/queries";
+import { useAction, useMe, useMyTrips, useTrip } from "@/lib/api/queries";
+import { useToast } from "@/lib/toast";
 
 export default function NewPostPage() {
   return (
@@ -29,9 +30,30 @@ function NewPost() {
   const [error, setError] = useState<string>();
   const fileRef = useRef<HTMLInputElement>(null);
   const trip = own.find((t) => t.id === tripId);
+  const toast = useToast();
+  // Optional: show a photo on the page of a place from this trip (photo id → place id).
+  const [photoPlace, setPhotoPlace] = useState<Record<string, string>>({});
+  const tripDetail = useTrip(tripId, !!tripId && photos.length > 0);
+  const tripPlaces: PlaceView[] = [];
+  for (const d of tripId ? (tripDetail.data?.days ?? []) : [])
+    for (const i of d.items) if (i.place && i.place.status === "ACTIVE" && !tripPlaces.some((p) => p.id === i.place!.id)) tripPlaces.push(i.place);
 
   const upload = useAction((file: File) => api.upload<MediaView>("/media", file));
   const create = useAction((payload: object) => api.post<PostView>("/posts", payload), { invalidate: [["feed"], ["profile"]] });
+
+  const sharePhotos = async (postId: string) => {
+    const pairs = photos.filter((p) => photoPlace[p.id]).map((p) => [p.id, photoPlace[p.id]] as const);
+    if (!pairs.length) return;
+    const results = await Promise.allSettled(pairs.map(([mediaId, placeId]) => api.post<PlacePhotoView>(`/places/${placeId}/photos`, { mediaId, postId })));
+    const ok = results.filter((r): r is PromiseFulfilledResult<PlacePhotoView> => r.status === "fulfilled").map((r) => r.value);
+    if (ok.length)
+      toast(
+        ok.some((r) => r.status === "PENDING")
+          ? `Shared ${ok.length} photo${ok.length === 1 ? "" : "s"} with place pages — they'll appear after a quick review.`
+          : `Shared ${ok.length} photo${ok.length === 1 ? "" : "s"} with place pages.`,
+      );
+    if (ok.length < pairs.length) toast("Some photos couldn't be added to place pages.", "error");
+  };
 
   const publish = async (visibility: "PUBLIC" | "DRAFT") => {
     const payload = { title, body, tripId: tripId || null, visibility, mediaIds: photos.map((p) => p.id) };
@@ -40,6 +62,7 @@ function NewPost() {
     setError(undefined);
     const post = await create.run(payload);
     if (!post) return;
+    if (visibility === "PUBLIC") await sharePhotos(post.id);
     router.push(visibility === "DRAFT" ? `/u/${me?.username}` : `/posts/${post.id}`);
   };
 
@@ -113,6 +136,35 @@ function NewPost() {
           </button>
         )}
       </div>
+
+      {trip && photos.length > 0 && tripPlaces.length > 0 && (
+        <fieldset className="space-y-2 rounded-2xl border border-line bg-surface p-4">
+          <legend className="px-1 text-sm font-semibold text-ink-2">
+            <MapPin className="mr-1 inline size-4" aria-hidden />
+            Also show on place pages <span className="font-normal text-muted">(optional)</span>
+          </legend>
+          <p className="text-xs text-muted">Help other travelers: pick the place a photo shows. Only share photos you took. Shared when you publish.</p>
+          {photos.map((p, i) => (
+            <div key={p.id} className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.thumbUrl ?? p.url} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
+              <select
+                className={cx(inputCls, "flex-1")}
+                aria-label={`Place for photo ${i + 1}`}
+                value={photoPlace[p.id] ?? ""}
+                onChange={(e) => setPhotoPlace({ ...photoPlace, [p.id]: e.target.value })}
+              >
+                <option value="">Don’t share this photo</option>
+                {tripPlaces.map((pl) => (
+                  <option key={pl.id} value={pl.id}>
+                    {pl.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </fieldset>
+      )}
 
       <Field label="Title">
         <input className={inputCls} value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} placeholder={trip ? `My ${trip.title}` : "A title for your story"} />

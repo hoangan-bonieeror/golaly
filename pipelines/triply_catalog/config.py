@@ -37,6 +37,24 @@ class Settings:
     #: Sources missing from this many complete runs in a row count as gone.
     missing_runs_to_close: int = 3
 
+    # ── Photos (Wikimedia Commons via Wikidata) ──────────────────────────────
+    wikidata_sparql: str = field(default_factory=lambda: _env("WIKIDATA_SPARQL", "https://query.wikidata.org/sparql"))  # type: ignore[arg-type]
+    commons_api: str = field(default_factory=lambda: _env("COMMONS_API", "https://commons.wikimedia.org/w/api.php"))  # type: ignore[arg-type]
+    #: Wikimedia requires a descriptive User-Agent with a way to reach the operator (URL or email).
+    contact: str | None = field(default_factory=lambda: _env("CATALOG_CONTACT"))
+    #: A Wikidata item matched to a place by name within this distance is published at once …
+    photo_match_meters: float = field(default_factory=lambda: float(_env("CATALOG_PHOTO_MATCH_METERS", "100")))  # type: ignore[arg-type]
+    #: … and up to this distance it is queued for review.
+    photo_review_meters: float = field(default_factory=lambda: float(_env("CATALOG_PHOTO_REVIEW_METERS", "300")))  # type: ignore[arg-type]
+    #: Most photos imported per place (the item's main image + quality images from its Commons category).
+    photos_per_place: int = field(default_factory=lambda: int(_env("CATALOG_PHOTOS_PER_PLACE", "4")))  # type: ignore[arg-type]
+    #: Seconds between requests to Wikimedia (be a polite client).
+    wikimedia_delay: float = field(default_factory=lambda: float(_env("CATALOG_WIKIMEDIA_DELAY", "1.0")))  # type: ignore[arg-type]
+
+    @property
+    def user_agent(self) -> str:
+        return f"TRIPLY-catalog/0.2 ({self.contact or 'set CATALOG_CONTACT to a URL or email'}) python-httpx"
+
 
 #: Which provider wins for each published field (survivorship). "manual" = admin / seed data.
 #: Stored here, not in SQL, so it can be tuned per field after measuring real data quality.

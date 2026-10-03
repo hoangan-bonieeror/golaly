@@ -3,6 +3,7 @@
  * Presenters are the only place that decides what a viewer gets to see.
  */
 import type {
+  PlacePhotoView,
   CommentView,
   ImageView,
   DayView,
@@ -62,6 +63,7 @@ export const placeInclude = (viewerId: string | null) =>
     destination: { select: { name: true } },
     area: { select: { name: true } },
     categoryRef: { select: { key: true, labelEn: true } },
+    photos: { where: visiblePhoto, orderBy: photoOrder, take: 1, include: { media: true, uploadedBy: { select: userSummarySelect } } },
     savedBy: { where: { userId: viewerId ?? "00000000-0000-0000-0000-000000000000" }, select: { userId: true } },
   }) satisfies Prisma.PlaceInclude;
 
@@ -86,6 +88,44 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     savedByMe: p.savedBy.length > 0,
     categoryKey: p.categoryRef?.key ?? null,
     categoryLabel: p.categoryRef?.labelEn ?? ITEM_TYPE_LABEL[p.category],
+    photo: p.photos[0]?.media ? { ...toImage(p.photos[0].media), credit: photoCredit(p.photos[0]).text } : null,
+  };
+}
+
+// ── Place photos ─────────────────────────────────────────────────────────
+/** Shown to everyone: approved and already processed into our own media. */
+export const visiblePhoto = { status: "APPROVED", mediaId: { not: null } } satisfies Prisma.PlacePhotoWhereInput;
+export const photoOrder = [{ score: "desc" }, { createdAt: "asc" }] satisfies Prisma.PlacePhotoOrderByWithRelationInput[];
+export const placePhotoInclude = { media: true, uploadedBy: { select: userSummarySelect } } satisfies Prisma.PlacePhotoInclude;
+export type PlacePhotoRow = Prisma.PlacePhotoGetPayload<{ include: typeof placePhotoInclude }>;
+
+const SOURCE_NAME: Record<string, string> = { wikimedia: "Wikimedia Commons", mapillary: "Mapillary", user: "TRIPLY" };
+
+/**
+ * The attribution the licence asks for (title, author, source, licence — "TASL" for Creative Commons),
+ * or the uploader for photos shared on TRIPLY.
+ */
+export function photoCredit(p: Pick<PlacePhotoRow, "source" | "title" | "author" | "authorUrl" | "license" | "licenseUrl" | "pageUrl" | "uploadedBy">): PlacePhotoView["credit"] {
+  const sourceName = SOURCE_NAME[p.source] ?? p.source;
+  if (p.source === "user") {
+    const by = p.uploadedBy ? toUserSummary(p.uploadedBy).displayName : "a TRIPLY traveler";
+    return { text: `Photo by ${by}`, title: null, author: by, authorUrl: p.uploadedBy ? `/u/${p.uploadedBy.username}` : null, license: null, licenseUrl: null, sourceName, sourceUrl: null };
+  }
+  const parts = [p.author ? `Photo: ${p.author}` : "Photo", p.license, `via ${sourceName}`].filter(Boolean);
+  return { text: parts.join(" · "), title: p.title, author: p.author, authorUrl: p.authorUrl, license: p.license, licenseUrl: p.licenseUrl, sourceName, sourceUrl: p.pageUrl };
+}
+
+export function toPlacePhotoView(p: PlacePhotoRow & { media: NonNullable<PlacePhotoRow["media"]> }, viewerId: string | null): PlacePhotoView {
+  return {
+    id: p.id,
+    image: toImage(p.media),
+    source: p.source,
+    caption: p.caption,
+    status: p.status,
+    mine: !!viewerId && p.uploadedById === viewerId,
+    uploader: p.uploadedBy ? toUserSummary(p.uploadedBy) : null,
+    credit: photoCredit(p),
+    createdAt: p.createdAt.toISOString(),
   };
 }
 

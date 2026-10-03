@@ -183,7 +183,7 @@ export interface Notification {
   createdAt: ISODateTime;
 }
 
-export type ReportTarget = "POST" | "COMMENT" | "USER" | "TRIP";
+export type ReportTarget = "POST" | "COMMENT" | "USER" | "TRIP" | "PLACE_PHOTO";
 export type ReportReason =
   | "SPAM"
   | "HARASSMENT"

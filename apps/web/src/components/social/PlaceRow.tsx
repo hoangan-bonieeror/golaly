@@ -30,7 +30,22 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
       onMouseLeave={onHover && (() => onHover(null))}
     >
       <div className="relative">
-        <CategoryIcon categoryKey={place.categoryKey} />
+        {place.photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={place.photo.thumbUrl}
+            alt=""
+            title={place.photo.credit}
+            width={40}
+            height={40}
+            loading="lazy"
+            decoding="async"
+            className="size-10 shrink-0 rounded-xl object-cover"
+            style={{ backgroundColor: place.photo.color ?? undefined }}
+          />
+        ) : (
+          <CategoryIcon categoryKey={place.categoryKey} />
+        )}
         {index !== undefined && (
           <span className="absolute -left-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white" aria-hidden>
             {index}

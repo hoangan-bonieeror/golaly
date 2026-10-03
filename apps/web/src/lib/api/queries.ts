@@ -73,7 +73,7 @@ export function useMe() {
   });
 }
 
-export const useTrip = (id: string) => useQuery({ queryKey: keys.trip(id), queryFn: () => api.get<TripDetail>(`/trips/${id}`), retry: false });
+export const useTrip = (id: string, enabled = true) => useQuery({ queryKey: keys.trip(id), queryFn: () => api.get<TripDetail>(`/trips/${id}`), retry: false, enabled });
 /**
  * Cursor-paginated list ("Load more"). `items` is every page loaded so far, flattened.
  * The API returns `{ items, nextCursor }` for all list endpoints that can grow without bound.

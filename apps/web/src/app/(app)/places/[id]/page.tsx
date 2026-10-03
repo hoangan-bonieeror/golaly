@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { PlacesMap } from "@/components/map/PlacesMap";
 import { AddToTripButton } from "@/components/place/AddToTripSheet";
 import { CategoryIcon, formatOpeningHours } from "@/components/place/categoryMeta";
+import { PlaceGallery } from "@/components/place/PlacePhotos";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { TripCard } from "@/components/trip/TripCard";
 import { Badge, Button, ErrorState, PageLoader, SectionTitle, cx } from "@/components/ui";
@@ -115,6 +116,8 @@ export default function PlacePage() {
           </p>
         )}
       </div>
+
+      <PlaceGallery place={p} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,480px)]">
         <section aria-labelledby="details" className="space-y-1 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-card">

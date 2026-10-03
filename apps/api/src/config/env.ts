@@ -17,6 +17,18 @@ const schema = z.object({
   MEDIA_DRIVER: z.enum(["local"]).default("local"),
   MEDIA_DIR: z.string().default("./storage/media"),
   MEDIA_MAX_BYTES: z.coerce.number().int().default(8 * 1024 * 1024),
+  /**
+   * Imported place photos (Wikimedia Commons) are downloaded by a background worker in the API.
+   * "off" disables it (e.g. on extra replicas; the queue is safe to share either way).
+   */
+  PHOTO_INGEST: z.enum(["on", "off"]).default("on"),
+  /** Only these hosts are ever fetched (SSRF guard). Comma-separated. */
+  PHOTO_HOSTS: z
+    .string()
+    .default("upload.wikimedia.org")
+    .transform((v) => v.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)),
+  /** Wikimedia asks every client to identify itself with a way to contact the operator. */
+  PHOTO_USER_AGENT: z.string().default("TRIPLY/0.2 (place photos; set PHOTO_USER_AGENT to include a contact URL or email)"),
   MAIL_DRIVER: z.enum(["dev-outbox", "disabled"]).default("dev-outbox"),
   MAIL_OUTBOX_DIR: z.string().default("./storage/outbox"),
   /** Google sign-in (optional). Leave empty to hide the Google button. */

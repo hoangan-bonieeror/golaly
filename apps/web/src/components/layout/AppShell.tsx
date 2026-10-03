@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  Bell,
-  Bookmark,
-  Compass,
-  Home,
-  Luggage,
-  PlusCircle,
-  Settings,
-  UserRound,
-} from "lucide-react";
+import { Bell, Bookmark, Compass, Home, Luggage, PlusCircle, Settings, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,7 +12,7 @@ import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
-const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
+const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new", "/admin/photos"];
 const PROTECTED_PREFIX = ["/invitations/", "/trips/new"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -51,6 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/notifications", label: "Notifications", icon: Bell, badge: unread },
     { href: profileHref, label: "Profile", icon: UserRound },
     { href: "/settings", label: "Settings", icon: Settings },
+    ...(me?.isAdmin ? [{ href: "/admin/photos", label: "Moderation", icon: ShieldCheck }] : []),
   ];
 
   return (

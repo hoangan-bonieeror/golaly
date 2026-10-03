@@ -7,6 +7,9 @@ import { pageOf } from "../../common/paging";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications";
 
+/** Separate reports that hide a place photo until a moderator looks at it. */
+export const PHOTO_REPORTS_TO_HIDE = 3;
+
 @Injectable()
 export class SocialService {
   constructor(
@@ -191,6 +194,7 @@ export class SocialService {
         this.prisma.trip.count({
           where: { id: input.targetId, deletedAt: null, OR: [{ visibility: { not: "PRIVATE" } }, { members: { some: { userId: viewerId } } }] },
         }),
+      PLACE_PHOTO: () => this.prisma.placePhoto.count({ where: { id: input.targetId, OR: [{ status: "APPROVED" }, { uploadedById: viewerId }] } }),
     }[input.target]();
     if (!exists) throw Errors.notFound("That content");
     await this.prisma.report.upsert({
@@ -198,6 +202,14 @@ export class SocialService {
       create: { reporterId: viewerId, ...input },
       update: { reason: input.reason, details: input.details },
     });
+    if (input.target === "PLACE_PHOTO") {
+      // Community moderation: enough separate reports take a photo down until a moderator reviews it.
+      const n = await this.prisma.report.count({ where: { target: "PLACE_PHOTO", targetId: input.targetId } });
+      await this.prisma.placePhoto.update({
+        where: { id: input.targetId },
+        data: { reportCount: n, ...(n >= PHOTO_REPORTS_TO_HIDE ? { status: "HIDDEN" } : {}) },
+      });
+    }
     return { ok: true };
   }
 

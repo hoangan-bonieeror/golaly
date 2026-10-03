@@ -62,9 +62,19 @@ export class MediaService {
     if (!file) throw Errors.invalid("Choose a photo to upload.");
     if (!ALLOWED.has(file.mimetype)) throw new AppError(415, "Use a JPEG, PNG or WebP image.");
     if (file.size > env.MEDIA_MAX_BYTES) throw new AppError(413, `Photos can be up to ${Math.round(env.MEDIA_MAX_BYTES / 1024 / 1024)} MB.`);
+    const today = await this.prisma.media.count({ where: { ownerId, createdAt: { gt: new Date(Date.now() - 86_400_000) } } });
+    if (today >= DAILY_UPLOADS) throw new AppError(429, `You've uploaded ${DAILY_UPLOADS} photos today — that's the daily limit. Try again tomorrow.`);
+    return toImage(await this.store(file.buffer, ownerId)) as MediaView;
+  }
+
+  /**
+   * Shared by user uploads and imported photos (`ownerId` null): the same checks and the same
+   * three WebP sizes, so every image the app serves went through one pipeline.
+   */
+  async store(buffer: Buffer, ownerId: string | null) {
     let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>;
     try {
-      meta = await sharp(file.buffer, { limitInputPixels: MAX_PIXELS }).metadata();
+      meta = await sharp(buffer, { limitInputPixels: MAX_PIXELS }).metadata();
     } catch {
       throw new AppError(415, "That file isn't a valid image.");
     }
@@ -73,27 +83,24 @@ export class MediaService {
     const h = meta.height ?? 0;
     if (w < MIN_DIM || h < MIN_DIM) throw Errors.invalid(`Images need to be at least ${MIN_DIM}×${MIN_DIM} pixels.`);
     if (w > MAX_DIM || h > MAX_DIM || w * h > MAX_PIXELS) throw Errors.invalid(`Images can be at most ${MAX_DIM} pixels on a side and ${MAX_PIXELS / 1_000_000} megapixels.`);
-    const today = await this.prisma.media.count({ where: { ownerId, createdAt: { gt: new Date(Date.now() - 86_400_000) } } });
-    if (today >= DAILY_UPLOADS) throw new AppError(429, `You've uploaded ${DAILY_UPLOADS} photos today — that's the daily limit. Try again tomorrow.`);
 
-    const base = sharp(file.buffer, { limitInputPixels: MAX_PIXELS }).rotate();
+    const base = sharp(buffer, { limitInputPixels: MAX_PIXELS }).rotate();
     const main = await base.clone().resize({ width: MAX_STORED_DIM, height: MAX_STORED_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 82 }).toBuffer({ resolveWithObject: true });
     const medium = await base.clone().resize({ width: MEDIUM_DIM, height: MEDIUM_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
     const thumb = await base.clone().resize({ width: THUMB_DIM, height: THUMB_DIM, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
     // Average colour → instant placeholder while the real image loads (no layout shift, no blank box).
     const { dominant } = await sharp(thumb).stats();
     const dominantColor = `#${[dominant.r, dominant.g, dominant.b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
-    const stem = `${ownerId.slice(0, 8)}/${randomToken(12)}`;
+    const stem = `${ownerId ? ownerId.slice(0, 8) : "imported"}/${randomToken(12)}`;
     const key = `${stem}.webp`;
     const mediumKey = `${stem}_1280.webp`;
     const thumbKey = `${stem}_thumb.webp`;
     await this.storage.put(key, main.data);
     await this.storage.put(mediumKey, medium);
     await this.storage.put(thumbKey, thumb);
-    const m = await this.prisma.media.create({
+    return this.prisma.media.create({
       data: { ownerId, storageKey: key, mediumKey, thumbKey, dominantColor, mimeType: "image/webp", sizeBytes: main.info.size, width: main.info.width, height: main.info.height },
     });
-    return toImage(m) as MediaView;
   }
 
   async remove(ownerId: string, id: string) {
@@ -123,5 +130,5 @@ export class MediaController {
   }
 }
 
-@Module({ controllers: [MediaController], providers: [MediaService, LocalStorageDriver] })
+@Module({ controllers: [MediaController], providers: [MediaService, LocalStorageDriver], exports: [MediaService] })
 export class MediaModule {}

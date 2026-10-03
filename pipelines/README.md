@@ -58,6 +58,29 @@ uv run triply-catalog sync --area vn         # all of Vietnam, one partition per
 uv run triply-catalog stats
 ```
 
+### Photos (Wikimedia Commons)
+
+```bash
+export CATALOG_CONTACT="https://github.com/<you>/triply"   # or an email — Wikimedia asks clients to be reachable
+uv run triply-catalog photos --area hoi-an --dry-run   # what would be queued
+uv run triply-catalog photos --area hoi-an             # queue them (then the API downloads them)
+npm run build -w @triply/api && npm run photos:ingest -w @triply/api   # optional: download now instead of waiting
+```
+
+How it works: one Wikidata query per province/box finds items with coordinates, a main image (P18) or a Commons
+category (P373), and their names in vi/en/fr/de/ja/ko/zh. Each item is matched to **one** place, exactly through an
+OpenStreetMap `wikidata=Q…` tag, or by name (accents ignored, any language) to the nearest place: within 100 m it is
+published, up to 300 m it waits in the moderation queue (`/admin/photos`). From Commons it keeps the main image plus up
+to 3 large landscape *Quality / Featured / Valued* images from the category, and only free licences that allow
+commercial use and changes (CC0, public domain, CC BY, CC BY-SA). Author, licence and source are stored and shown
+next to every photo. The pipeline writes rows to `place_photos` with a `remote_url`; the API's ingester downloads
+them (only from `upload.wikimedia.org`, https, no redirects, size-capped) into TRIPLY's own media in three WebP sizes.
+Re-runs refresh credits, keep moderators' decisions and hide files whose licence changed. Airflow: DAG
+`catalog_photos` with `{"area": "vn"}`.
+
+Expect landmarks, temples, museums, beaches and markets to get photos; small cafés and restaurants mostly won't —
+traveler uploads (place page → *Add photo*, or *Also show on place pages* when posting) fill that gap.
+
 `--area` accepts a geo area slug (`vn`, `vn-da-nang`, `vn-ha-noi`), a destination slug (`hoi-an` → its point ± 15 km)
 or use `--bbox minLng,minLat,maxLng,maxLat`. `--providers overture` limits the sources.
 
@@ -89,6 +112,9 @@ Each province is a separate mapped task (retried on its own); progress and resul
 | `OVERTURE_MIN_CONFIDENCE` | `0.6` | Overture's own existence confidence |
 | `OSM_SOURCE` | Geofabrik Vietnam `.pbf` URL | or a local `.pbf`/`.osm` file |
 | `CATALOG_DATA_DIR` | `./data` | download cache |
+| `CATALOG_CONTACT` | — | URL or email put in the User-Agent sent to Wikidata/Commons (please set it) |
+| `CATALOG_PHOTO_MATCH_METERS` / `CATALOG_PHOTO_REVIEW_METERS` | `100` / `300` | name matches publish / go to review |
+| `CATALOG_PHOTOS_PER_PLACE` | `4` | main image + quality images per place |
 
 Category mapping lives in `triply_catalog/data/taxonomy.json` (TRIPLY's categories, vi/en labels) and
 `category_maps.json` (Overture category / OSM tag → TRIPLY category). Unmapped records are stored but not published;
@@ -106,4 +132,6 @@ The end-to-end tests run against **synthetic fixtures** (`tests/fixtures/make_fi
 like Overture GeoParquet and OSM XML around Hội An), so they need no network. They check: seed places adopted with
 their ids, cross-source matching (incl. a name only in another language), survivorship, a second run writing nothing,
 itineraries untouched, dry runs, locked fields, closing after 3 missed runs, the safety brake and re-opening.
-`normalize_search` is checked against the same cases as the app's TypeScript (`packages/shared/fixtures/normalize-cases.json`).
+`test_pipeline_photos.py` runs the photo step against a fake Wikidata/Commons (httpx MockTransport): exact and name
+matches, the review distance, licence filtering, category quality images, idempotent re-runs, kept moderation decisions
+and licence changes. `normalize_search` is checked against the same cases as the app's TypeScript (`packages/shared/fixtures/normalize-cases.json`).

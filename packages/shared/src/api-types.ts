@@ -34,6 +34,8 @@ export interface Me extends UserSummary {
   /** False for accounts created with Google that haven't set a password yet. */
   hasPassword: boolean;
   providers: string[];
+  /** Can moderate place photos (users.role = ADMIN). */
+  isAdmin: boolean;
 }
 
 export interface ProfileView {
@@ -75,6 +77,40 @@ export interface PlaceView {
   categoryLabel: string;
   /** Metres from the search centre, when the list was searched around a point. */
   distanceM?: number;
+  /** The place's best approved photo (null → show the category icon), with its one-line credit. */
+  photo: (ImageView & { credit: string }) | null;
+}
+
+/**
+ * A photo on a place page. `credit` is what the licence requires next to the image: for imported
+ * photos the title, author, licence and source (each linked when known); for user photos, the uploader.
+ */
+export interface PlacePhotoView {
+  id: string;
+  image: ImageView;
+  source: "user" | "wikimedia" | (string & {});
+  caption: string | null;
+  status: "PENDING" | "APPROVED" | "HIDDEN";
+  /** The viewer uploaded it (may remove it; sees it while it's pending). */
+  mine: boolean;
+  uploader: UserSummary | null;
+  credit: {
+    text: string;
+    title: string | null;
+    author: string | null;
+    authorUrl: string | null;
+    license: string | null;
+    licenseUrl: string | null;
+    sourceName: string;
+    sourceUrl: string | null;
+  };
+  createdAt: string;
+}
+
+/** A photo in the moderation queue, with where it is and who sent it. */
+export interface ModerationPhoto extends PlacePhotoView {
+  place: { id: string; name: string; destinationName: string };
+  reportCount: number;
 }
 
 /** One node of the place taxonomy: a group ("food") or a category inside it ("food.street_food"). */
@@ -109,6 +145,8 @@ export interface PlaceDetail extends PlaceView {
   names: { lang: string; name: string }[];
   /** Licence credits required by the data sources this place was built from. */
   attribution: string[];
+  /** Approved photos, best first, plus the viewer's own pending ones (marked). */
+  photos: PlacePhotoView[];
   nearby: PlaceView[];
   /** Public trips that include this place (most saved first) and how many there are in total. */
   inTrips: TripSummary[];
