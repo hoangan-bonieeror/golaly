@@ -37,7 +37,8 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
 
     - a geo area slug ("vn", "vn-da-nang"): one partition per region with a known boundary; only records
       inside the boundaries are published (bbox corners outside the country are dropped).
-    - a destination slug ("hoi-an"): a box of `destination_radius_km` around its centre.
+    - a destination slug ("hoi-an"): a box of `destination_radius_km` around its centre — or, for a destination
+      created from a province/city ("da-nang"), that area.
     - --bbox "minLng,minLat,maxLng,maxLat".
     """
     if bbox:
@@ -59,7 +60,13 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
         if not parts:
             raise ScopeError(f"Geo area {area!r} has no bounding box — run `triply-catalog boundaries` first.")
         return parts, True
-    d = conn.execute("SELECT slug, lat, lng FROM destinations WHERE slug = %s", [area]).fetchone()
+    d = conn.execute(
+        """SELECT d.slug, d.lat, d.lng, g.slug AS area_slug FROM destinations d
+           LEFT JOIN geo_areas g ON g.id = d.represents_area_id AND d.auto_created WHERE d.slug = %s""",
+        [area],
+    ).fetchone()
+    if d and d["area_slug"]:  # a destination made for a whole province/city: its boundary, not a box around the centre
+        return resolve_scope(conn, settings, d["area_slug"], None)
     if d:
         r = settings.destination_radius_km
         dlat, dlng = r / 111.32, r / (111.32 * math.cos(math.radians(d["lat"])))

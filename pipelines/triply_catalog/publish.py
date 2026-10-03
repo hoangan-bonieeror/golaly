@@ -16,7 +16,7 @@ from typing import Any
 import psycopg
 
 from .config import FIELD_PRIORITY, PUBLISH_ORDER, Settings
-from .normalize import normalize_search
+from .normalize import accent_search, normalize_search, short_area_name
 
 log = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def refresh_places(conn: psycopg.Connection, settings: Settings, run_id: str) ->
 
 
 def refresh_names_and_search(conn: psycopg.Connection, settings: Settings, run_id: str | None, ids: list[str] | None = None) -> int:
-    """Area, destination, place_names, name_norm and search_text for touched places (those whose sources changed in
+    """Area, destination, place_names, name_norm, search_text and search_accent for touched places (those whose sources changed in
     `run_id`, or the explicit `ids`).
 
     Text normalisation runs in Python so it is byte-for-byte the app's `normalizeSearch`.
@@ -164,11 +164,12 @@ def refresh_names_and_search(conn: psycopg.Connection, settings: Settings, run_i
         [ids],
     )
     # Curated destination: the nearest one within the radius (only fills gaps; never moves a place).
+    # Destinations created for a whole province/city get their places through the area instead.
     conn.execute(
         """
         UPDATE places p SET destination_id = (
           SELECT d.id FROM destinations d
-          WHERE ST_DWithin(p.location, ST_SetSRID(ST_MakePoint(d.lng, d.lat), 4326)::geography, %(r)s)
+          WHERE NOT d.auto_created AND ST_DWithin(p.location, ST_SetSRID(ST_MakePoint(d.lng, d.lat), 4326)::geography, %(r)s)
           ORDER BY p.location <-> ST_SetSRID(ST_MakePoint(d.lng, d.lat), 4326)::geography LIMIT 1)
         WHERE p.id = ANY(%(ids)s::uuid[]) AND p.destination_id IS NULL
         """,
@@ -201,10 +202,10 @@ def refresh_names_and_search(conn: psycopg.Connection, settings: Settings, run_i
             t["address"] or "",
             t["dest_name"] or "",
             t["dest_country"] or "",
-            t["area_name"] or "",
+            short_area_name(t["area_name"]),  # "Đà Nẵng", not "Thành phố Đà Nẵng": "phố" isn't what the place is
         ]
-        text = normalize_search(" ".join(words))[:4000]
-        rows_text.append({"id": t["id"], "norm": normalize_search(t["name"]), "text": text})
+        joined = " ".join(words)
+        rows_text.append({"id": t["id"], "norm": normalize_search(t["name"]), "text": normalize_search(joined)[:4000], "accent": accent_search(joined)[:4000]})
     conn.execute("DELETE FROM place_names WHERE place_id = ANY(%s::uuid[]) AND source = 'import'", [ids])
     with conn.cursor() as cur:
         cur.executemany(
@@ -213,8 +214,8 @@ def refresh_names_and_search(conn: psycopg.Connection, settings: Settings, run_i
             rows_names,
         )
         cur.executemany(
-            """UPDATE places SET name_norm = %(norm)s, search_text = %(text)s
-               WHERE id = %(id)s::uuid AND (name_norm, search_text) IS DISTINCT FROM (%(norm)s, %(text)s)""",
+            """UPDATE places SET name_norm = %(norm)s, search_text = %(text)s, search_accent = %(accent)s
+               WHERE id = %(id)s::uuid AND (name_norm, search_text, search_accent) IS DISTINCT FROM (%(norm)s, %(text)s, %(accent)s)""",
             rows_text,
         )
     return len(ids)

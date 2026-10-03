@@ -122,10 +122,28 @@ export interface CategoryView {
   children?: CategoryView[];
 }
 
+/** A country, province or city places can be filtered by (from the imported administrative boundaries). */
+export interface GeoAreaOption {
+  slug: string;
+  /** Official name, e.g. "Thành phố Đà Nẵng". */
+  name: string;
+  /** Without the type prefix, e.g. "Đà Nẵng". */
+  shortName: string;
+  /** "city" / "province" when the name says so (Vietnam), otherwise the boundary level. */
+  kind: "country" | "city" | "province" | "region";
+  countryCode: string;
+  /** Parent area's slug (a province's country); null for countries. */
+  parentSlug: string | null;
+  /** Visible places inside, at any depth. */
+  placeCount: number;
+}
+
 /** Explore → Places: a page of results plus what the filters were resolved to. */
 export interface PlaceBrowse extends Paged<PlaceView> {
   /** The point results are measured from (a destination, the device, or none for a global list). */
   center: { lat: number; lng: number; label: string } | null;
+  /** The province/city/country filter, when one is set. */
+  area: { slug: string; name: string } | null;
   radiusKm: number | null;
   /** Places per category group inside the same area + text filter (ignores the group filter), for the chips. */
   facets: { key: string; count: number }[];
@@ -310,6 +328,8 @@ export interface NotificationView {
 
 export interface DestinationView extends Destination {
   tripCount: number;
+  /** "curated" (hand-picked, e.g. Hội An) or "area" (created for a whole province/city by the catalog import). */
+  kind: "curated" | "area";
 }
 
 export interface SearchResults {

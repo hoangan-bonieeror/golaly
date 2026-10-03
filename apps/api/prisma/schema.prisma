@@ -250,24 +250,29 @@ model Follow {
 
 // ── Destinations & places ───────────────────────────────────────────────
 model Destination {
-  id         String  @id @default(uuid()) @db.Uuid
-  slug       String  @unique
-  name       String
-  country    String
-  lat        Float
-  lng        Float
-  blurb      String  @default("")
-  paletteA   String  @map("palette_a")
-  paletteB   String  @map("palette_b")
+  id               String  @id @default(uuid()) @db.Uuid
+  slug             String  @unique
+  name             String
+  country          String
+  lat              Float
+  lng              Float
+  blurb            String  @default("")
+  paletteA         String  @map("palette_a")
+  paletteB         String  @map("palette_b")
   /// Accent-free "name country" for fuzzy search ("hoi an" finds "Hội An").
-  searchText String  @default("") @map("search_text")
-  /// The administrative area this curated destination corresponds to (catalog imports attach places through it).
-  areaId     String? @map("area_id") @db.Uuid
+  searchText       String  @default("") @map("search_text")
+  /// The smallest administrative area containing the destination's centre (Hội An → Đà Nẵng).
+  areaId           String? @map("area_id") @db.Uuid
+  /// Set when this destination IS a province/city (Hanoi ↔ Thành phố Hà Nội): its places are that area's.
+  representsAreaId String? @unique @map("represents_area_id") @db.Uuid
+  /// Created by the catalog's boundary import (one per province/city); curated ones are false.
+  autoCreated      Boolean @default(false) @map("auto_created")
 
-  area   GeoArea?          @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  places Place[]
-  trips  TripDestination[]
-  posts  Post[]
+  area           GeoArea?          @relation("DestinationArea", fields: [areaId], references: [id], onDelete: SetNull)
+  representsArea GeoArea?          @relation("DestinationRepresents", fields: [representsAreaId], references: [id], onDelete: SetNull)
+  places         Place[]
+  trips          TripDestination[]
+  posts          Post[]
 
   @@index([name])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
@@ -309,6 +314,8 @@ model Place {
   mergedIntoId  String?                                @map("merged_into_id") @db.Uuid
   lastSeenAt    DateTime?                              @map("last_seen_at")
   searchText    String                                 @default("") @map("search_text")
+  /// Same text lower-cased but WITH accents, so a query typed with diacritics can tell "phở" from "phố".
+  searchAccent  String                                 @default("") @map("search_accent")
   createdAt     DateTime                               @default(now()) @map("created_at")
   updatedAt     DateTime                               @default(now()) @updatedAt @map("updated_at")
 
@@ -686,7 +693,8 @@ model GeoArea {
   children     GeoArea[]     @relation("AreaTree")
   names        GeoAreaName[]
   places       Place[]
-  destinations Destination[]
+  destinations Destination[] @relation("DestinationArea")
+  represented  Destination?  @relation("DestinationRepresents")
   sources      PlaceSource[]
 
   @@unique([source, externalId])

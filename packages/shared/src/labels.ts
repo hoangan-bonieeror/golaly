@@ -55,3 +55,27 @@ export function normalizeSearch(input: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * Lower-cased text that keeps its accents (NFC), for accent-aware search: "Phở" → "phở", so a query
+ * typed with diacritics can tell "phở" from "phố". Mirrors `accent_search` in the catalog pipeline.
+ */
+export function accentSearch(input: string | null | undefined): string {
+  return (input ?? "").normalize("NFC").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/** Administrative prefixes of Vietnamese provincial-level names ("Thành phố Đà Nẵng", "Tỉnh Lâm Đồng"). */
+const AREA_PREFIXES: [RegExp, "city" | "province"][] = [
+  [/^(thành phố|tp\.?)\s+/i, "city"],
+  [/^tỉnh\s+/i, "province"],
+];
+
+/**
+ * An administrative area's name without its type prefix ("Thành phố Đà Nẵng" → "Đà Nẵng") and that type
+ * ("city", "province", or null when the name has none). Mirrors `short_area_name` in the catalog pipeline.
+ */
+export function splitAreaName(name: string): { short: string; kind: "city" | "province" | null } {
+  const s = name.normalize("NFC").trim();
+  for (const [re, kind] of AREA_PREFIXES) if (re.test(s)) return { short: s.replace(re, ""), kind };
+  return { short: s, kind: null };
+}

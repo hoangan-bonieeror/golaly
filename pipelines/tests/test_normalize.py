@@ -5,11 +5,15 @@ import pytest
 
 from triply_catalog.models import NormalizedPlace
 from triply_catalog.normalize import (
+    accent_search,
     content_hash,
+    english_area_name,
     lang_tag,
+    name_key,
     normalize_phone,
     normalize_search,
     normalize_website,
+    short_area_name,
     slugify,
 )
 
@@ -20,6 +24,32 @@ CASES = json.loads((Path(__file__).parents[2] / "packages/shared/fixtures/normal
 def test_normalize_search_matches_the_app(text, expected):
     # Same file the TypeScript test reads: search in the app and matching in the pipeline agree.
     assert normalize_search(text) == expected
+
+
+def test_accent_search_keeps_diacritics():
+    assert accent_search("  Phở   Thìn ") == "phở thìn"
+    assert accent_search("Phở") == "phở"  # NFD input → NFC, like the app
+
+
+def test_short_area_name():
+    assert short_area_name("Thành phố Đà Nẵng") == "Đà Nẵng"
+    assert short_area_name("Tỉnh Lâm Đồng") == "Lâm Đồng"
+    assert short_area_name("Île-de-France") == "Île-de-France"
+    assert short_area_name(None) == ""
+
+
+def test_english_area_name():
+    assert english_area_name("Cà Mau Province", "VN") == "Ca Mau"
+    assert english_area_name("Bắc Ninh City", "VN") == "Bac Ninh"
+    assert english_area_name("Đà Nẵng", "VN") == "Da Nang"
+    assert english_area_name("Ho Chi Minh City", "VN") == "Ho Chi Minh City"  # "City" is part of that name
+    assert english_area_name("Provence-Alpes-Côte d'Azur", "FR") == "Provence-Alpes-Côte d'Azur"  # English keeps French accents
+
+
+def test_name_key_ignores_spelling_and_type():
+    assert name_key("Hanoi") == name_key("Thành phố Hà Nội")
+    assert name_key("Ho Chi Minh City") == name_key("Thành phố Hồ Chí Minh")
+    assert name_key("Hội An") != name_key("Thành phố Đà Nẵng")
 
 
 def test_slugify():

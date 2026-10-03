@@ -6,19 +6,33 @@ the Overture release reflects it. Re-running updates names and boundaries in pla
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import Any
 
 import psycopg
 
 from .config import Settings
-from .normalize import clean_text, lang_tag, slugify
+from .normalize import clean_text, english_area_name, lang_tag, name_key, normalize_search, short_area_name, slugify
 from .providers.overture import as_dict, duck, release_path
 from .publish import reassign_areas
 
 log = logging.getLogger(__name__)
 
 LOCAL_LANG = {"VN": "vi"}
+#: Cover colours for destinations created from boundaries (same family as the curated ones), picked by slug.
+PALETTES = [
+    ("#0f5257", "#9fd8cb"),
+    ("#7a2e1f", "#f2b134"),
+    ("#a4471f", "#f5cd5b"),
+    ("#3d1e6d", "#f26b4e"),
+    ("#1f3b73", "#e8657a"),
+    ("#5b2a3c", "#e7a35b"),
+    ("#1b4965", "#f4a259"),
+    ("#283d3b", "#c44536"),
+    ("#264653", "#e9c46a"),
+    ("#6a2c70", "#f9a03f"),
+]
 TIMEZONE = {"VN": "Asia/Ho_Chi_Minh"}
 
 
@@ -97,16 +111,89 @@ def import_boundaries(conn: psycopg.Connection, settings: Settings, country: str
     if country_id:
         box = conn.execute("SELECT min_lng, min_lat, max_lng, max_lat FROM geo_areas WHERE id = %s::uuid", [country_id]).fetchone()
         assert box
+        # The smallest area containing the destination's centre — or, for a centre just off the coast
+        # (Hạ Long Bay is in the water), the nearest area within `destination_radius_km` (km → degrees of
+        # longitude, which is ≥ the latitude distance, so ST_DWithin can use the GiST index).
         counts["destinations_refiled"] = conn.execute(
             """
             UPDATE destinations d SET area_id = a.id
-            FROM (SELECT d2.id AS dest_id, (SELECT g.id FROM geo_areas g WHERE g.boundary IS NOT NULL
-                                              AND ST_Contains(g.boundary, ST_SetSRID(ST_MakePoint(d2.lng, d2.lat), 4326))
-                                            ORDER BY g.level DESC LIMIT 1) AS id FROM destinations d2) a
+            FROM (SELECT d2.id AS dest_id, (
+                    SELECT g.id FROM geo_areas g, LATERAL (SELECT ST_SetSRID(ST_MakePoint(d2.lng, d2.lat), 4326) AS pt) x
+                    WHERE g.boundary IS NOT NULL AND ST_DWithin(g.boundary, x.pt, %s / (111.32 * cos(radians(d2.lat))))
+                    ORDER BY ST_Contains(g.boundary, x.pt) DESC, g.level DESC, g.boundary <-> x.pt LIMIT 1) AS id
+                  FROM destinations d2) a
             WHERE d.id = a.dest_id AND a.id IS NOT NULL AND d.area_id IS DISTINCT FROM a.id
-            """
+            """,
+            [settings.destination_radius_km],
         ).rowcount
+        counts.update(sync_area_destinations(conn, country_id, country))
         counts["places_refiled"] = reassign_areas(conn, settings, (box["min_lng"], box["min_lat"], box["max_lng"], box["max_lat"]))
     conn.commit()
     log.info("boundaries for %s: %s", country, counts)
+    return counts
+
+
+def sync_area_destinations(conn: psycopg.Connection, country_id: str, country: str) -> dict[str, int]:
+    """One destination per province/city of the country, named in English ("Da Nang", "Lam Dong").
+
+    - A curated destination that IS the area (inside it, same name in any spelling: "Hanoi" ↔ "Thành phố Hà Nội")
+      is linked through `represents_area_id`, never renamed.
+    - Areas without one get a new destination (`auto_created`). Re-runs only follow name/centre changes of
+      those, so blurbs and colours edited by hand are kept.
+    - Destinations inside an area under another name (Hội An in Đà Nẵng) stay separate.
+    """
+    country_en = conn.execute(
+        """SELECT coalesce(n.name, g.name) AS name FROM geo_areas g LEFT JOIN geo_area_names n ON n.area_id = g.id AND n.lang = 'en'
+           WHERE g.id = %s::uuid""",
+        [country_id],
+    ).fetchone()["name"]  # type: ignore[index]
+    regions = conn.execute(
+        """SELECT g.id::text AS id, g.name, coalesce(n.name, g.name) AS en,
+                  ST_Y(ST_PointOnSurface(g.boundary)) AS lat, ST_X(ST_PointOnSurface(g.boundary)) AS lng
+           FROM geo_areas g LEFT JOIN geo_area_names n ON n.area_id = g.id AND n.lang = 'en'
+           WHERE g.parent_id = %s::uuid AND g.boundary IS NOT NULL ORDER BY g.slug""",
+        [country_id],
+    ).fetchall()
+    dests = conn.execute(
+        """SELECT id::text AS id, slug, name, country, lat, lng, area_id::text AS area_id,
+                  represents_area_id::text AS represents_area_id, auto_created FROM destinations"""
+    ).fetchall()
+    represented = {d["represents_area_id"]: d for d in dests if d["represents_area_id"]}
+    slugs = {d["slug"] for d in dests}
+    counts = {"destinations_linked": 0, "destinations_created": 0, "destinations_updated": 0}
+    for r in regions:
+        name = english_area_name(r["en"], country)
+        lat, lng = round(r["lat"], 5), round(r["lng"], 5)
+        search = normalize_search(f"{name} {short_area_name(r['name'])} {country_en}")
+        d = represented.get(r["id"])
+        if d is None:
+            keys = {name_key(r["name"]), name_key(r["en"])}
+            match = next(
+                (x for x in dests if not x["represents_area_id"] and not x["auto_created"] and x["area_id"] == r["id"] and name_key(x["name"]) in keys),
+                None,
+            )
+            if match:
+                conn.execute("UPDATE destinations SET represents_area_id = %s::uuid WHERE id = %s::uuid", [r["id"], match["id"]])
+                match["represents_area_id"] = r["id"]
+                counts["destinations_linked"] += 1
+                continue
+            slug = base = slugify(name)
+            n = 1
+            while slug in slugs:  # "georgia" the state vs the country: add the country code, then a number
+                n += 1
+                slug = f"{base}-{country.lower()}" if n == 2 else f"{base}-{country.lower()}-{n}"
+            slugs.add(slug)
+            a, b = PALETTES[int(hashlib.md5(slug.encode()).hexdigest(), 16) % len(PALETTES)]
+            conn.execute(
+                """INSERT INTO destinations (id, slug, name, country, lat, lng, palette_a, palette_b, search_text, area_id, represents_area_id, auto_created)
+                   VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, %s, %s, %s::uuid, %s::uuid, true)""",
+                [slug, name, country_en, lat, lng, a, b, search, r["id"], r["id"]],
+            )
+            counts["destinations_created"] += 1
+        elif d["auto_created"] and (d["name"], d["country"], d["lat"], d["lng"]) != (name, country_en, lat, lng):
+            conn.execute(
+                "UPDATE destinations SET name = %s, country = %s, lat = %s, lng = %s, search_text = %s, area_id = %s::uuid WHERE id = %s::uuid",
+                [name, country_en, lat, lng, search, r["id"], d["id"]],
+            )
+            counts["destinations_updated"] += 1
     return counts

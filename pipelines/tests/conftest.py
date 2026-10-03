@@ -49,10 +49,11 @@ def database(settings: Settings) -> str:
     with psycopg.connect(settings.database_url, autocommit=True) as c:
         for m in sorted((ROOT / "apps/api/prisma/migrations").glob("*/migration.sql")):
             c.execute(m.read_text("utf-8"))
-    if not shutil.which("npx"):
+    npx = shutil.which("npx")  # the full path: on Windows it's npx.cmd, which subprocess won't find by name
+    if not npx:
         pytest.skip("Node.js is needed to load the app's demo seed")
     subprocess.run(
-        ["npx", "tsx", "prisma/seed.ts"],
+        [npx, "tsx", "prisma/seed.ts"],
         cwd=ROOT / "apps/api",
         env={**os.environ, "DATABASE_URL": settings.database_url, "NODE_ENV": "test"},
         check=True,

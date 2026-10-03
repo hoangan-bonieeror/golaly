@@ -147,6 +147,8 @@ export const placeBrowseQuerySchema = z.object({
   group: z.string().regex(/^[a-z_]+$/).max(40).optional(),
   category: z.string().regex(/^[a-z_]+\.[a-z_]+$/).max(60).optional(),
   destination: z.string().regex(/^[a-z0-9-]+$/).max(80).optional(),
+  /** A geo area slug (country, province or city): places inside it, at any depth. */
+  area: z.string().regex(/^[a-z0-9-]+$/).max(80).optional(),
   near: latLng.optional(),
   radius: z.coerce.number().min(0.5).max(50).optional(),
   sort: z.enum(["recommended", "distance", "rating"]).default("recommended"),

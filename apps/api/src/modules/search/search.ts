@@ -35,12 +35,13 @@ export class PostgresSearchProvider implements SearchProvider {
   }
 
   async search(q: string, type: "all" | "trips" | "places" | "people" | "destinations", limit: number, viewerId: string | null): Promise<SearchResults> {
+    // The rankers take the query as typed: accents decide whether "phở" may match "phố".
     const s = normalizeSearch(q);
     const want = (t: string) => type === "all" || type === t;
     const [tripIds, placeIds, peopleIds] = await Promise.all([
-      want("trips") && s ? this.rank.trips(s, limit) : null,
-      want("places") && s ? this.rank.places(s, limit) : null,
-      want("people") && s ? this.rank.people(s, limit) : null,
+      want("trips") && s ? this.rank.trips(q, limit) : null,
+      want("places") && s ? this.rank.places(q, limit) : null,
+      want("people") && s ? this.rank.people(q, limit) : null,
     ]);
     const [trips, places, people, destinations] = await Promise.all([
       want("trips")
@@ -78,14 +79,26 @@ export class PostgresSearchProvider implements SearchProvider {
   }
 
   async destinations(q: string, limit: number): Promise<DestinationView[]> {
-    const s = normalizeSearch(q);
-    const ids = s ? await this.rank.destinations(s, limit) : null;
+    const ids = normalizeSearch(q) ? await this.rank.destinations(q, limit) : null;
     const rows = await this.prisma.destination.findMany({
       where: ids ? { id: { in: ids } } : {},
       include: { _count: { select: { trips: { where: { trip: DISCOVERABLE } } } } },
     });
-    const views = rows.map((d) => ({ id: d.id, slug: d.slug, name: d.name, country: d.country, lat: d.lat, lng: d.lng, blurb: d.blurb, palette: [d.paletteA, d.paletteB] as [string, string], tripCount: d._count.trips }));
-    return (ids ? byRank(views, ids) : views.sort((a, b) => b.tripCount - a.tripCount || a.name.localeCompare(b.name))).slice(0, limit);
+    const views: DestinationView[] = rows.map((d) => ({
+      id: d.id,
+      slug: d.slug,
+      name: d.name,
+      country: d.country,
+      lat: d.lat,
+      lng: d.lng,
+      blurb: d.blurb,
+      palette: [d.paletteA, d.paletteB],
+      tripCount: d._count.trips,
+      kind: d.autoCreated ? "area" : "curated",
+    }));
+    // Without a query: most travelled first, and hand-picked destinations before the province/city ones.
+    const browseOrder = (a: DestinationView, b: DestinationView) => b.tripCount - a.tripCount || Number(a.kind === "area") - Number(b.kind === "area") || a.name.localeCompare(b.name);
+    return (ids ? byRank(views, ids) : views.sort(browseOrder)).slice(0, limit);
   }
 }
 
@@ -105,6 +118,16 @@ export class ExploreService {
     return { destinations, trips: trips.map((t) => toTripSummary(t, viewerId)), places: places.map(toPlaceView) };
   }
 
+  /** A curated destination's own places, or every place inside the province/city an auto-created one stands for. */
+  private async destinationPlaces(d: { id: string; autoCreated: boolean; representsAreaId: string | null }): Promise<Prisma.PlaceWhereInput> {
+    if (!d.autoCreated || !d.representsAreaId) return { destinationId: d.id };
+    const ids = await this.prisma.$queryRaw<{ id: string }[]>`
+      WITH RECURSIVE t AS (SELECT id FROM geo_areas WHERE id = ${d.representsAreaId}::uuid
+                           UNION ALL SELECT g.id FROM geo_areas g JOIN t ON g.parent_id = t.id)
+      SELECT id::text AS id FROM t`;
+    return { areaId: { in: ids.map((r) => r.id) } };
+  }
+
   async destination(slug: string, viewerId: string | null): Promise<DestinationPage> {
     const d = await this.prisma.destination.findUnique({ where: { slug } });
     if (!d) throw Errors.notFound("That destination");
@@ -112,7 +135,7 @@ export class ExploreService {
     const [popular, remixable, places, posts] = await Promise.all([
       this.prisma.trip.findMany({ where: tripWhere, orderBy: { saveCount: "desc" }, take: 9, include: tripSummaryInclude(viewerId) }),
       this.prisma.trip.findMany({ where: { ...tripWhere, allowFork: true }, orderBy: { forkCount: "desc" }, take: 6, include: tripSummaryInclude(viewerId) }),
-      this.prisma.place.findMany({ where: { destinationId: d.id, ...listablePlace }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 12, include: placeInclude(viewerId) }),
+      this.prisma.place.findMany({ where: { ...(await this.destinationPlaces(d)), ...listablePlace }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 12, include: placeInclude(viewerId) }),
       this.prisma.post.findMany({
         where: { deletedAt: null, visibility: "PUBLIC", OR: [{ destinationId: d.id }, { trip: tripWhere }] },
         orderBy: { createdAt: "desc" },

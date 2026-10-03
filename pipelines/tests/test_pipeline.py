@@ -92,8 +92,23 @@ def test_boundaries_file_seed_places_and_destinations(settings, db):
         db.execute("SELECT g.name FROM geo_area_names g JOIN geo_areas a ON a.id = g.area_id WHERE a.slug = 'vn-da-nang' AND g.lang = 'en'").fetchone()["name"]
         == "Da Nang"
     )
+    # One destination per province/city: the curated "Hanoi" IS Hà Nội (linked, never renamed); Đà Nẵng had
+    # none (Hội An is inside it under another name), so one is created with its English name.
+    assert out["destinations_linked"] == 1 and out["destinations_created"] == 1
+    dests = {
+        r["slug"]: r
+        for r in db.execute(
+            """SELECT d.slug, d.name, d.country, d.auto_created, g.slug AS represents FROM destinations d
+               LEFT JOIN geo_areas g ON g.id = d.represents_area_id"""
+        ).fetchall()
+    }
+    assert dests["hanoi"]["represents"] == "vn-ha-noi" and not dests["hanoi"]["auto_created"]
+    assert dests["da-nang"]["auto_created"] and dests["da-nang"]["represents"] == "vn-da-nang"
+    assert dests["da-nang"]["name"] == "Da Nang" and dests["da-nang"]["country"] == "Vietnam"
+    assert dests["hoi-an"]["represents"] is None
     with db_conn(settings) as conn:
-        assert import_boundaries(conn, settings, "VN")["places_refiled"] == 0  # idempotent
+        again = import_boundaries(conn, settings, "VN")
+    assert again["places_refiled"] == 0 and again["destinations_created"] == 0 and again["destinations_updated"] == 0  # idempotent
 
 
 def db_conn(settings):
@@ -123,6 +138,7 @@ def test_first_sync_merges_sources(settings, state, db):
     town = place(db, "Hội An Ancient Town")  # OSM "Phố cổ Hội An" matched the seed through its English name
     assert town["providers"] == ["manual", "osm"]
     assert "pho co hoi an" in town["search_text"]
+    assert "phố cổ hội an" in town["search_accent"]  # accent-aware search: "phố cổ" ≠ "phở"
     names = {r["lang"]: r["name"] for r in db.execute("SELECT lang, name FROM place_names WHERE place_id = %s", [town["id"]]).fetchall()}
     assert names["vi"] == "Phố cổ Hội An"
 

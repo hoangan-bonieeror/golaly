@@ -2,7 +2,9 @@ import { Controller, Delete, Get, Injectable, Module, Param, ParseUUIDPipe, Post
 import {
   normalizeSearch,
   placeBrowseQuerySchema,
+  splitAreaName,
   type CategoryView,
+  type GeoAreaOption,
   type PlaceBrowse,
   type PlaceBrowseQuery,
   type PlaceDetail,
@@ -19,7 +21,7 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { MediaModule } from "../media/media";
 import { DISCOVERABLE } from "../search/search";
 import { PhotoIngestService, PlacePhotosController, PlacePhotosService } from "./photos";
-import { TrigramRanker, byRank, textMatch } from "../search/ranker";
+import { PLACE_COLUMNS, TrigramRanker, byRank, relevance, textMatch } from "../search/ranker";
 
 /** Default search radius (km) around a destination / around the device. */
 const RADIUS = { destination: 10, near: 5 } as const;
@@ -35,6 +37,7 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 @Injectable()
 export class PlacesService {
   private categoryCache: { at: number; tree: CategoryView[] } | null = null;
+  private areaCache: { at: number; list: GeoAreaOption[] } | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -48,26 +51,89 @@ export class PlacesService {
     return tree;
   }
 
+  /** Countries, provinces and cities with their place counts (rolled up to parents). Cached briefly like categories. */
+  async areas(): Promise<GeoAreaOption[]> {
+    if (this.areaCache && Date.now() - this.areaCache.at < 5 * 60_000) return this.areaCache.list;
+    const [rows, counts] = await Promise.all([
+      this.prisma.geoArea.findMany({ select: { id: true, parentId: true, slug: true, name: true, level: true, countryCode: true } }),
+      this.prisma.$queryRaw<{ area_id: string; n: bigint }[]>`
+        SELECT area_id::text AS area_id, count(*) AS n FROM places
+        WHERE area_id IS NOT NULL AND status = 'ACTIVE' AND merged_into_id IS NULL GROUP BY 1`,
+    ]);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const total = new Map<string, number>();
+    for (const c of counts) {
+      // Add each area's own places to it and every ancestor.
+      for (let a = byId.get(c.area_id), depth = 0; a && depth < 6; a = a.parentId ? byId.get(a.parentId) : undefined, depth++) {
+        total.set(a.id, (total.get(a.id) ?? 0) + Number(c.n));
+      }
+    }
+    const list = rows
+      .map((r): GeoAreaOption => {
+        const { short, kind } = splitAreaName(r.name);
+        return {
+          slug: r.slug,
+          name: r.name,
+          shortName: short,
+          kind: r.level === "COUNTRY" ? "country" : (kind ?? "region"),
+          countryCode: r.countryCode,
+          parentSlug: r.parentId ? (byId.get(r.parentId)?.slug ?? null) : null,
+          placeCount: total.get(r.id) ?? 0,
+        };
+      })
+      .sort((a, b) => a.countryCode.localeCompare(b.countryCode) || normalizeSearch(a.shortName).localeCompare(normalizeSearch(b.shortName)));
+    this.areaCache = { at: Date.now(), list };
+    return list;
+  }
+
   async browse(q: PlaceBrowseQuery, viewerId: string | null): Promise<PlaceBrowse> {
-    // Where: a destination's centre, a point (the device), or everywhere.
+    // Where: a destination's centre, a point (the device), a province/city, or everywhere.
     let center: PlaceBrowse["center"] = null;
     let radiusKm: number | null = null;
-    if (q.destination) {
-      const d = await this.prisma.destination.findUnique({ where: { slug: q.destination }, select: { name: true, lat: true, lng: true } });
+    // Typed by assertion so TypeScript doesn't narrow it to null (it's set inside `useArea`).
+    let area = null as { id: string; slug: string; name: string } | null;
+    const areaSelect = { id: true, slug: true, name: true, minLat: true, minLng: true, maxLat: true, maxLng: true } as const;
+    const useArea = (g: Prisma.GeoAreaGetPayload<{ select: typeof areaSelect }>, label: string) => {
+      area = g;
+      if (g.minLat != null && g.maxLat != null && g.minLng != null && g.maxLng != null) {
+        center = { lat: (g.minLat + g.maxLat) / 2, lng: (g.minLng + g.maxLng) / 2, label };
+      }
+    };
+    if (q.area) {
+      const g = await this.prisma.geoArea.findUnique({ where: { slug: q.area }, select: areaSelect });
+      if (!g) throw Errors.notFound("That area");
+      useArea(g, splitAreaName(g.name).short);
+    } else if (q.destination) {
+      const d = await this.prisma.destination.findUnique({
+        where: { slug: q.destination },
+        select: { name: true, lat: true, lng: true, autoCreated: true, representsArea: { select: areaSelect } },
+      });
       if (!d) throw Errors.notFound("That destination");
-      center = { lat: d.lat, lng: d.lng, label: d.name };
-      radiusKm = q.radius ?? RADIUS.destination;
+      if (d.autoCreated && d.representsArea) {
+        // A destination made for a whole province/city covers that area, not a circle around its centre.
+        useArea(d.representsArea, d.name);
+      } else {
+        center = { lat: d.lat, lng: d.lng, label: d.name };
+        radiusKm = q.radius ?? RADIUS.destination;
+      }
     } else if (q.near) {
       center = { lat: q.near[0], lng: q.near[1], label: "your location" };
       radiusKm = q.radius ?? RADIUS.near;
     }
-    const point = center ? Prisma.sql`ST_SetSRID(ST_MakePoint(${center.lng}, ${center.lat}), 4326)::geography` : null;
+    // An area's centre only places the map; distances are measured from destinations and the device.
+    const point = center && !area ? Prisma.sql`ST_SetSRID(ST_MakePoint(${center.lng}, ${center.lat}), 4326)::geography` : null;
 
-    const area: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`];
-    if (point && radiusKm) area.push(Prisma.sql`ST_DWithin(p.location, ${point}, ${radiusKm * 1000})`);
-    const text = textMatch(normalizeSearch(q.q), "p.search_text");
-    if (text) area.push(text);
-    const filters = [...area];
+    const scope: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`];
+    if (point && radiusKm) scope.push(Prisma.sql`ST_DWithin(p.location, ${point}, ${radiusKm * 1000})`);
+    if (area) {
+      scope.push(Prisma.sql`p.area_id IN (
+        WITH RECURSIVE t AS (SELECT id FROM geo_areas WHERE id = ${area.id}::uuid
+                             UNION ALL SELECT g.id FROM geo_areas g JOIN t ON g.parent_id = t.id)
+        SELECT id FROM t)`);
+    }
+    const text = textMatch(q.q, PLACE_COLUMNS);
+    if (text) scope.push(text);
+    const filters = [...scope];
     if (q.group) filters.push(Prisma.sql`(g.key = ${q.group} OR c.key = ${q.group})`);
     if (q.category) filters.push(Prisma.sql`c.key = ${q.category}`);
 
@@ -75,11 +141,15 @@ export class PlacesService {
     const where = (parts: Prisma.Sql[]) => Prisma.sql`WHERE ${Prisma.join(parts, " AND ")}`;
     const dist = point ? Prisma.sql`ST_Distance(p.location, ${point})` : Prisma.sql`NULL::float8`;
     const sort = q.sort === "distance" && !point ? "recommended" : q.sort;
+    const rel = relevance(q.q, PLACE_COLUMNS);
     const order =
       sort === "distance"
         ? Prisma.sql`dist ASC, p.name ASC`
         : sort === "rating"
           ? Prisma.sql`p.rating DESC NULLS LAST, p.quality_score DESC, dist ASC NULLS LAST, p.name ASC`
+          : rel
+            ? // Recommended for a text search: best match first, then the usual signals.
+              Prisma.sql`${rel} DESC, p.rating DESC NULLS LAST, p.quality_score DESC, dist ASC NULLS LAST, p.name ASC`
           : point && radiusKm
             ? // Recommended around a point: rating (unrated ≈ average), data quality and closeness, blended.
               Prisma.sql`(coalesce(p.rating, 3.8) / 5.0 * 0.6 + p.quality_score * 0.15 + (1 - least(${dist} / ${radiusKm * 1000}, 1)) * 0.25) DESC, p.name ASC`
@@ -91,7 +161,7 @@ export class PlacesService {
         SELECT p.id::text AS id, ${dist} AS dist ${from} ${where(filters)}
         ORDER BY ${order} LIMIT ${q.limit + 1} OFFSET ${offset}`,
       this.prisma.$queryRaw<{ key: string; count: bigint }[]>`
-        SELECT coalesce(g.key, c.key) AS key, count(*) AS count ${from} ${where(area)} AND c.id IS NOT NULL
+        SELECT coalesce(g.key, c.key) AS key, count(*) AS count ${from} ${where(scope)} AND c.id IS NOT NULL
         GROUP BY 1`,
       this.prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n ${from} ${where(filters)}`,
     ]);
@@ -106,6 +176,7 @@ export class PlacesService {
       }),
       nextCursor: rows.length > q.limit ? String(offset + q.limit) : null,
       center,
+      area: area && { slug: area.slug, name: area.name },
       radiusKm,
       facets: facets.map((f) => ({ key: f.key, count: Number(f.count) })),
       total: Number(totals[0]?.n ?? 0),
@@ -114,8 +185,7 @@ export class PlacesService {
 
   /** Place search for the itinerary editor — boosts places in the trip's destinations. */
   async search(q: string, viewerId: string | null, opts: { destinationIds?: string[]; limit: number }): Promise<PlaceView[]> {
-    const s = normalizeSearch(q);
-    const ids = s ? await new TrigramRanker(this.prisma).places(s, 50) : null;
+    const ids = normalizeSearch(q) ? await new TrigramRanker(this.prisma).places(q, 50) : null;
     const rows = await this.prisma.place.findMany({
       where: { ...listablePlace, ...(ids ? { id: { in: ids } } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {}) },
       take: 50,
@@ -270,6 +340,12 @@ export class PlacesController {
   @Get("categories")
   categories() {
     return this.places.categories();
+  }
+
+  @Public()
+  @Get("areas")
+  areas() {
+    return this.places.areas();
   }
 
   @Public()

@@ -7,6 +7,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import type {
   CategoryView,
+  GeoAreaOption,
   CommentView,
   DestinationPage,
   DestinationView,
@@ -42,6 +43,7 @@ export const keys = {
   places: (q: string, tripId?: string) => ["places", q, tripId ?? ""] as const,
   savedPlaces: ["places", "saved"] as const,
   categories: ["places", "categories"] as const,
+  geoAreas: ["places", "areas"] as const,
   placeBrowse: (params: Record<string, string | number | undefined>) => ["places", "browse", params] as const,
   place: (id: string) => ["places", "detail", id] as const,
   tripTargets: (placeId: string) => ["places", "targets", placeId] as const,
@@ -100,6 +102,7 @@ export const useSearch = (q: string, type: string, enabled = true) =>
 export const usePlaceSearch = (q: string, tripId?: string) =>
   useQuery({ queryKey: keys.places(q, tripId), queryFn: () => api.get<PlaceView[]>(`/places/search${qs({ q, tripId, limit: 8 })}`), placeholderData: (prev) => prev });
 export const useCategories = () => useQuery({ queryKey: keys.categories, queryFn: () => api.get<CategoryView[]>("/places/categories"), staleTime: 30 * 60_000 });
+export const useGeoAreas = () => useQuery({ queryKey: keys.geoAreas, queryFn: () => api.get<GeoAreaOption[]>("/places/areas"), staleTime: 30 * 60_000 });
 export const usePlace = (id: string) => useQuery({ queryKey: keys.place(id), queryFn: () => api.get<PlaceDetail>(`/places/${id}`), retry: false });
 export const useTripTargets = (placeId: string, enabled: boolean) =>
   useQuery({ queryKey: keys.tripTargets(placeId), queryFn: () => api.get<TripTarget[]>(`/places/${placeId}/trip-targets`), enabled });

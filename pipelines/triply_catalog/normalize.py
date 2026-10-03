@@ -28,6 +28,45 @@ def normalize_search(text: str | None) -> str:
     return _SPACES.sub(" ", s).strip()
 
 
+def accent_search(text: str | None) -> str:
+    """Lower-case, single-spaced text that KEEPS its accents (NFC): "Phở" → "phở". Mirrors `accentSearch` in the app."""
+    return _SPACES.sub(" ", unicodedata.normalize("NFC", text or "").lower()).strip()
+
+
+_AREA_PREFIX = re.compile(r"^(thành phố|tp\.?|tỉnh)\s+", re.IGNORECASE)
+
+
+def short_area_name(name: str | None) -> str:
+    """Province/city name without its type prefix: "Thành phố Đà Nẵng" → "Đà Nẵng". Mirrors `splitAreaName` in the app."""
+    return _AREA_PREFIX.sub("", unicodedata.normalize("NFC", name or "").strip())
+
+
+_EN_SUFFIX = re.compile(r"\s+(province|city|municipality)$", re.IGNORECASE)
+#: Countries whose diacritics English doesn't use ("Đà Nẵng" → "Da Nang"); elsewhere they stay ("Côte d'Azur").
+_ASCII_ENGLISH = {"VN"}
+#: English names where "City" is part of the name, not the administrative type.
+_KEEP_SUFFIX = {"Ho Chi Minh City"}
+
+
+def english_area_name(name: str, country: str) -> str:
+    """Display name for an area's destination: Overture's English name without "Province"/"City",
+    in plain Latin letters where English writes it so: "Cà Mau Province" → "Ca Mau", "Bắc Ninh City" → "Bac Ninh"."""
+    s = clean_text(name, 200) or ""
+    if s not in _KEEP_SUFFIX:
+        s = _EN_SUFFIX.sub("", s)
+    if country.upper() in _ASCII_ENGLISH:
+        s = _COMBINING.sub("", unicodedata.normalize("NFD", s)).replace("đ", "d").replace("Đ", "D")
+        s = unicodedata.normalize("NFC", s)
+    return s
+
+
+def name_key(name: str | None) -> str:
+    """Spelling-insensitive key for "is this the same place name": "Hanoi" = "Hà Nội", "Ho Chi Minh City" = "Hồ Chí Minh"."""
+    s = short_area_name(name)
+    s = _EN_SUFFIX.sub("", s)
+    return re.sub(r"[^a-z0-9]+", "", normalize_search(s))
+
+
 def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", normalize_search(text)).strip("-")
 

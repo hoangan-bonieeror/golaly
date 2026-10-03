@@ -1,5 +1,6 @@
 /** Explore → Places: taxonomy, browsing around a destination or a point, place detail and "Add to trip". */
-import type { PlaceBrowse, PlaceDetail, PlaceView, TripTarget } from "@triply/shared";
+import type { DestinationPage, DestinationView, GeoAreaOption, PlaceBrowse, PlaceDetail, PlaceView, TripTarget } from "@triply/shared";
+import { PlacesService } from "../src/modules/places/places";
 import { seedId } from "../prisma/seed-data/ids";
 import { createTestContext, demoTrip, type TestContext } from "./helpers";
 
@@ -64,6 +65,62 @@ describe("browse", () => {
 
     const text = await browse("destination=hoi-an&q=cao lau");
     expect(text.items.map((p) => p.name)).toEqual(["Cao Lầu Thanh"]);
+  });
+
+  it("text search matches word starts and honours accents typed by the user", async () => {
+    const names = async (qs: string) => (await browse(`${qs}&limit=48`)).items.map((p) => p.name);
+    // Plain "ca" matches any word starting with "ca"; "cà" only the accented one.
+    expect(await names("destination=hoi-an&q=ca")).toContain("Cao Lầu Thanh");
+    const accented = await names("q=cà");
+    expect(accented).toContain("Cộng Cà Phê Nhà Thờ");
+    expect(accented).not.toContain("Cao Lầu Thanh");
+    // Word starts, not substrings: "an" is not inside "Hoàn Kiếm".
+    expect(await names("destination=hanoi&q=an")).not.toContain("Hoàn Kiếm Lake");
+    // Accent-free still works, and the best name match comes first.
+    expect((await browse("q=hoi an museum")).items[0].name).toBe("Hội An Museum");
+    expect((await browse("q=bánh mì phượng")).items[0].name).toBe("Bánh Mì Phượng");
+  });
+
+  it("filters by province/city (geo area), including its sub-areas", async () => {
+    const country = await t.prisma.geoArea.create({ data: { level: "COUNTRY", countryCode: "VN", name: "Việt Nam", slug: "test-vn", source: "test", externalId: "test-vn" } });
+    const city = await t.prisma.geoArea.create({
+      data: { parentId: country.id, level: "REGION", countryCode: "VN", name: "Thành phố Đà Nẵng", slug: "test-vn-da-nang", source: "test", externalId: "test-dn", minLat: 15.7, maxLat: 16.2, minLng: 107.8, maxLng: 108.6 },
+    });
+    await t.prisma.place.updateMany({ where: { destination: { slug: "hoi-an" } }, data: { areaId: city.id } });
+    try {
+      const r = await browse("area=test-vn-da-nang&limit=48");
+      expect(r.area).toEqual({ slug: "test-vn-da-nang", name: "Thành phố Đà Nẵng" });
+      expect(r.center).toMatchObject({ label: "Đà Nẵng" });
+      expect(r.items.length).toBeGreaterThan(5);
+      expect(r.items.every((p) => p.destinationName === "Hội An")).toBe(true);
+      expect(r.items[0].distanceM).toBeUndefined();
+      expect((await browse("area=test-vn&limit=1")).total).toBe(r.total); // a country includes its provinces
+
+      // The areas list rolls counts up to the country and drops the "Thành phố" prefix.
+      (t.app.get(PlacesService) as unknown as { areaCache: null }).areaCache = null;
+      const areas = (await t.anon().get("/places/areas")).body as GeoAreaOption[];
+      expect(areas.find((a) => a.slug === "test-vn-da-nang")).toMatchObject({ shortName: "Đà Nẵng", kind: "city", parentSlug: "test-vn", placeCount: r.total });
+      expect(areas.find((a) => a.slug === "test-vn")).toMatchObject({ kind: "country", placeCount: r.total });
+      expect((await t.anon().get("/places/browse?area=atlantis")).status).toBe(404);
+
+      // A destination created for the whole city covers its area, not a circle around its centre.
+      await t.prisma.destination.create({
+        data: { slug: "test-da-nang", name: "Da Nang", country: "Vietnam", lat: 16.05, lng: 108.2, paletteA: "#000000", paletteB: "#ffffff", areaId: city.id, representsAreaId: city.id, autoCreated: true },
+      });
+      const viaDest = await browse("destination=test-da-nang&limit=48");
+      expect(viaDest).toMatchObject({ total: r.total, radiusKm: null, area: { slug: "test-vn-da-nang" }, center: { label: "Da Nang" } });
+      const page = (await t.anon().get("/destinations/test-da-nang")).body as DestinationPage;
+      expect(page.places.length).toBeGreaterThan(0);
+      expect(page.places.every((p) => p.destinationName === "Hội An")).toBe(true);
+      // Listed after the hand-picked ones (all have no trips here), marked as an area destination.
+      const list = (await t.anon().get("/destinations")).body as DestinationView[];
+      expect(list.find((d) => d.slug === "test-da-nang")?.kind).toBe("area");
+      expect(list.findIndex((d) => d.slug === "test-da-nang")).toBeGreaterThan(list.findIndex((d) => d.kind === "curated" && d.tripCount === 0));
+    } finally {
+      await t.prisma.destination.deleteMany({ where: { slug: "test-da-nang" } });
+      await t.prisma.place.updateMany({ where: { areaId: city.id }, data: { areaId: null } });
+      await t.prisma.geoArea.deleteMany({ where: { source: "test" } });
+    }
   });
 
   it("searches around a point with a radius (Near me)", async () => {

@@ -57,8 +57,16 @@ describe("search normalisation", () => {
     const { normalizeSearch } = jest.requireActual("@triply/shared");
     const { queryWords } = jest.requireActual("../modules/search/ranker");
     expect(normalizeSearch("  Đà Lạt — Hội An  ")).toBe("da lat — hoi an");
-    expect(queryWords(normalizeSearch("Sensō-ji, Tokyo!! a"))).toEqual(["senso", "ji", "tokyo"]);
+    const plain = (q: string) => queryWords(q).map((w: { plain: string }) => w.plain);
+    expect(plain(normalizeSearch("Sensō-ji, Tokyo!! a"))).toEqual(["senso", "ji", "tokyo"]);
     expect(queryWords("%_%")).toEqual([]);
+    // Words typed with diacritics keep them for accent-aware matching; single digits count ("quận 7").
+    expect(queryWords("Phở bò quận 7")).toEqual([
+      { plain: "pho", accented: "phở" },
+      { plain: "bo", accented: "bò" },
+      { plain: "quan", accented: "quận" },
+      { plain: "7", accented: null },
+    ]);
   });
 
   it("matches the Python pipeline's normalize_search on the shared cases", () => {

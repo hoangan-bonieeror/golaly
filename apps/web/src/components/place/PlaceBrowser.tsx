@@ -1,17 +1,33 @@
 "use client";
 
-import type { CategoryView } from "@triply/shared";
+import type { CategoryView, GeoAreaOption } from "@triply/shared";
 import { List, LocateFixed, Map as MapIcon, MapPinned, SearchX } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { PlacesMap } from "@/components/map/PlacesMap";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { Chip, EmptyState, ErrorState, LoadMore, Skeleton, cx, inputCls } from "@/components/ui";
-import { useCategories, useDestinations, usePlaceBrowse } from "@/lib/api/queries";
+import { useCategories, useDestinations, useGeoAreas, usePlaceBrowse } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { groupMeta } from "./categoryMeta";
 
 const RADII = [2, 5, 10, 25] as const;
+const KIND_LABEL: Record<GeoAreaOption["kind"], string> = { country: "Country", city: "Cities", province: "Provinces", region: "Regions" };
+
+/** Countries that have places, each with its provinces/cities grouped by kind ("Cities", "Provinces"). */
+function areaGroups(areas: GeoAreaOption[], selected?: string) {
+  const shown = areas.filter((a) => a.placeCount > 0 || a.slug === selected);
+  return shown
+    .filter((a) => a.kind === "country")
+    .map((country) => {
+      const inside = shown.filter((a) => a.parentSlug === country.slug);
+      const kinds = (["city", "province", "region"] as const)
+        .map((kind) => ({ kind, areas: inside.filter((a) => a.kind === kind) }))
+        .filter((g) => g.areas.length > 0);
+      return { country, kinds };
+    });
+}
+
 const SORTS = [
   ["recommended", "Recommended"],
   ["distance", "Nearest first"],
@@ -29,17 +45,20 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
   const toast = useToast();
   const categories = useCategories().data ?? [];
   const destinations = useDestinations().data ?? [];
+  const areas = useGeoAreas().data ?? [];
   const [locating, setLocating] = useState(false);
   const [view, setView] = useState<"list" | "map">("list");
   const [hovered, setHovered] = useState<string | null>(null);
 
   const dest = params.get("dest") ?? undefined;
+  const area = params.get("area") ?? undefined;
   const near = params.get("near") ?? undefined;
   const radius = Number(params.get("r")) || undefined;
   const group = params.get("group") ?? undefined;
   const category = params.get("cat") ?? undefined;
   const sort = params.get("sort") ?? "recommended";
-  const hasArea = !!(dest || near);
+  // A destination or the device is a point to measure distance from; a province/city is a boundary.
+  const hasPoint = !!(dest || near);
 
   /** Replace some URL params, keeping the rest (and the page's scroll position). */
   const set = (patch: Record<string, string | undefined>) => {
@@ -51,7 +70,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
-  const browse = usePlaceBrowse({ q: q || undefined, destination: dest, near, radius, group, category, sort, limit: 24 });
+  const browse = usePlaceBrowse({ q: q || undefined, destination: dest, area, near, radius, group, category, sort, limit: 24 });
   const meta = browse.meta;
   const items = browse.items ?? [];
   const facet = new Map(meta?.facets.map((f) => [f.key, f.count]) ?? []);
@@ -65,7 +84,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
       (pos) => {
         setLocating(false);
         // ~10 m precision is plenty and keeps the exact position out of shared links.
-        set({ near: `${pos.coords.latitude.toFixed(4)},${pos.coords.longitude.toFixed(4)}`, dest: undefined, sort: "distance" });
+        set({ near: `${pos.coords.latitude.toFixed(4)},${pos.coords.longitude.toFixed(4)}`, dest: undefined, area: undefined, sort: "distance" });
       },
       (err) => {
         setLocating(false);
@@ -75,9 +94,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     );
   };
 
-  const where = dest ? `dest:${dest}` : near ? "near" : "";
+  const where = dest ? `dest:${dest}` : area ? `area:${area}` : near ? "near" : "";
   const summary = meta
-    ? `${meta.total} place${meta.total === 1 ? "" : "s"}${meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
+    ? `${meta.total.toLocaleString()} place${meta.total === 1 ? "" : "s"}${meta.area ? ` in ${meta.center?.label ?? meta.area.name}` : meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
     : "";
 
   return (
@@ -92,18 +111,43 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
             onChange={(e) => {
               const v = e.target.value;
               if (v === "near") return locate();
-              set({ dest: v ? v.slice(5) : undefined, near: undefined, r: undefined, sort: v ? sort : sort === "distance" ? undefined : sort });
+              const [kind, slug] = v.split(":");
+              set({
+                dest: kind === "dest" ? slug : undefined,
+                area: kind === "area" ? slug : undefined,
+                near: undefined,
+                r: undefined,
+                // Distance needs a point; a province or "anywhere" has none.
+                sort: kind === "dest" || sort !== "distance" ? sort : undefined,
+              });
             }}
           >
             <option value="">Anywhere</option>
             <option value="near">{near ? "Near me" : "Near me (uses your location)"}</option>
             <optgroup label="Destinations">
-              {destinations.map((d) => (
+              {/* Province/city destinations are listed with their area below. */}
+              {destinations.filter((d) => d.kind === "curated" || d.slug === dest).map((d) => (
                 <option key={d.slug} value={`dest:${d.slug}`}>
                   {d.name}, {d.country}
                 </option>
               ))}
             </optgroup>
+            {areaGroups(areas, area).map(({ country, kinds }) => [
+              <optgroup key={country.slug} label={country.shortName}>
+                <option value={`area:${country.slug}`}>
+                  All of {country.shortName} · {country.placeCount.toLocaleString()}
+                </option>
+              </optgroup>,
+              ...kinds.map((g) => (
+                <optgroup key={`${country.slug}-${g.kind}`} label={`${country.shortName} · ${KIND_LABEL[g.kind]}`}>
+                  {g.areas.map((a) => (
+                    <option key={a.slug} value={`area:${a.slug}`}>
+                      {a.shortName} · {a.placeCount.toLocaleString()}
+                    </option>
+                  ))}
+                </optgroup>
+              )),
+            ])}
           </select>
         </label>
         <button
@@ -115,7 +159,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           <LocateFixed className={cx("size-4", locating && "animate-pulse")} aria-hidden />
           {locating ? "Locating…" : "Near me"}
         </button>
-        {hasArea && (
+        {hasPoint && (
           <div role="group" aria-label="Distance" className="flex items-center gap-1.5">
             {RADII.map((r) => (
               <Chip key={r} active={(meta?.radiusKm ?? radius) === r} onClick={() => set({ r: String(r) })} className="h-9 px-3">
@@ -126,9 +170,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
         )}
         <label className="block w-full sm:ml-auto sm:w-auto">
           <span className="mb-1.5 block text-sm font-medium text-ink-2">Sort</span>
-          <select className={cx(inputCls, "pr-8 sm:w-44")} value={hasArea || sort !== "distance" ? sort : "recommended"} onChange={(e) => set({ sort: e.target.value === "recommended" ? undefined : e.target.value })}>
+          <select className={cx(inputCls, "pr-8 sm:w-44")} value={hasPoint || sort !== "distance" ? sort : "recommended"} onChange={(e) => set({ sort: e.target.value === "recommended" ? undefined : e.target.value })}>
             {SORTS.map(([v, label]) => (
-              <option key={v} value={v} disabled={v === "distance" && !hasArea}>
+              <option key={v} value={v} disabled={v === "distance" && !hasPoint}>
                 {label}
               </option>
             ))}
@@ -200,10 +244,10 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           icon={<SearchX className="size-7" />}
           level="h3"
           title="No places match"
-          body={hasArea ? "Try a wider distance, another kind of place, or clear the filters." : "Try another kind of place or clear the filters."}
+          body={hasPoint ? "Try a wider distance, another kind of place, or clear the filters." : "Try another kind of place, another spelling, or clear the filters."}
           action={
             <div className="flex flex-wrap justify-center gap-2">
-              {hasArea && (meta.radiusKm ?? 0) < 25 && (
+              {hasPoint && (meta.radiusKm ?? 0) < 25 && (
                 <Chip onClick={() => set({ r: String(RADII.find((r) => r > (meta.radiusKm ?? 0)) ?? 25) })}>Search wider</Chip>
               )}
               {(group || category) && <Chip onClick={() => set({ group: undefined, cat: undefined })}>Clear filters</Chip>}
@@ -232,9 +276,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           <div className={cx(view === "list" && "hidden lg:block")}>
             <div className="lg:sticky lg:top-20">
               <PlacesMap places={items} center={meta?.center} radiusKm={meta?.radiusKm} activeId={hovered} label="Map of these places" />
-              {!hasArea && (
+              {!hasPoint && !area && (
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-                  <MapPinned className="size-3.5" aria-hidden /> Pick a destination or use “Near me” to see what’s around.
+                  <MapPinned className="size-3.5" aria-hidden /> Pick a destination, a province or city, or use “Near me” to see what’s around.
                 </p>
               )}
             </div>

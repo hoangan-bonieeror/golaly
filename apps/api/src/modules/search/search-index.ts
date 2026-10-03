@@ -1,5 +1,5 @@
 import { Global, Injectable, Logger, Module, OnApplicationBootstrap } from "@nestjs/common";
-import { normalizeSearch } from "@triply/shared";
+import { accentSearch, normalizeSearch, splitAreaName } from "@triply/shared";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 
 /**
@@ -15,6 +15,12 @@ export class SearchIndexService implements OnApplicationBootstrap {
 
   static tripText(t: { title: string; description: string; destinations: { destination: { name: string; country: string } }[] }) {
     return normalizeSearch([t.title, t.description, ...t.destinations.flatMap((d) => [d.destination.name, d.destination.country])].join(" ")).slice(0, 4000);
+  }
+
+  /** Same parts and order as the catalog pipeline (publish.refresh_names_and_search), minus imported names. */
+  static placeText(p: { name: string; address: string; destination: { name: string; country: string } | null; area: { name: string } | null }) {
+    const text = [p.name, p.address, p.destination?.name ?? "", p.destination?.country ?? "", p.area ? splitAreaName(p.area.name).short : ""].join(" ");
+    return { searchText: normalizeSearch(text).slice(0, 4000), searchAccent: accentSearch(text).slice(0, 4000) };
   }
 
   async trip(tripId: string, tx: Tx = this.prisma) {
@@ -44,9 +50,12 @@ export class SearchIndexService implements OnApplicationBootstrap {
       await this.prisma.destination.update({ where: { id: d.id }, data: { searchText: normalizeSearch(`${d.name} ${d.country}`) } });
       n++;
     }
-    const places = await this.prisma.place.findMany({ where: { searchText: "" }, include: { destination: { select: { name: true, country: true } }, area: { select: { name: true } } } });
+    const places = await this.prisma.place.findMany({
+      where: { OR: [{ searchText: "" }, { searchAccent: "" }] },
+      include: { destination: { select: { name: true, country: true } }, area: { select: { name: true } } },
+    });
     for (const p of places) {
-      await this.prisma.place.update({ where: { id: p.id }, data: { searchText: normalizeSearch(`${p.name} ${p.address} ${p.destination?.name ?? p.area?.name ?? ""} ${p.destination?.country ?? ""}`) } });
+      await this.prisma.place.update({ where: { id: p.id }, data: SearchIndexService.placeText(p) });
       n++;
     }
     const trips = await this.prisma.trip.findMany({ where: { searchText: "" }, select: { id: true, updatedAt: true, title: true, description: true, destinations: { select: { destination: { select: { name: true, country: true } } } } } });
