@@ -198,3 +198,22 @@ def test_unknown_area(photo_settings, fake):
 
     with pytest.raises(ScopeError):
         sync_photos(photo_settings, "atlantis", None, client=httpx.Client(transport=httpx.MockTransport(fake)))
+
+
+def test_refuses_to_run_without_a_contact(photo_settings, fake):
+    from triply_catalog.photos import ContactMissing
+
+    for contact in (None, "", "me", "set CATALOG_CONTACT"):
+        with pytest.raises(ContactMissing, match="CATALOG_CONTACT"):
+            run(dataclasses.replace(photo_settings, contact=contact), fake)
+    assert fake.requests == []  # nothing was sent to Wikimedia
+    assert "(+https://example.com/triply-ops) httpx/" in photo_settings.user_agent
+    assert "(+an@example.com)" in dataclasses.replace(photo_settings, contact="an@example.com").user_agent
+
+
+def test_403_explains_the_user_agent_policy(photo_settings, db):
+    refused = httpx.MockTransport(lambda r: httpx.Response(403, text="Please respect our robot policy"))
+    with pytest.raises(PermissionError, match="403.*CATALOG_CONTACT"):
+        sync_photos(photo_settings, "hoi-an", None, client=httpx.Client(transport=refused))
+    row = db.execute("SELECT status, error FROM sync_runs WHERE trigger = 'photos' ORDER BY started_at DESC LIMIT 1").fetchone()
+    assert row["status"] == "failed" and "403" in row["error"]

@@ -114,6 +114,7 @@ describe("imported photos (Wikimedia Commons)", () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   beforeAll(async () => {
     ingest = t.app.get(PhotoIngestService);
+    ingest.userAgent = "TRIPLY/0.2 (+https://example.com/triply-ops) node";
     const img = await jpeg("#2f6b3a", 1600, 1000);
     ingest.fetcher = (async (url: URL | string, init?: RequestInit) => {
       calls.push({ url: String(url), init });
@@ -143,7 +144,7 @@ describe("imported photos (Wikimedia Commons)", () => {
     const row = await queue("an-bang");
     expect(await ingest.ingestBatch(10)).toMatchObject({ stored: 1, failed: 0 });
     expect(calls[0].init?.redirect).toBe("error");
-    expect((calls[0].init?.headers as Record<string, string>)["User-Agent"]).toMatch(/TRIPLY/);
+    expect((calls[0].init?.headers as Record<string, string>)["User-Agent"]).toBe("TRIPLY/0.2 (+https://example.com/triply-ops) node");
     const d = await detail(t.anon(), "an-bang");
     const p = d.photos.find((x) => x.id === row.id)!;
     expect(p.image.url).toMatch(/^\/media\/imported\/.+_1280\.webp$/);
@@ -163,6 +164,20 @@ describe("imported photos (Wikimedia Commons)", () => {
     const sarah = await t.as("sarah@triply.dev");
     const mine = (await sarah.post(`/places/${place("coconut-forest")}/photos`, { mediaId: await upload(sarah) })).body as PlacePhotoView;
     expect((await detail(t.anon(), "coconut-forest")).photos.map((p) => p.id)).toEqual([mine.id, twin.id]);
+  });
+
+  it("waits (without contacting anyone) until a contact is configured", async () => {
+    const n = calls.length;
+    const row = await queue("hoian-market", { sourceId: "File:market.jpg" });
+    ingest.userAgent = null;
+    try {
+      expect(await ingest.ingestBatch(10)).toEqual({ claimed: 0, stored: 0, failed: 0 });
+      expect(calls.length).toBe(n);
+      expect((await t.prisma.placePhoto.findUniqueOrThrow({ where: { id: row.id } })).ingestAttempts).toBe(0);
+    } finally {
+      ingest.userAgent = "TRIPLY/0.2 (+https://example.com/triply-ops) node";
+    }
+    expect((await ingest.ingestBatch(10)).stored).toBe(1);
   });
 
   it("never fetches other hosts, plain http or non-images, and backs off", async () => {

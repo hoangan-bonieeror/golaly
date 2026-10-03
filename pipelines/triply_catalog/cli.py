@@ -19,7 +19,7 @@ import uuid
 from . import db
 from .boundaries import import_boundaries
 from .config import settings as load_settings
-from .photos import sync_photos
+from .photos import ContactMissing, sync_photos
 from .pipeline import ScopeError, adopt_manual_places, run_sync
 from .publish import publish
 from .taxonomy import sync_taxonomy
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
                               (SELECT count(*) FROM place_photos
                                WHERE media_id IS NULL AND remote_url IS NOT NULL AND status <> 'HIDDEN') AS photos_to_download"""
                 ).fetchone()
-    except ScopeError as e:
+    except (ScopeError, ContactMissing, PermissionError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     print(json.dumps(out, ensure_ascii=False, indent=2, default=str))

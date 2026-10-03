@@ -53,7 +53,11 @@ class Settings:
 
     @property
     def user_agent(self) -> str:
-        return f"TRIPLY-catalog/0.2 ({self.contact or 'set CATALOG_CONTACT to a URL or email'}) python-httpx"
+        # Wikimedia's User-Agent policy: "<client>/<version> (<contact>) <library>/<version>". Requests without
+        # a way to reach the operator are refused with 403 ("Please respect our robot policy").
+        import httpx
+
+        return f"TRIPLY-catalog/0.2 (+{self.contact}) httpx/{httpx.__version__}"
 
 
 #: Which provider wins for each published field (survivorship). "manual" = admin / seed data.

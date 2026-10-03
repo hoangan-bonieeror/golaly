@@ -172,7 +172,8 @@ with `FOR UPDATE SKIP LOCKED` (safe with several instances), downloads only over
 (default `upload.wikimedia.org`) without following redirects and with a size cap, and stores them through the same
 `MediaService.store()` as uploads (validation, EXIF removal, three WebP sizes). Failures back off 5→40 min and stop
 after 5 attempts; the same Commons file used by two places is downloaded once. Env: `PHOTO_INGEST=on|off`,
-`PHOTO_HOSTS`, `PHOTO_USER_AGENT` (put a contact URL/email in it). `npm run photos:ingest -w @triply/api` drains
+`PHOTO_HOSTS`, `CATALOG_CONTACT` (a URL or email; Wikimedia answers 403 to clients that don't give one, so
+without it imports simply stay queued) or a full `PHOTO_USER_AGENT`. `npm run photos:ingest -w @triply/api` drains
 the queue on demand.
 
 ## Known trade-offs

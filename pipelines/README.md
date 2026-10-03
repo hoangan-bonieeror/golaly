@@ -61,11 +61,16 @@ uv run triply-catalog stats
 ### Photos (Wikimedia Commons)
 
 ```bash
-export CATALOG_CONTACT="https://github.com/<you>/triply"   # or an email — Wikimedia asks clients to be reachable
+export CATALOG_CONTACT="https://github.com/<you>/triply"   # required: a URL or email (Wikimedia answers 403 without one)
 uv run triply-catalog photos --area hoi-an --dry-run   # what would be queued
 uv run triply-catalog photos --area hoi-an             # queue them (then the API downloads them)
 npm run build -w @triply/api && npm run photos:ingest -w @triply/api   # optional: download now instead of waiting
 ```
+
+`CATALOG_CONTACT` is required by [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy):
+requests that don't say how to reach the operator get **403 "Please respect our robot policy"**. The command refuses to
+start without it; the API needs the same variable (in `apps/api/.env`, or the root `.env` for Docker) to download
+the queued photos. In PowerShell: `$env:CATALOG_CONTACT = "https://github.com/<you>/triply"`.
 
 How it works: one Wikidata query per province/box finds items with coordinates, a main image (P18) or a Commons
 category (P373), and their names in vi/en/fr/de/ja/ko/zh. Each item is matched to **one** place, exactly through an

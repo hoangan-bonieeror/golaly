@@ -86,10 +86,29 @@ class FileInfo:
 # ── HTTP ─────────────────────────────────────────────────────────────────────
 
 
+class ContactMissing(ValueError):
+    """Wikimedia refuses anonymous clients; stop before sending anything."""
+
+
+_CONTACT = re.compile(r"^(https?://\S+\.\S+|[^@\s]+@[^@\s]+\.[^@\s]+)$")
+
+
+def check_contact(contact: str | None) -> str:
+    c = (contact or "").strip()
+    if not _CONTACT.match(c):
+        raise ContactMissing(
+            "Set CATALOG_CONTACT to a URL (e.g. your repository) or an email address. Wikimedia requires every client "
+            "to say how to reach its operator and answers 403 otherwise. With Docker Compose, put CATALOG_CONTACT=… "
+            "in the .env next to docker-compose.yml and recreate the containers (docker compose --profile pipelines up -d)."
+        )
+    return c
+
+
 class Wikimedia:
     """A polite client: identifies itself, spaces requests out, honours Retry-After and maxlag."""
 
     def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
+        check_contact(settings.contact)
         self.s = settings
         self.client = client or httpx.Client(timeout=60, follow_redirects=True)
         self.client.headers["User-Agent"] = settings.user_agent
@@ -107,6 +126,12 @@ class Wikimedia:
                 log.warning("%s → %s, retrying in %.0fs", url, r.status_code, retry)
                 time.sleep(min(retry, 60))
                 continue
+            if r.status_code == 403:
+                raise PermissionError(
+                    f"Wikimedia refused the request (403) with User-Agent {self.client.headers['User-Agent']!r}. "
+                    "Check that CATALOG_CONTACT is a working URL or email; if it is, the address may be rate-limited — "
+                    "wait a few minutes and run again (re-runs are safe)."
+                )
             r.raise_for_status()
             data = r.json()
             if isinstance(data, dict) and data.get("error", {}).get("code") == "maxlag":

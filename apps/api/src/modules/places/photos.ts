@@ -135,6 +135,9 @@ export class PhotoIngestService implements OnModuleInit, OnModuleDestroy {
   private running = false;
   /** The CLI drain script turns the timer off and runs batches itself. */
   static autoStart = true;
+  /** "TRIPLY/0.2 (+contact) node" per Wikimedia's User-Agent policy; null → imports wait (see env.ts). */
+  userAgent: string | null = env.PHOTO_USER_AGENT ?? (env.CATALOG_CONTACT ? `TRIPLY/0.2 (+${env.CATALOG_CONTACT}) node/${process.versions.node}` : null);
+  private warnedNoContact = false;
   /** Swappable in tests; production uses the global fetch. */
   fetcher: typeof fetch = (...a) => fetch(...a);
 
@@ -167,6 +170,11 @@ export class PhotoIngestService implements OnModuleInit, OnModuleDestroy {
 
   /** Processes up to `limit` queued photos. Returns how many were claimed, stored and failed. */
   async ingestBatch(limit = 5) {
+    if (!this.userAgent) {
+      if (!this.warnedNoContact) this.log.warn("Imported photos are waiting: set CATALOG_CONTACT (a URL or email) so Wikimedia accepts our downloads.");
+      this.warnedNoContact = true;
+      return { claimed: 0, stored: 0, failed: 0 };
+    }
     const claimed = await this.prisma.$queryRaw<{ id: string; remote_url: string; source: string; source_id: string | null; ingest_attempts: number }[]>`
       UPDATE place_photos SET ingest_attempts = ingest_attempts + 1, next_ingest_at = now() + interval '10 minutes'
       WHERE id IN (
@@ -211,7 +219,8 @@ export class PhotoIngestService implements OnModuleInit, OnModuleDestroy {
       throw new Error("invalid URL");
     }
     if (u.protocol !== "https:" || !env.PHOTO_HOSTS.includes(u.hostname.toLowerCase())) throw new Error(`host not allowed: ${u.hostname}`);
-    const res = await this.fetcher(u, { redirect: "error", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": env.PHOTO_USER_AGENT, Accept: "image/*" } });
+    const res = await this.fetcher(u, { redirect: "error", signal: AbortSignal.timeout(20_000), headers: { "User-Agent": this.userAgent ?? "", Accept: "image/*" } });
+    if (res.status === 403) throw new Error("HTTP 403 — Wikimedia refused the request; check CATALOG_CONTACT / PHOTO_USER_AGENT");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const type = res.headers.get("content-type") ?? "";
     if (!/^image\/(jpeg|png|webp)/.test(type)) throw new Error(`not an image: ${type}`);

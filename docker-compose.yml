@@ -52,6 +52,8 @@ services:
       # The web container reaches the API over the Docker network (a private address).
       TRUST_PROXY: "loopback, uniquelocal"
       MEDIA_DIR: /data/media
+      # Needed to download imported place photos from Wikimedia (see pipelines/README.md).
+      CATALOG_CONTACT: ${CATALOG_CONTACT:-}
     volumes:
       - triply-media:/data/media
     # Not published: browsers reach it only through the edge (REST via web, Socket.IO via nginx).

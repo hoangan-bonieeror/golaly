@@ -27,8 +27,13 @@ const schema = z.object({
     .string()
     .default("upload.wikimedia.org")
     .transform((v) => v.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)),
-  /** Wikimedia asks every client to identify itself with a way to contact the operator. */
-  PHOTO_USER_AGENT: z.string().default("TRIPLY/0.2 (place photos; set PHOTO_USER_AGENT to include a contact URL or email)"),
+  /**
+   * Wikimedia refuses clients that don't say how to reach their operator (403). Set CATALOG_CONTACT to a URL or
+   * email (same variable as the catalog pipeline); PHOTO_USER_AGENT overrides the whole header if needed.
+   * Without either, imported photos simply stay queued.
+   */
+  CATALOG_CONTACT: z.string().optional().transform((v) => v?.trim() || undefined),
+  PHOTO_USER_AGENT: z.string().optional().transform((v) => v?.trim() || undefined),
   MAIL_DRIVER: z.enum(["dev-outbox", "disabled"]).default("dev-outbox"),
   MAIL_OUTBOX_DIR: z.string().default("./storage/outbox"),
   /** Google sign-in (optional). Leave empty to hide the Google button. */
