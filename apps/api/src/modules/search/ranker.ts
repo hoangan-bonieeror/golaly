@@ -19,6 +19,20 @@ function likePattern(q: string) {
   return `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
+/**
+ * The same "every word matches" predicate the ranker uses, for filtering inside another query
+ * (e.g. Explore's place browser). `column` must be a trusted SQL identifier.
+ */
+export function textMatch(q: string, column: string): Prisma.Sql | null {
+  const words = queryWords(q);
+  if (!words.length) return null;
+  const col = Prisma.raw(column);
+  return Prisma.join(
+    words.map((w) => Prisma.sql`(${col} LIKE ${likePattern(w)} OR word_similarity(${w}, ${col}) >= ${THRESHOLD})`),
+    " AND ",
+  );
+}
+
 export class TrigramRanker {
   constructor(private readonly prisma: PrismaService) {}
 

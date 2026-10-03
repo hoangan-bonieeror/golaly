@@ -4,7 +4,7 @@ import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PlaceRow } from "@/components/social/PlaceRow";
+import { AroundDestination } from "@/components/place/AroundDestination";
 import { PostCard } from "@/components/social/PostCard";
 import { Cover } from "@/components/trip/Cover";
 import { TripCard } from "@/components/trip/TripCard";
@@ -17,7 +17,7 @@ export default function DestinationPage() {
   useDocumentTitle(q.data ? `${q.data.destination.name}, ${q.data.destination.country}` : null);
   if (q.isLoading) return <PageLoader />;
   if (q.isError || !q.data) return <ErrorState page error={q.error} onRetry={() => q.refetch()} />;
-  const { destination: dest, popularTrips, remixable, places, posts } = q.data;
+  const { destination: dest, popularTrips, remixable, posts } = q.data;
 
   return (
     <div className="space-y-10">
@@ -47,16 +47,7 @@ export default function DestinationPage() {
         )}
       </section>
 
-      {places.length > 0 && (
-        <section>
-          <SectionTitle>Trending places</SectionTitle>
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {places.map((p) => (
-              <PlaceRow key={p.id} place={p} />
-            ))}
-          </div>
-        </section>
-      )}
+      <AroundDestination slug={dest.slug} name={dest.name} />
 
       {posts.length > 0 && (
         <section>

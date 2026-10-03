@@ -71,7 +71,8 @@ def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:
     """Places created by hand or by the demo seed get a 'manual' source record, so they take part in
     matching and survivorship like any other source (and keep priority over imports)."""
     rows = conn.execute(
-        """SELECT p.id::text AS id, p.name, p.address, p.lat, p.lng, p.category::text AS category FROM places p
+        """SELECT p.id::text AS id, p.name, p.address, p.lat, p.lng, p.category::text AS category, c.key AS category_key
+           FROM places p LEFT JOIN categories c ON c.id = p.category_id
            WHERE NOT EXISTS (SELECT 1 FROM place_sources s WHERE s.place_id = p.id) AND p.merged_into_id IS NULL"""
     ).fetchall()
     batch = [
@@ -81,7 +82,7 @@ def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:
             lat=r["lat"],
             lng=r["lng"],
             name=r["name"],
-            category_candidates=[r["category"]],
+            category_candidates=[k for k in (r["category_key"], r["category"]) if k],
             address=r["address"] or None,
             raw={"place_id": r["id"]},
         )

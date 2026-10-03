@@ -1,44 +1,77 @@
 "use client";
 
-import { ITEM_TYPE_LABEL, type PlaceView } from "@triply/shared";
+import type { PlaceView } from "@triply/shared";
 import { Bookmark, Star } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { useAction, useMe } from "@/lib/api/queries";
-import { ItemTypeIcon } from "../itinerary/ItemTypeIcon";
+import { AddToTripButton } from "../place/AddToTripSheet";
+import { CategoryIcon, formatDistance } from "../place/categoryMeta";
 import { cx } from "../ui";
 
-export function PlaceRow({ place }: { place: PlaceView }) {
+/**
+ * A place in a list: opens the place page, and can be saved or added to a trip in place.
+ * The whole card is the link (stretched ::after); the buttons sit above it.
+ */
+export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; index?: number; active?: boolean; onHover?: (id: string | null) => void }) {
   const me = useMe().data;
   const save = useAction((on: boolean) => (on ? api.post<PlaceView>(`/places/${place.id}/save`) : api.delete<PlaceView>(`/places/${place.id}/save`)), {
     invalidate: [["places"], ["explore"], ["search"], ["destination"]],
     success: (r) => (r.savedByMe ? "Place saved" : "Removed from saved"),
   });
+  const distance = formatDistance(place.distanceM);
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-line bg-surface p-3">
-      <ItemTypeIcon type={place.category} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold">{place.name}</div>
-        <div className="truncate text-xs text-muted">
-          {ITEM_TYPE_LABEL[place.category]} · {place.destinationName}
-          {place.rating && (
-            <span className="ml-1.5 inline-flex items-center gap-0.5 text-ink-2">
-              <Star className="size-3 fill-gold text-gold" />
-              {place.rating}
-            </span>
-          )}
-        </div>
-      </div>
-      {me && (
-        <button
-          aria-label={place.savedByMe ? "Remove place from saved" : "Save place"}
-          aria-pressed={place.savedByMe}
-          disabled={save.isPending}
-          onClick={() => save.run(!place.savedByMe)}
-          className="flex size-9 items-center justify-center rounded-full hover:bg-sand-2"
-        >
-          <Bookmark className={cx("size-4", place.savedByMe && "fill-accent text-accent")} />
-        </button>
+    <div
+      className={cx(
+        "relative flex min-w-0 items-center gap-3 rounded-2xl border bg-surface p-3 transition-colors hover:border-ink-2 has-[a:focus-visible]:outline has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-primary",
+        active ? "border-ink-2" : "border-line",
       )}
+      onMouseEnter={onHover && (() => onHover(place.id))}
+      onMouseLeave={onHover && (() => onHover(null))}
+    >
+      <div className="relative">
+        <CategoryIcon categoryKey={place.categoryKey} />
+        {index !== undefined && (
+          <span className="absolute -left-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white" aria-hidden>
+            {index}
+          </span>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <Link href={`/places/${place.id}`} className="block truncate font-semibold after:absolute after:inset-0 after:rounded-2xl after:content-[''] focus-visible:outline-none">
+          {place.name}
+        </Link>
+        <div className="truncate text-xs text-muted">
+          {place.categoryLabel}
+          {place.destinationName && ` · ${place.destinationName}`}
+        </div>
+        {(place.rating || distance) && (
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-2">
+            {place.rating && (
+              <span className="inline-flex items-center gap-0.5">
+                <Star className="size-3 fill-gold text-gold" aria-hidden />
+                <span className="sr-only">Rated </span>
+                {place.rating}
+              </span>
+            )}
+            {distance && <span>{distance} away</span>}
+          </div>
+        )}
+      </div>
+      <div className="relative z-10 flex shrink-0 items-center gap-1">
+        {me && (
+          <button
+            aria-label={place.savedByMe ? `Remove ${place.name} from saved` : `Save ${place.name}`}
+            aria-pressed={place.savedByMe}
+            disabled={save.isPending}
+            onClick={() => save.run(!place.savedByMe)}
+            className="relative flex size-9 items-center justify-center rounded-full hover:bg-sand-2 before:absolute before:left-1/2 before:top-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']"
+          >
+            <Bookmark className={cx("size-4", place.savedByMe && "fill-accent text-accent-700")} />
+          </button>
+        )}
+        <AddToTripButton place={place} iconOnly />
+      </div>
     </div>
   );
 }

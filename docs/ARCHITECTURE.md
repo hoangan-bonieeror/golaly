@@ -105,7 +105,8 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Items | `POST /days/:dayId/items` · `PATCH/DELETE /items/:id` · `POST /items/:id/reorder` `{dayId,index}` · `POST /items/:id/duplicate` |
 | Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` |
 | Invitations | `GET /invitations/:token` · `POST /invitations/:token/accept\|reject` · `GET /invitations/id/:id` · `POST /invitations/id/:id/accept\|reject` |
-| Discovery | `GET /explore` · `GET /search?q&type` · `GET /destinations` · `GET /destinations/:slug` · `GET /places/search?q&tripId` · `GET /places/:id` · `GET /places/saved` · `POST/DELETE /places/:id/save` |
+| Discovery | `GET /explore` · `GET /search?q&type` · `GET /destinations` · `GET /destinations/:slug` |
+| Places | `GET /places/categories` · `GET /places/browse?destination\|near=lat,lng&radius&group&category&q&sort&cursor` · `GET /places/search?q&tripId` · `GET /places/saved` · `GET /places/:id` (detail: hours, contact, other-language names, nearby, public trips using it, data credits) · `GET /places/:id/trip-targets` (trips the viewer can edit, with days) · `POST/DELETE /places/:id/save` |
 | Social | `GET /feed?mode&cursor` · `POST /posts` · `GET /posts/saved` · `GET/PATCH/DELETE /posts/:id` · `POST/DELETE /posts/:id/like` · `POST/DELETE /posts/:id/save` · `GET/POST /posts/:id/comments` · `DELETE /comments/:id` · `POST /reports` |
 | Notifications | `GET /notifications?cursor` · `GET /notifications/unread-count` · `PATCH /notifications/:id/read` · `PATCH /notifications/read-all` |
 | Media | `POST /media` (multipart `file`) · `DELETE /media/:id` · files served at `/media/<key>` |
@@ -113,7 +114,9 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 
 Errors always look like `{ statusCode, message, fields? }`, and `message` is always safe to show users. Status codes: 401, 403, 404, 409, 413, 415, 422, 429, 500.
 
-List endpoints that can grow without bound (`GET /trips`, `/trips/saved`, `/posts/saved`, `/posts/:id/comments`, `/notifications`, `/feed`) take `?cursor=<last id>&limit=` and return `{ items, nextCursor }` (the feed returns `{ posts, nextCursor }`). An invalid cursor is a 422.
+List endpoints that can grow without bound (`GET /trips`, `/trips/saved`, `/posts/saved`, `/posts/:id/comments`, `/notifications`, `/feed`) take `?cursor=<last id>&limit=` and return `{ items, nextCursor }` (the feed returns `{ posts, nextCursor }`). An invalid cursor is a 422. `GET /places/browse` is the exception: its results can be ordered by distance, so its cursor is an offset (`"24"`), and it also returns `center`, `radiusKm`, `total` and per-group `facets`.
+
+**Explore → Places.** The area is a destination's centre (default 10 km) or a point from the browser's geolocation (default 5 km; rounded to ~10 m before it is sent, and only `geolocation=(self)` is allowed by `Permissions-Policy`). Filtering uses PostGIS (`ST_DWithin` on `places.location`, GIST-indexed) plus the taxonomy (group = the category's parent). "Recommended" around a point blends rating (unrated ≈ 3.8), data quality and closeness; "Nearest" and "Top rated" are plain sorts. Adding a place to a trip reuses `POST /days/:dayId/items`, so the role check, row lock, ordering, realtime event and notification are the same as in the itinerary editor; `trip-targets` only decides what to offer. The taxonomy ships as a data migration (`20261006000000_taxonomy`), so the filters work before the catalog pipeline has ever run.
 
 ### WebSocket (`/socket.io`)
 

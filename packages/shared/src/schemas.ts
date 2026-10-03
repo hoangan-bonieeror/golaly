@@ -136,6 +136,26 @@ export const searchQuerySchema = z.object({
   type: z.enum(["all", "trips", "places", "people", "destinations"]).default("all"),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
+const latLng = z
+  .string()
+  .regex(/^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/, "Use “lat,lng”.")
+  .transform((v) => v.split(",").map(Number) as [number, number])
+  .refine(([lat, lng]) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180, "That location is out of range.");
+/** Explore → Places. Either a destination slug or a "lat,lng" point (e.g. the device) sets the area. */
+export const placeBrowseQuerySchema = z.object({
+  q: z.string().trim().max(100).default(""),
+  group: z.string().regex(/^[a-z_]+$/).max(40).optional(),
+  category: z.string().regex(/^[a-z_]+\.[a-z_]+$/).max(60).optional(),
+  destination: z.string().regex(/^[a-z0-9-]+$/).max(80).optional(),
+  near: latLng.optional(),
+  radius: z.coerce.number().min(0.5).max(50).optional(),
+  sort: z.enum(["recommended", "distance", "rating"]).default("recommended"),
+  // Offset cursor (results can be ordered by distance, which has no stable row key).
+  cursor: z.string().regex(/^\d{1,5}$/, "That page link is invalid.").optional(),
+  limit: z.coerce.number().int().min(1).max(48).default(24),
+});
+export type PlaceBrowseQuery = z.infer<typeof placeBrowseQuerySchema>;
+
 export const pageQuerySchema = z.object({
   // Cursors are row ids; anything else is a 422, never a database error.
   cursor: z.uuid("That page link is invalid.").optional(),

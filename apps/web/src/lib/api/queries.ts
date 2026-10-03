@@ -6,6 +6,7 @@
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import type {
+  CategoryView,
   CommentView,
   DestinationPage,
   DestinationView,
@@ -15,12 +16,15 @@ import type {
   Me,
   NotificationView,
   Paged,
+  PlaceBrowse,
+  PlaceDetail,
   PlaceView,
   PostView,
   ProfileView,
   SearchResults,
   TripDetail,
   TripSummary,
+  TripTarget,
 } from "@triply/shared";
 import { useToast } from "../toast";
 import { api, ApiError, qs } from "./client";
@@ -37,6 +41,10 @@ export const keys = {
   search: (q: string, type: string) => ["search", q, type] as const,
   places: (q: string, tripId?: string) => ["places", q, tripId ?? ""] as const,
   savedPlaces: ["places", "saved"] as const,
+  categories: ["places", "categories"] as const,
+  placeBrowse: (params: Record<string, string | number | undefined>) => ["places", "browse", params] as const,
+  place: (id: string) => ["places", "detail", id] as const,
+  tripTargets: (placeId: string) => ["places", "targets", placeId] as const,
   post: (id: string) => ["post", id] as const,
   comments: (id: string) => ["post", id, "comments"] as const,
   savedPosts: ["posts", "saved"] as const,
@@ -87,10 +95,27 @@ export const useExplore = () =>
   useQuery({ queryKey: keys.explore, queryFn: () => api.get<{ destinations: DestinationView[]; trips: TripSummary[]; places: PlaceView[] }>("/explore") });
 export const useDestinations = () => useQuery({ queryKey: keys.destinations, queryFn: () => api.get<DestinationView[]>("/destinations"), staleTime: 5 * 60_000 });
 export const useDestination = (slug: string) => useQuery({ queryKey: keys.destination(slug), queryFn: () => api.get<DestinationPage>(`/destinations/${slug}`), retry: false });
-export const useSearch = (q: string, type: string) =>
-  useQuery({ queryKey: keys.search(q, type), queryFn: () => api.get<SearchResults>(`/search${qs({ q, type, limit: 30 })}`), placeholderData: (prev) => prev });
+export const useSearch = (q: string, type: string, enabled = true) =>
+  useQuery({ queryKey: keys.search(q, type), queryFn: () => api.get<SearchResults>(`/search${qs({ q, type, limit: 30 })}`), placeholderData: (prev) => prev, enabled });
 export const usePlaceSearch = (q: string, tripId?: string) =>
   useQuery({ queryKey: keys.places(q, tripId), queryFn: () => api.get<PlaceView[]>(`/places/search${qs({ q, tripId, limit: 8 })}`), placeholderData: (prev) => prev });
+export const useCategories = () => useQuery({ queryKey: keys.categories, queryFn: () => api.get<CategoryView[]>("/places/categories"), staleTime: 30 * 60_000 });
+export const usePlace = (id: string) => useQuery({ queryKey: keys.place(id), queryFn: () => api.get<PlaceDetail>(`/places/${id}`), retry: false });
+export const useTripTargets = (placeId: string, enabled: boolean) =>
+  useQuery({ queryKey: keys.tripTargets(placeId), queryFn: () => api.get<TripTarget[]>(`/places/${placeId}/trip-targets`), enabled });
+
+/** Explore → Places. Pages are offset-based; `meta` is the first page's area/facets/total. */
+export function usePlaceBrowse(params: Record<string, string | number | undefined>, enabled = true) {
+  const q = useInfiniteQuery({
+    queryKey: keys.placeBrowse(params),
+    queryFn: ({ pageParam }) => api.get<PlaceBrowse>(`/places/browse${qs({ ...params, cursor: pageParam })}`),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    placeholderData: (prev) => prev,
+    enabled,
+  });
+  return { ...q, items: q.data?.pages.flatMap((p) => p.items), meta: q.data?.pages[0] };
+}
 export const useSavedPlaces = () => useQuery({ queryKey: keys.savedPlaces, queryFn: () => api.get<PlaceView[]>("/places/saved") });
 export const usePost = (id: string) => useQuery({ queryKey: keys.post(id), queryFn: () => api.get<PostView>(`/posts/${id}`), retry: false });
 export const useComments = (id: string) => usePagedList<CommentView>(keys.comments(id), `/posts/${id}/comments`, { limit: 50 });

@@ -73,6 +73,8 @@ def test_bootstrap_adopts_every_seed_place(settings, state, db):
     n = db.execute("SELECT count(*) AS n FROM place_sources WHERE provider = 'manual' AND place_id::text = external_id").fetchone()["n"]
     assert n == out["adopted"]
     assert db.execute("SELECT count(*) AS n FROM places WHERE category_id IS NULL").fetchone()["n"] == 0
+    # Curated categories survive adoption (the seed's tailor stays a tailor, not its item type's default "tour").
+    assert place(db, "BeBe Tailor")["cat"] == "shopping.tailor"
     again = bootstrap(settings)
     assert again["adopted"] == 0 and again["publish"]["updated"] == 0
 

@@ -14,6 +14,7 @@ import type {
   TripSummary,
   UserSummary,
 } from "@triply/shared";
+import { ITEM_TYPE_LABEL } from "@triply/shared";
 import type { Prisma } from "../generated/prisma/client";
 import { fromDate } from "./dates";
 
@@ -60,6 +61,7 @@ export const placeInclude = (viewerId: string | null) =>
   ({
     destination: { select: { name: true } },
     area: { select: { name: true } },
+    categoryRef: { select: { key: true, labelEn: true } },
     savedBy: { where: { userId: viewerId ?? "00000000-0000-0000-0000-000000000000" }, select: { userId: true } },
   }) satisfies Prisma.PlaceInclude;
 
@@ -82,6 +84,8 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     rating: p.rating,
     status: p.status,
     savedByMe: p.savedBy.length > 0,
+    categoryKey: p.categoryRef?.key ?? null,
+    categoryLabel: p.categoryRef?.labelEn ?? ITEM_TYPE_LABEL[p.category],
   };
 }
 

@@ -179,6 +179,29 @@ fs.mkdirSync(shots, { recursive: true });
     await C.getByRole("link", { name: `@tester_${stamp}` }).waitFor();
   });
 
+  let placeUrl;
+  await step("17. explores places around a destination and adds one to a trip", async () => {
+    await A.goto(`${BASE}/explore?tab=places&dest=tokyo`);
+    await A.getByText(/places within 10 km of Tokyo/).waitFor();
+    await A.getByRole("group", { name: "Kind of place" }).getByRole("button", { name: /^Food/ }).click();
+    await A.waitForFunction(() => location.search.includes("group=food"));
+    await A.locator('ol[aria-label="Places"][aria-busy="false"]').waitFor();
+    const names = await A.locator('ol[aria-label="Places"] li a').allInnerTexts();
+    if (!names.includes("Omoide Yokochō") || names.includes("Shibuya Crossing")) throw new Error(`food filter: ${names.join(", ")}`);
+    await A.getByRole("link", { name: "Omoide Yokochō" }).click();
+    await A.getByRole("heading", { level: 1, name: "Omoide Yokochō" }).waitFor();
+    placeUrl = A.url();
+    await A.getByRole("button", { name: "Add to trip" }).first().click();
+    const sheet = A.getByRole("dialog");
+    await sheet.getByRole("button", { name: new RegExp(tripTitle) }).click();
+    await sheet.locator("label", { hasText: /^Day 2\b/ }).click();
+    await sheet.getByRole("button", { name: "Add to Day 2" }).click();
+    await sheet.getByRole("status").getByText(/is on Day 2 of/).waitFor();
+    await sheet.getByRole("link", { name: "View trip" }).click();
+    await A.waitForURL(tripUrl);
+    await A.getByText("Omoide Yokochō").first().waitFor();
+  });
+
   await step("privacy: private trips never leak to other users", async () => {
     await C.goto(`${BASE}/u/an.nguyen`);
     await C.getByRole("heading", { name: "An" }).waitFor();
@@ -192,7 +215,8 @@ fs.mkdirSync(shots, { recursive: true });
   // Accessibility gate: no serious/critical axe-core violations on the main screens.
   await step("accessibility: no serious or critical axe violations", async () => {
     const axeSource = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
-    const routes = ["/home", "/explore", "/trips", tripUrl.replace(BASE, ""), "/u/an.nguyen", "/saved", "/notifications", "/settings"];
+    const routes = ["/home", "/explore", "/explore?tab=places&dest=hoi-an", "/explore/hoi-an", "/trips", tripUrl.replace(BASE, ""), "/u/an.nguyen", "/saved", "/notifications", "/settings"];
+    if (placeUrl) routes.push(placeUrl.replace(BASE, ""));
     const problems = [];
     for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
       await C.setViewportSize(vp);

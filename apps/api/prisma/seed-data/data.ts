@@ -24,6 +24,8 @@ export interface DB {
   follows: { followerId: string; followingId: string }[];
   destinations: Destination[];
   places: Place[];
+  /** place id → TRIPLY category key (taxonomy). */
+  placeCategories: Record<string, string>;
   trips: Trip[];
   members: TripMember[];
   invitations: TripInvitation[];
@@ -108,6 +110,19 @@ const placeSeeds: PlaceSeed[] = [
   ["tailor", "BeBe Tailor", "ACTIVITY", "hoian", "11 Hoàng Diệu, Hội An", 15.8775, 108.3300, 4.6],
   ["banh-mi-phuong", "Bánh Mì Phượng", "RESTAURANT", "hoian", "2B Phan Châu Trinh", 15.8794, 108.3317, 4.4],
   ["an-bang", "An Bàng Beach", "PLACE", "hoian", "Cẩm An, Hội An", 15.9142, 108.3416, 4.5],
+  // Hội An around the old town: enough variety for Explore's category filters.
+  ["hoian-market", "Hội An Central Market", "PLACE", "hoian", "Trần Phú, Minh An", 15.8768, 108.3322, 4.3],
+  ["mot", "Mót Hội An", "RESTAURANT", "hoian", "150 Trần Phú, Minh An", 15.8773, 108.3294, 4.5],
+  ["roastery", "Hoi An Roastery", "RESTAURANT", "hoian", "135 Trần Phú, Minh An", 15.8771, 108.3301, 4.5],
+  ["cao-lau", "Cao Lầu Thanh", "RESTAURANT", "hoian", "26 Thái Phiên, Minh An", 15.8807, 108.3307, 4.4],
+  ["phuc-kien", "Phúc Kiến Assembly Hall", "PLACE", "hoian", "46 Trần Phú, Minh An", 15.8772, 108.3307, 4.6],
+  ["hoian-museum", "Hội An Museum", "PLACE", "hoian", "10B Trần Hưng Đạo, Minh An", 15.8796, 108.3302, 4.2],
+  ["tra-que", "Trà Quế Vegetable Village", "ACTIVITY", "hoian", "Cẩm Hà, Hội An", 15.8987, 108.3329, 4.5],
+  ["coconut-forest", "Bảy Mẫu Coconut Forest", "ACTIVITY", "hoian", "Cẩm Thanh, Hội An", 15.8783, 108.3693, 4.4],
+  ["white-marble", "White Marble Wine Bar", "ACTIVITY", "hoian", "98 Lê Lợi, Minh An", 15.8771, 108.3290, 4.4],
+  ["nam-hai", "Four Seasons Resort The Nam Hai", "HOTEL", "hoian", "Điện Dương, Điện Bàn", 15.9480, 108.2974, 4.8],
+  ["cong-caphe", "Cộng Cà Phê Nhà Thờ", "RESTAURANT", "hanoi", "27 Nhà Thờ, Hoàn Kiếm", 21.0287, 105.8494, 4.4],
+  ["temple-literature", "Temple of Literature", "PLACE", "hanoi", "58 Quốc Tử Giám, Đống Đa", 21.0277, 105.8355, 4.6],
   ["ben-thanh", "Bến Thành Market", "PLACE", "saigon", "Lê Lợi, Quận 1", 10.7725, 106.6980, 4.1],
   ["war-museum", "War Remnants Museum", "PLACE", "saigon", "28 Võ Văn Tần, Quận 3", 10.7795, 106.6921, 4.6],
   ["cu-chi", "Củ Chi Tunnels", "ACTIVITY", "saigon", "Phú Hiệp, Củ Chi", 11.1437, 106.4630, 4.4],
@@ -127,6 +142,26 @@ const placeSeeds: PlaceSeed[] = [
   ["ribeira", "Ribeira", "PLACE", "porto", "Ribeira, Porto", 41.1405, -8.6131, 4.7],
   ["livraria", "Livraria Lello", "PLACE", "porto", "R. das Carmelitas 144", 41.1469, -8.6149, 4.4],
 ];
+
+/** TRIPLY category (taxonomy key) per seed place; the rest get their item type's default. */
+const placeCategoryKeys: Record<string, string> = {
+  hnd: "transport.airport", kix: "transport.airport", "dan-ang": "transport.airport",
+  "shinjuku-hotel": "lodging.hotel", "kyoto-ryokan": "lodging.guesthouse", "old-quarter-hotel": "lodging.hotel", "nam-hai": "lodging.resort",
+  ichiran: "food.noodles", omoide: "food.street_food", tsukiji: "shopping.market", nishiki: "shopping.market", kuromon: "shopping.market",
+  "cafe-giang": "drink.cafe", "cong-caphe": "drink.cafe", roastery: "drink.cafe", mot: "drink.juice",
+  "bun-cha": "food.vietnamese", "banh-mi-phuong": "food.street_food", "cao-lau": "food.noodles", "com-tam": "food.vietnamese",
+  "ferry-bldg": "shopping.market", nepenthe: "food.restaurant", belem: "food.bakery",
+  shibuya: "sights.landmark", meiji: "culture.pagoda", sensoji: "culture.pagoda", fushimi: "culture.pagoda", kinkakuji: "culture.pagoda",
+  "phuc-kien": "culture.pagoda", "temple-literature": "sights.historic", gion: "sights.old_town", "ancient-town": "sights.old_town",
+  alfama: "sights.viewpoint", ribeira: "sights.old_town", dotonbori: "sights.landmark", "osaka-castle": "sights.historic",
+  arashiyama: "nature.park", "an-bang": "nature.beach", "hoan-kiem": "nature.lake", mcway: "nature.waterfall", bixby: "sights.viewpoint",
+  ggb: "sights.landmark", "santa-monica": "sights.landmark", griffith: "sights.viewpoint", "train-street": "sights.landmark",
+  "war-museum": "culture.museum", "hoian-museum": "culture.museum", livraria: "shopping.souvenir",
+  "hoian-market": "shopping.market", "ben-thanh": "shopping.market", tailor: "shopping.tailor",
+  teamlab: "culture.gallery", "halong-cruise": "activity.tour", "cu-chi": "sights.historic", "tra-que": "activity.cooking_class",
+  "coconut-forest": "activity.tour", "white-marble": "nightlife.bar",
+  shinkansen: "transport.train_station", tram28: "transport.train_station",
+};
 
 const places: Place[] = placeSeeds.map(([key, name, category, dest, address, lat, lng, rating]) => ({
   id: p(key),
@@ -404,6 +439,7 @@ export function createSeed(): DB {
     ],
     destinations,
     places,
+    placeCategories: Object.fromEntries(Object.entries(placeCategoryKeys).map(([k, v]) => [p(k), v])),
     trips,
     members,
     invitations,

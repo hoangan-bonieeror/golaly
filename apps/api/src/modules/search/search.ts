@@ -1,15 +1,14 @@
-import { Controller, Delete, Get, Injectable, Module, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
+import { Controller, Get, Injectable, Module, Param, Query } from "@nestjs/common";
 import {
   normalizeSearch,
   searchQuerySchema,
   type DestinationPage,
   type DestinationView,
-  type PlaceView,
   type SearchResults,
   type TripSummary,
 } from "@triply/shared";
 import { z } from "zod";
-import { Public, ViewerId, requireUser } from "../../common/auth";
+import { Public, ViewerId } from "../../common/auth";
 import { Errors, ZodPipe } from "../../common/http";
 import { listablePlace, placeInclude, postInclude, toPlaceView, toPostView, toTripSummary, tripSummaryInclude, userSummarySelect, toUserSummary } from "../../common/presenters";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -129,60 +128,13 @@ export class ExploreService {
       posts: posts.map((p) => toPostView(p, viewerId)),
     };
   }
-
-  /** Place search for the itinerary editor — boosts places in the trip's destinations. */
-  async places(q: string, viewerId: string | null, opts: { destinationIds?: string[]; limit: number }): Promise<PlaceView[]> {
-    const s = normalizeSearch(q);
-    const ids = s ? await new TrigramRanker(this.prisma).places(s, 50) : null;
-    const rows = await this.prisma.place.findMany({
-      where: { ...listablePlace, ...(ids ? { id: { in: ids } } : opts.destinationIds?.length ? { destinationId: { in: opts.destinationIds } } : {}) },
-      take: 50,
-      orderBy: [{ rating: { sort: "desc", nulls: "last" } }],
-      include: placeInclude(viewerId),
-    });
-    const boost = new Set(opts.destinationIds ?? []);
-    const ranked = ids ? byRank(rows, ids) : rows;
-    // Stable sort: places in the trip's own destinations first, then by relevance/rating.
-    return ranked
-      .map((p, i) => ({ p, i }))
-      .sort((a, b) => Number(!!b.p.destinationId && boost.has(b.p.destinationId)) - Number(!!a.p.destinationId && boost.has(a.p.destinationId)) || a.i - b.i)
-      .slice(0, opts.limit)
-      .map(({ p }) => toPlaceView(p));
-  }
-
-  async place(id: string, viewerId: string | null, depth = 0): Promise<PlaceView> {
-    const p = await this.prisma.place.findUnique({ where: { id }, include: placeInclude(viewerId) });
-    if (!p || p.status === "HIDDEN") throw Errors.notFound("That place");
-    // A place merged into another one answers with the surviving record (old links keep working).
-    if (p.mergedIntoId && depth < 5) return this.place(p.mergedIntoId, viewerId, depth + 1);
-    return toPlaceView(p);
-  }
-
-  async setPlaceSaved(id: string, viewerId: string, on: boolean) {
-    await this.place(id, viewerId);
-    if (on) await this.prisma.savedPlace.upsert({ where: { userId_placeId: { userId: viewerId, placeId: id } }, create: { userId: viewerId, placeId: id }, update: {} });
-    else await this.prisma.savedPlace.deleteMany({ where: { userId: viewerId, placeId: id } });
-    return this.place(id, viewerId);
-  }
-
-  async savedPlaces(viewerId: string) {
-    const rows = await this.prisma.place.findMany({ where: { savedBy: { some: { userId: viewerId } } }, include: placeInclude(viewerId) });
-    return rows.map(toPlaceView);
-  }
 }
-
-const placeQuery = z.object({
-  q: z.string().trim().max(100).default(""),
-  tripId: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(30).default(8),
-});
 
 @Controller()
 export class SearchController {
   constructor(
     private readonly search: PostgresSearchProvider,
     private readonly explore: ExploreService,
-    private readonly prisma: PrismaService,
   ) {}
 
   @Public()
@@ -207,42 +159,6 @@ export class SearchController {
   @Get("destinations/:slug")
   destination(@Param("slug") slug: string, @ViewerId() me: string | null) {
     return this.explore.destination(slug, me);
-  }
-
-  @Public()
-  @Get("places/search")
-  async places(@Query(new ZodPipe(placeQuery)) q: z.infer<typeof placeQuery>, @ViewerId() me: string | null) {
-    // Trip destinations are only used for ranking, and only if the viewer may see the trip.
-    let destinationIds: string[] | undefined;
-    if (q.tripId) {
-      const trip = await this.prisma.trip.findFirst({
-        where: { id: q.tripId, deletedAt: null, OR: [{ visibility: { not: "PRIVATE" } }, ...(me ? [{ members: { some: { userId: me } } }] : [])] },
-        select: { destinations: { select: { destinationId: true } } },
-      });
-      destinationIds = trip?.destinations.map((d) => d.destinationId);
-    }
-    return this.explore.places(q.q, me, { destinationIds, limit: q.limit });
-  }
-
-  @Get("places/saved")
-  saved(@ViewerId() me: string | null) {
-    return this.explore.savedPlaces(requireUser(me));
-  }
-
-  @Public()
-  @Get("places/:id")
-  place(@Param("id", ParseUUIDPipe) id: string, @ViewerId() me: string | null) {
-    return this.explore.place(id, me);
-  }
-
-  @Post("places/:id/save")
-  save(@Param("id", ParseUUIDPipe) id: string, @ViewerId() me: string | null) {
-    return this.explore.setPlaceSaved(id, requireUser(me), true);
-  }
-
-  @Delete("places/:id/save")
-  unsave(@Param("id", ParseUUIDPipe) id: string, @ViewerId() me: string | null) {
-    return this.explore.setPlaceSaved(id, requireUser(me), false);
   }
 }
 

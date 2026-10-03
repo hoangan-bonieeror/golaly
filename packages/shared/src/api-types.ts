@@ -69,6 +69,64 @@ export interface PlaceView {
   /** CLOSED places stay visible inside existing itineraries but can't be added again. */
   status: "ACTIVE" | "CLOSED" | "HIDDEN";
   savedByMe: boolean;
+  /** TRIPLY taxonomy key, e.g. "drink.cafe" (null only for legacy rows). The group is the part before the dot. */
+  categoryKey: string | null;
+  /** Human label of that category ("Café"); falls back to the item type label. */
+  categoryLabel: string;
+  /** Metres from the search centre, when the list was searched around a point. */
+  distanceM?: number;
+}
+
+/** One node of the place taxonomy: a group ("food") or a category inside it ("food.street_food"). */
+export interface CategoryView {
+  key: string;
+  label: string;
+  labelVi: string;
+  itemType: ItineraryItemType;
+  children?: CategoryView[];
+}
+
+/** Explore → Places: a page of results plus what the filters were resolved to. */
+export interface PlaceBrowse extends Paged<PlaceView> {
+  /** The point results are measured from (a destination, the device, or none for a global list). */
+  center: { lat: number; lng: number; label: string } | null;
+  radiusKm: number | null;
+  /** Places per category group inside the same area + text filter (ignores the group filter), for the chips. */
+  facets: { key: string; count: number }[];
+  total: number;
+}
+
+export interface PlaceDetail extends PlaceView {
+  phone: string | null;
+  website: string | null;
+  /** OpenStreetMap opening_hours syntax, e.g. "Mo-Su 07:00-22:00". */
+  openingHours: string | null;
+  groupKey: string | null;
+  groupLabel: string | null;
+  destinationSlug: string | null;
+  areaName: string | null;
+  /** The place's name in other languages (BCP 47 tag → name), from imported sources. */
+  names: { lang: string; name: string }[];
+  /** Licence credits required by the data sources this place was built from. */
+  attribution: string[];
+  nearby: PlaceView[];
+  /** Public trips that include this place (most saved first) and how many there are in total. */
+  inTrips: TripSummary[];
+  tripCount: number;
+}
+
+/** A trip the viewer may add items to, as offered by "Add to trip". */
+export interface TripTarget {
+  id: string;
+  title: string;
+  startDate: string | null;
+  endDate: string | null;
+  role: "OWNER" | "EDITOR";
+  destinations: string[];
+  cover: [string, string];
+  days: { id: string; dayNumber: number; date: string | null; title: string | null; itemCount: number; hasPlace: boolean }[];
+  /** One of the trip's destinations is within 50 km of the place: offered first. */
+  nearby: boolean;
 }
 
 /** An uploaded image in three widths: thumb (640px), url (1280px), fullUrl (≤2400px). */

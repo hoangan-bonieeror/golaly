@@ -76,8 +76,22 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
   await prisma.destination.createMany({
     data: db.destinations.map((x) => ({ id: x.id, slug: x.slug, name: x.name, country: x.country, lat: x.lat, lng: x.lng, blurb: x.blurb, paletteA: x.palette[0], paletteB: x.palette[1] })),
   });
+  // Categories come from the taxonomy migration; a place without an explicit key gets its item type's default.
+  const categories = await prisma.category.findMany({ select: { id: true, key: true } });
+  const categoryId = new Map(categories.map((c) => [c.key, c.id]));
+  const defaults = new Map((await prisma.categoryMap.findMany({ where: { provider: "manual" } })).map((m) => [m.externalCategory, m.categoryId]));
   await prisma.place.createMany({
-    data: db.places.map((p) => ({ id: p.id, name: p.name, category: p.category as ItemType, destinationId: p.destinationId, address: p.address, lat: p.lat, lng: p.lng, rating: p.rating ?? null })),
+    data: db.places.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category as ItemType,
+      categoryId: categoryId.get(db.placeCategories[p.id] ?? "") ?? defaults.get(p.category) ?? null,
+      destinationId: p.destinationId,
+      address: p.address,
+      lat: p.lat,
+      lng: p.lng,
+      rating: p.rating ?? null,
+    })),
   });
 
   for (const t of db.trips) {
