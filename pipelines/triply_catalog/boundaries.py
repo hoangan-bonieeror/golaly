@@ -19,7 +19,7 @@ from .publish import reassign_areas
 
 log = logging.getLogger(__name__)
 
-LOCAL_LANG = {"VN": "vi"}
+LOCAL_LANG = {"VN": "vi", "JP": "ja", "KR": "ko", "TH": "th", "CN": "zh", "TW": "zh-Hant", "PT": "pt", "FR": "fr", "DE": "de"}
 #: Cover colours for destinations created from boundaries (same family as the curated ones), picked by slug.
 PALETTES = [
     ("#0f5257", "#9fd8cb"),
@@ -33,7 +33,39 @@ PALETTES = [
     ("#264653", "#e9c46a"),
     ("#6a2c70", "#f9a03f"),
 ]
-TIMEZONE = {"VN": "Asia/Ho_Chi_Minh"}
+#: Countries with a single time zone (others are left empty rather than guessed).
+TIMEZONE = {
+    "VN": "Asia/Ho_Chi_Minh",
+    "JP": "Asia/Tokyo",
+    "KR": "Asia/Seoul",
+    "TH": "Asia/Bangkok",
+    "SG": "Asia/Singapore",
+    "FR": "Europe/Paris",
+    "DE": "Europe/Berlin",
+}
+
+
+def area_slug(country: str, names: dict[str, Any], region_code: str | None, external_id: str, taken: dict[str, str]) -> str:
+    """A readable, unique, ASCII slug for a region, e.g. "vn-da-nang", "jp-tokyo".
+
+    Tries the primary name (fine for Latin scripts), then the English name (Japanese, Thai, Korean … primary
+    names slugify to nothing), then the ISO 3166-2 code ("JP-13" → "jp-13"), then the provider id. If another
+    area already uses the slug, the region code (or a short id) is appended. `taken` maps slug → external id.
+    """
+    cc = country.lower()
+    common = as_dict(names.get("common"))
+    code = (region_code or "").split("-", 1)[-1].lower() if region_code else ""
+    candidates = [slugify(str(names.get("primary") or "")), slugify(str(common.get("en") or "")), slugify(code)]
+    base = next((c for c in candidates if c), "") or slugify(external_id)[-8:] or "area"
+    slug = f"{cc}-{base}"
+    for suffix in (slugify(code), slugify(external_id)[-8:]):
+        if taken.get(slug, external_id) == external_id:
+            break
+        slug = f"{cc}-{base}-{suffix}" if suffix else slug
+    if taken.get(slug, external_id) != external_id:
+        slug = f"{cc}-{base}-{len(taken)}"
+    taken[slug] = external_id
+    return slug
 
 
 def fetch_divisions(settings: Settings, country: str) -> list[dict[str, Any]]:
@@ -62,11 +94,13 @@ def import_boundaries(conn: psycopg.Connection, settings: Settings, country: str
     local = LOCAL_LANG.get(country, "en")
     country_id: str | None = None
     counts = {"country": 0, "region": 0}
+    # Slugs already in use (stable across re-runs), so new ones never collide with them.
+    taken = {r["slug"]: r["external_id"] for r in conn.execute("SELECT slug, external_id FROM geo_areas WHERE source = 'overture'").fetchall()}
     for r in rows:
         names = r["names"] or {}
         name = clean_text(names.get("primary"), 200) or r["external_id"]
         level = "COUNTRY" if r["subtype"] == "country" else "REGION"
-        slug = country.lower() if level == "COUNTRY" else f"{country.lower()}-{slugify(name)}"
+        slug = country.lower() if level == "COUNTRY" else area_slug(country, names, r.get("region"), r["external_id"], taken)
         b = r["bbox"]
         row = conn.execute(
             """
@@ -75,6 +109,8 @@ def import_boundaries(conn: psycopg.Connection, settings: Settings, country: str
             VALUES (gen_random_uuid(), %(parent)s, %(level)s::"GeoAreaLevel", %(country)s, %(iso)s, %(name)s, %(slug)s, %(tz)s,
                     'overture', %(ext)s, %(x0)s, %(y0)s, %(x1)s, %(y1)s, ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_GeomFromWKB(%(wkb)s, 4326)), 3)))
             ON CONFLICT (source, external_id) DO UPDATE SET parent_id = EXCLUDED.parent_id, level = EXCLUDED.level,
+              -- Slugs are kept stable, except broken ones from older versions ("jp-" for non-Latin names).
+              slug = CASE WHEN geo_areas.slug ~ '-$' OR geo_areas.slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$' THEN EXCLUDED.slug ELSE geo_areas.slug END,
               iso_code = EXCLUDED.iso_code, name = EXCLUDED.name, timezone = EXCLUDED.timezone,
               min_lng = EXCLUDED.min_lng, min_lat = EXCLUDED.min_lat, max_lng = EXCLUDED.max_lng, max_lat = EXCLUDED.max_lat,
               boundary = EXCLUDED.boundary, updated_at = now()
@@ -148,7 +184,7 @@ def sync_area_destinations(conn: psycopg.Connection, country_id: str, country: s
         [country_id],
     ).fetchone()["name"]  # type: ignore[index]
     regions = conn.execute(
-        """SELECT g.id::text AS id, g.name, coalesce(n.name, g.name) AS en,
+        """SELECT g.id::text AS id, g.slug, g.name, coalesce(n.name, g.name) AS en,
                   ST_Y(ST_PointOnSurface(g.boundary)) AS lat, ST_X(ST_PointOnSurface(g.boundary)) AS lng
            FROM geo_areas g LEFT JOIN geo_area_names n ON n.area_id = g.id AND n.lang = 'en'
            WHERE g.parent_id = %s::uuid AND g.boundary IS NOT NULL ORDER BY g.slug""",
@@ -177,7 +213,8 @@ def sync_area_destinations(conn: psycopg.Connection, country_id: str, country: s
                 match["represents_area_id"] = r["id"]
                 counts["destinations_linked"] += 1
                 continue
-            slug = base = slugify(name)
+            # Non-Latin names without an English one slugify to nothing: fall back to the area's own slug.
+            slug = base = slugify(name) or r["slug"]
             n = 1
             while slug in slugs:  # "georgia" the state vs the country: add the country code, then a number
                 n += 1
