@@ -67,13 +67,13 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
                 <button
                   onClick={() => setConfirm({ userId: m.user.id, name: m.user.displayName, self: false })}
                   aria-label={`Remove ${m.user.displayName}`}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-sunset-50 hover:text-danger"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-accent-50 hover:text-danger"
                 >
                   <UserMinus className="size-4" />
                 </button>
               </>
             ) : (
-              <Badge tone={m.role === "OWNER" ? "sunset" : m.role === "EDITOR" ? "lagoon" : "neutral"}>{ROLE_LABEL[m.role]}</Badge>
+              <Badge tone={m.role === "OWNER" ? "accent" : m.role === "EDITOR" ? "primary" : "neutral"}>{ROLE_LABEL[m.role]}</Badge>
             )}
           </li>
         ))}

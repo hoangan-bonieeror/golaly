@@ -60,7 +60,7 @@ export class SocialService {
 
   async create(viewerId: string, input: CreatePostInput & { mediaIds: string[]; visibility: PostView["visibility"]; body: string }): Promise<PostView> {
     let destinationId: string | null = null;
-    let palettes: [string, string][] = [["#0e6e6a", "#f26b4e"]];
+    let palettes: [string, string][] = [["#6b3a1f", "#e0662d"]];
     if (input.tripId) {
       const trip = await this.prisma.trip.findFirst({
         where: { id: input.tripId, deletedAt: null },

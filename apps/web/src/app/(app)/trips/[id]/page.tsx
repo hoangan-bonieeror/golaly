@@ -105,7 +105,7 @@ function TripOverview() {
             <div className="flex items-center gap-2">
               {live && (
                 <span className="flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs font-semibold backdrop-blur" title="Changes from your crew appear instantly">
-                  <Radio className="size-3.5 text-[#7fd1c7]" /> Live
+                  <Radio className="size-3.5 text-success" /> Live
                 </span>
               )}
               <span className="flex items-center gap-1.5 rounded-full bg-black/30 px-3 py-1.5 text-xs font-semibold backdrop-blur">
@@ -124,7 +124,7 @@ function TripOverview() {
 
       {trip.forkedFrom && (
         <p className="flex items-center gap-2 rounded-2xl border border-line bg-surface px-4 py-2.5 text-sm text-ink-2">
-          <GitFork className="size-4 shrink-0 text-sunset" />
+          <GitFork className="size-4 shrink-0 text-accent" />
           <span>
             Based on{" "}
             {trip.forkedFrom.tripId ? (
@@ -149,7 +149,7 @@ function TripOverview() {
               <Avatar user={trip.owner} size={32} />
               <span className="text-sm font-semibold">{trip.owner.displayName}</span>
             </Link>
-            {trip.myRole && <Badge tone={trip.myRole === "OWNER" ? "sunset" : trip.myRole === "EDITOR" ? "lagoon" : "neutral"}>You · {ROLE_LABEL[trip.myRole]}</Badge>}
+            {trip.myRole && <Badge tone={trip.myRole === "OWNER" ? "accent" : trip.myRole === "EDITOR" ? "primary" : "neutral"}>You · {ROLE_LABEL[trip.myRole]}</Badge>}
             {trip.myRole && (
               <div className="flex -space-x-2">
                 {trip.members.slice(0, 5).map((m) => (
@@ -183,7 +183,7 @@ function TripOverview() {
           )}
           {me && !trip.myRole && trip.visibility !== "PRIVATE" && (
             <Button variant="secondary" onClick={() => save.run(!trip.savedByMe)} disabled={save.isPending} aria-pressed={trip.savedByMe}>
-              <Bookmark className={cx("size-4", trip.savedByMe && "fill-sunset text-sunset")} /> {trip.savedByMe ? "Saved" : "Save"}
+              <Bookmark className={cx("size-4", trip.savedByMe && "fill-accent text-accent")} /> {trip.savedByMe ? "Saved" : "Save"}
             </Button>
           )}
           {may("trip.fork") && (

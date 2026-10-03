@@ -44,7 +44,7 @@ export default function HomePage() {
         <section className="lg:hidden">
           <SectionTitle
             action={
-              <Link href="/explore" className="text-sm font-semibold text-lagoon">
+              <Link href="/explore" className="text-sm font-semibold text-primary">
                 See all
               </Link>
             }
@@ -121,7 +121,7 @@ export default function HomePage() {
         <section>
           <SectionTitle
             action={
-              <Link href="/explore" className="text-sm font-semibold text-lagoon">
+              <Link href="/explore" className="text-sm font-semibold text-primary">
                 All
               </Link>
             }
@@ -143,17 +143,17 @@ function ContinuePlanning({ trip }: { trip: TripSummary }) {
   return (
     <Link
       href={`/trips/${trip.id}`}
-      className="group flex items-center gap-4 rounded-[var(--radius-card)] border border-line bg-surface p-3 pr-5 shadow-card transition-colors hover:border-lagoon"
+      className="group flex items-center gap-4 rounded-[var(--radius-card)] border border-line bg-surface p-3 pr-5 shadow-card transition-colors hover:border-primary"
     >
       <span className="size-16 shrink-0 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${trip.cover[0]}, ${trip.cover[1]})` }} />
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold uppercase tracking-wide text-sunset-700">Continue planning</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-accent-700">Continue planning</div>
         <div className="truncate font-semibold">{trip.title}</div>
         <div className="truncate text-sm text-muted">
           {trip.route || "Destination TBD"} · {formatDateRange(trip.startDate ?? undefined, trip.endDate ?? undefined)} · {trip.stats.travelers} travelers
         </div>
       </div>
-      <ArrowRight className="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-lagoon" />
+      <ArrowRight className="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
     </Link>
   );
 }

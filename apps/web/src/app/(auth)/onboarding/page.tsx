@@ -28,7 +28,7 @@ export default function Onboarding() {
     <div className="animate-rise" key={step}>
       <div className="mb-6 flex gap-1.5" aria-label={`Step ${step + 1} of 2`}>
         {[0, 1].map((i) => (
-          <span key={i} className={cx("h-1.5 flex-1 rounded-full", i <= step ? "bg-lagoon" : "bg-line")} />
+          <span key={i} className={cx("h-1.5 flex-1 rounded-full", i <= step ? "bg-primary" : "bg-line")} />
         ))}
       </div>
 
@@ -46,7 +46,7 @@ export default function Onboarding() {
                   aria-pressed={type === value}
                   className={cx(
                     "flex items-center gap-3 rounded-2xl border p-4 text-left font-medium transition-colors",
-                    type === value ? "border-lagoon bg-lagoon-50 text-lagoon" : "border-line bg-surface hover:border-ink-2",
+                    type === value ? "border-primary bg-primary-50 text-primary" : "border-line bg-surface hover:border-ink-2",
                   )}
                 >
                   <Icon className="size-5" /> {label}
@@ -73,7 +73,7 @@ export default function Onboarding() {
                   onClick={() => setInterests(on ? interests.filter((x) => x !== value) : [...interests, value])}
                   className={cx(
                     "flex flex-col items-start gap-3 rounded-2xl border p-4 text-left text-sm font-semibold transition-colors",
-                    on ? "border-sunset bg-sunset-50 text-sunset-700" : "border-line bg-surface hover:border-ink-2",
+                    on ? "border-accent bg-accent-50 text-accent-700" : "border-line bg-surface hover:border-ink-2",
                   )}
                 >
                   <Icon className="size-6" /> {label}

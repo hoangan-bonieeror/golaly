@@ -23,11 +23,11 @@ export function ForkSheet({ open, onClose, trip }: { open: boolean; onClose: () 
       </p>
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-lagoon">Copied</h4>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary">Copied</h4>
           <ul className="space-y-1.5 text-sm">
             {[`${s.days} days of itinerary`, `${s.items} items & ${s.places} places`, "Title, description & destinations", "Dates (you can change them)"].map((t) => (
               <li key={t} className="flex gap-2">
-                <Check className="mt-0.5 size-4 shrink-0 text-lagoon" /> {t}
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" /> {t}
               </li>
             ))}
           </ul>

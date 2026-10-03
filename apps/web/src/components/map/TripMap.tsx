@@ -24,7 +24,7 @@ export interface MapStop {
   order: number;
 }
 
-const DAY_COLORS = ["#0e6e6a", "#f26b4e", "#5b4a9e", "#2f6db5", "#c28512", "#b5446e", "#3d8b5a", "#6b7780", "#a4471f", "#1b4965"];
+const DAY_COLORS = ["#6b3a1f", "#e0662d", "#5b4a9e", "#2f6db5", "#c28512", "#b5446e", "#3d8b5a", "#6b7780", "#a4471f", "#1b4965"];
 
 export function TripMap({
   trip,
@@ -105,7 +105,7 @@ export function TripMap({
             href={`https://www.openstreetmap.org/?mlat=${selected.place.lat}&mlon=${selected.place.lng}#map=16/${selected.place.lat}/${selected.place.lng}`}
             target="_blank"
             rel="noreferrer"
-            className="flex size-10 items-center justify-center rounded-full bg-lagoon-50 text-lagoon"
+            className="flex size-10 items-center justify-center rounded-full bg-primary-50 text-primary"
             aria-label="Open in maps"
           >
             <Navigation className="size-4" />

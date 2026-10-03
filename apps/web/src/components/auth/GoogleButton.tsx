@@ -19,7 +19,7 @@ export function GoogleButton({ next }: { next?: string }) {
       </div>
       <a
         href={href}
-        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 text-base font-medium text-ink transition-colors hover:bg-sand-2"
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-line bg-surface px-6 text-base font-semibold text-ink transition-colors hover:bg-sand-2"
       >
         <svg viewBox="0 0 24 24" className="size-5" aria-hidden>
           <path fill="#4285F4" d="M22.6 12.3c0-.8-.1-1.6-.2-2.3H12v4.4h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8.1z" />

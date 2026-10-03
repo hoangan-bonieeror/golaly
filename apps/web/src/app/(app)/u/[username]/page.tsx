@@ -74,7 +74,7 @@ export default function ProfilePage() {
           )}
           {(u.travelerType || u.interests.length > 0) && (
             <div className="mt-3 flex flex-wrap justify-center gap-1.5 md:justify-start">
-              {u.travelerType && <Badge tone="lagoon">{TRAVELER_TYPES.find((x) => x.value === u.travelerType)?.label} traveler</Badge>}
+              {u.travelerType && <Badge tone="primary">{TRAVELER_TYPES.find((x) => x.value === u.travelerType)?.label} traveler</Badge>}
               {u.interests.map((i) => (
                 <Badge key={i}>{INTERESTS.find((x) => x.value === i)?.label ?? i}</Badge>
               ))}

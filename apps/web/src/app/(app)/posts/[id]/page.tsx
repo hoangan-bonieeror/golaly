@@ -43,7 +43,7 @@ function PostDetail({ post }: { post: PostView }) {
   const delComment = useAction((cid: string) => api.delete(`/comments/${cid}`), { invalidate, success: "Comment deleted" });
   const delPost = useAction(() => api.delete(`/posts/${post.id}`), { invalidate: [["feed"], ["profile"]], success: "Post deleted" });
   const requireLogin = (fn: () => void) => (me ? fn() : router.push(`/login?next=/posts/${post.id}`));
-  const current = post.photos[photo] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null, image: null };
+  const current = post.photos[photo] ?? { palette: ["#6b3a1f", "#e0662d"] as [string, string], url: null, image: null };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -104,7 +104,7 @@ function PostDetail({ post }: { post: PostView }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={() => requireLogin(() => like.run(!post.likedByMe))} aria-pressed={post.likedByMe}>
-          <Heart className={cx("size-4", post.likedByMe && "fill-sunset text-sunset")} /> {formatCount(post.likeCount)}
+          <Heart className={cx("size-4", post.likedByMe && "fill-accent text-accent")} /> {formatCount(post.likeCount)}
         </Button>
         <Button variant="secondary" href="#comments">
           <MessageCircle className="size-4" /> {post.commentCount}
@@ -185,7 +185,7 @@ function PostDetail({ post }: { post: PostView }) {
           >
             <Avatar user={me} size={34} />
             <input className={cx(inputCls, "rounded-full")} placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={1000} aria-label="Add a comment" />
-            <IconButton label="Send" type="submit" className="bg-lagoon text-white hover:bg-lagoon-600" disabled={!comment.trim() || addComment.isPending}>
+            <IconButton label="Send" type="submit" className="bg-primary text-white hover:bg-primary-600" disabled={!comment.trim() || addComment.isPending}>
               <Send className="size-4" />
             </IconButton>
           </form>
@@ -193,7 +193,7 @@ function PostDetail({ post }: { post: PostView }) {
           <p className="text-sm text-muted">Comments are turned off for this trip.</p>
         ) : !me ? (
           <p className="text-sm text-muted">
-            <Link href={`/login?next=/posts/${post.id}`} className="font-semibold text-lagoon">
+            <Link href={`/login?next=/posts/${post.id}`} className="font-semibold text-primary">
               Log in
             </Link>{" "}
             to join the conversation.

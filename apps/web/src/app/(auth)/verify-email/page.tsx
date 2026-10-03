@@ -39,7 +39,7 @@ function VerifyEmail() {
   const ok = state.status === "done";
   return (
     <div className="animate-rise space-y-5 text-center" role="status">
-      <div className={`mx-auto flex size-14 items-center justify-center rounded-2xl ${ok ? "bg-lagoon-50 text-lagoon" : "bg-sunset-50 text-sunset-700"}`}>
+      <div className={`mx-auto flex size-14 items-center justify-center rounded-2xl ${ok ? "bg-primary-50 text-primary" : "bg-accent-50 text-accent-700"}`}>
         {ok ? <CheckCircle2 className="size-7" aria-hidden /> : <MailWarning className="size-7" aria-hidden />}
       </div>
       <h1 className="font-display text-3xl font-semibold">{ok ? "Email confirmed" : "We couldn't confirm that link"}</h1>

@@ -1,39 +1,47 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
-   TRIPLY design tokens
-   Warm sand canvas · deep lagoon primary · sunset accent.
-   Display type is a bookish serif (postcards & travel journals),
-   UI type is the system sans for speed and legibility.
+   TRIPLY design tokens — "Slow Roast"
+   Lazy-morning coffee, poured a little stronger: latte-foam canvas,
+   espresso ink, roast-brown primary and a caramel-ember accent.
+   Full spec + contrast table: design-system/triply/MASTER.md
    ───────────────────────────────────────────────────────────── */
 @theme {
-  --color-sand: #f7f4ee;
-  --color-sand-2: #efe9df;
-  --color-surface: #ffffff;
-  --color-ink: #16232e;
-  --color-ink-2: #3a4853;
-  /* #59646d ≥ 5:1 on sand, sand-2 and white (WCAG AA for small text). */
-  --color-muted: #59646d;
-  --color-line: #e5ded2;
+  /* Canvas & text (all text pairs ≥ 5:1 on sand, sand-2 and surface) */
+  --color-sand: #f6eee2; /* latte foam — page background */
+  --color-sand-2: #ece0cd; /* steamed milk — wells, hovers, skeletons */
+  --color-surface: #fffbf5; /* cup white — cards, sheets, inputs */
+  --color-ink: #2b1a10; /* espresso — 14.5:1 on sand */
+  --color-ink-2: #4d3628; /* mocha — 9.7:1 */
+  --color-muted: #6e5646; /* cold brew — 5.2:1 on sand-2 (AA small text) */
+  --color-line: #e2d3bd;
 
-  --color-lagoon: #0e6e6a;
-  --color-lagoon-600: #0b5a57;
-  --color-lagoon-50: #e5f2f1;
-  --color-sunset: #f26b4e;
-  --color-sunset-50: #fdece7;
-  /* Sunset for TEXT and small icons: #f26b4e is only ~2.7:1 on light backgrounds. */
-  --color-sunset-600: #c8472a; /* button fill: white text 4.8:1 */
-  --color-sunset-700: #b13f28;
-  --color-gold: #e2a93b;
-  --color-danger: #c2412d;
+  /* Primary: roast brown. White text 9.3:1. */
+  --color-primary: #6b3a1f;
+  --color-primary-600: #552d17;
+  --color-primary-50: #f4e7da;
 
-  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+  /* Accent: caramel ember — the "bolder" pop.
+     #e0662d is ~3:1 on light → fills, large display type and decoration only.
+     Text/meaningful icons use accent-700; filled buttons use accent-600 (white 5.4:1). */
+  --color-accent: #e0662d;
+  --color-accent-50: #fce8dc;
+  --color-accent-600: #b4481a;
+  --color-accent-700: #963b15;
+
+  --color-gold: #d9982a; /* honey — stars, highlights (6.7:1 on ink) */
+  --color-gold-50: #fbefd6;
+  --color-gold-700: #83560c; /* text on gold-50: 5.6:1 */
+  --color-success: #a9cf9c; /* sage — icons on dark (ink) surfaces only */
+  --color-danger: #b3261e;
+
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 
   --radius-card: 1.25rem;
-  --shadow-card: 0 1px 2px rgb(22 35 46 / 0.05), 0 8px 24px -12px rgb(22 35 46 / 0.18);
-  --shadow-pop: 0 12px 40px -12px rgb(22 35 46 / 0.35);
+  /* Shadows are tinted espresso, not grey, so cards sit warm on the canvas. */
+  --shadow-card: 0 1px 2px rgb(43 26 16 / 0.06), 0 10px 28px -14px rgb(43 26 16 / 0.28);
+  --shadow-pop: 0 16px 44px -14px rgb(43 26 16 / 0.42);
 }
 
 html,
@@ -46,7 +54,9 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  /* Fraunces' soft, slightly "wonky" cuts — the cozy part of the bold. */
+  font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
 /* Paper grain on covers — subtle, original texture */
@@ -69,7 +79,7 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-lagoon);
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
@@ -110,7 +120,7 @@ body {
 
 /* Map pins (MapLibre markers) */
 .triply-pin {
-  --pin: var(--color-lagoon);
+  --pin: var(--color-primary);
   display: flex;
   align-items: center;
   justify-content: center;

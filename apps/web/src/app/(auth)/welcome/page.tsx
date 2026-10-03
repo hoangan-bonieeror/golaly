@@ -9,7 +9,7 @@ export default function Welcome() {
         <br />
         Discover together.
         <br />
-        <span className="text-sunset-700">Travel together.</span>
+        <span className="text-accent-700">Travel together.</span>
       </h1>
       <ul className="mt-8 space-y-4 text-[15px] text-ink-2">
         {[
@@ -18,7 +18,7 @@ export default function Welcome() {
           { icon: Users, text: "Invite friends as editors or viewers — you stay in control." },
         ].map(({ icon: Icon, text }) => (
           <li key={text} className="flex gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-lagoon-50 text-lagoon">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
               <Icon className="size-5" />
             </span>
             <span className="pt-1.5">{text}</span>

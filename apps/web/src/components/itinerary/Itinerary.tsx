@@ -66,7 +66,7 @@ export function Itinerary({
               onDrop={() => items.length === 0 && drop(day.id, 0)}
             >
               {items.length === 0 && (
-                <li className={cx("rounded-2xl border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${day.id}:0` && "border-lagoon bg-lagoon-50")}>
+                <li className={cx("rounded-2xl border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${day.id}:0` && "border-primary bg-primary-50")}>
                   Nothing planned yet.
                 </li>
               )}
@@ -90,7 +90,7 @@ export function Itinerary({
                     onDrop={() => drop(day.id, idx)}
                     className={cx("group relative flex gap-3", dragId === it.id && "opacity-40")}
                   >
-                    {overKey === `${day.id}:${idx}` && dragId !== it.id && <span className="absolute -top-1 left-16 right-0 h-0.5 rounded bg-lagoon" />}
+                    {overKey === `${day.id}:${idx}` && dragId !== it.id && <span className="absolute -top-1 left-16 right-0 h-0.5 rounded bg-primary" />}
                     <div className="w-12 shrink-0 pt-3 text-right text-sm font-semibold tabular-nums text-ink-2">{it.startTime ?? ""}</div>
                     <div className="relative flex flex-col items-center">
                       {items.length > 1 && (
@@ -107,7 +107,7 @@ export function Itinerary({
                       onClick={() => onSelect?.(it)}
                       className={cx(
                         "mb-2.5 min-w-0 flex-1 cursor-pointer rounded-2xl border bg-surface px-3.5 py-2.5 transition-colors",
-                        selectedId === it.id ? "border-lagoon ring-2 ring-lagoon/15" : "border-line hover:border-ink-2/40",
+                        selectedId === it.id ? "border-primary ring-2 ring-primary/15" : "border-line hover:border-ink-2/40",
                       )}
                     >
                       <div className="flex items-start gap-2">
@@ -156,7 +156,7 @@ export function Itinerary({
             {canAdd && (
               <button
                 onClick={() => setSheet({ open: true, dayId: day.id })}
-                className="ml-[60px] mt-1 flex h-11 w-[calc(100%-60px)] items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-lagoon hover:border-lagoon hover:bg-lagoon-50/60"
+                className="ml-[60px] mt-1 flex h-11 w-[calc(100%-60px)] items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-primary hover:border-primary hover:bg-primary-50/60"
               >
                 <Plus className="size-4" /> Add to Day {day.dayNumber}
               </button>
@@ -179,7 +179,7 @@ export function Itinerary({
       {canAdd && (
         <button
           onClick={() => setSheet({ open: true, dayId: days[0]?.id })}
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-lagoon px-5 font-semibold text-white shadow-pop md:hidden"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 font-semibold text-white shadow-pop md:hidden"
         >
           <Plus className="size-5" /> Add item
         </button>

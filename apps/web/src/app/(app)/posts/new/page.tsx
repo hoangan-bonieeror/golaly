@@ -62,7 +62,7 @@ function NewPost() {
       </Field>
 
       {trip?.visibility === "PRIVATE" && (
-        <div className="flex items-start gap-3 rounded-2xl border border-[#f1d9a6] bg-[#fdf6e7] p-3 text-sm text-[#7a5410]">
+        <div className="flex items-start gap-3 rounded-2xl border border-gold/40 bg-gold-50 p-3 text-sm text-gold-700">
           <Lock className="mt-0.5 size-4 shrink-0" />
           <span>
             This trip is private. Make it <b>Public</b> or <b>Link only</b> in trip settings before publishing, or save this post as a draft.

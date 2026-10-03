@@ -75,13 +75,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               aria-label={badge ? `${label}, ${badge} unread` : undefined}
               className={cx(
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors",
-                isActive(href) ? "bg-lagoon-50 text-lagoon" : "text-ink-2 hover:bg-sand-2",
+                isActive(href) ? "bg-primary-50 text-primary" : "text-ink-2 hover:bg-sand-2",
               )}
             >
               <Icon className="size-5" strokeWidth={isActive(href) ? 2.4 : 1.8} />
               {label}
               {!!badge && (
-                <span aria-hidden className="ml-auto rounded-full bg-sunset-700 px-2 text-xs font-bold text-white">
+                <span aria-hidden className="ml-auto rounded-full bg-accent-700 px-2 text-xs font-bold text-white">
                   {badge}
                 </span>
               )}
@@ -136,14 +136,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </MobileTab>
         ))}
         <button onClick={() => (me ? setCreateOpen(true) : router.push("/login"))} className="flex flex-col items-center justify-center py-2" aria-label="Create">
-          <span className="flex size-10 items-center justify-center rounded-2xl bg-lagoon text-white shadow-md">
+          <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-white shadow-md">
             <PlusCircle className="size-5" />
           </span>
         </button>
         <MobileTab href="/notifications" label="Alerts" a11yLabel={unread ? `Notifications, ${unread} unread` : "Notifications"} active={isActive("/notifications")}>
           <span className="relative">
             <Bell className="size-[22px]" strokeWidth={isActive("/notifications") ? 2.4 : 1.8} />
-            {!!unread && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-sunset ring-2 ring-surface" />}
+            {!!unread && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-accent ring-2 ring-surface" />}
           </span>
         </MobileTab>
         <MobileTab href={profileHref} label="Profile" active={isActive("/u/")}>
@@ -163,7 +163,7 @@ function MobileTab({ href, label, a11yLabel, active, children }: { href: string;
       href={href}
       aria-label={a11yLabel}
       aria-current={active ? "page" : undefined}
-      className={cx("flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium", active ? "text-lagoon" : "text-muted")}
+      className={cx("flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium", active ? "text-primary" : "text-muted")}
     >
       {children}
       {label}

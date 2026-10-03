@@ -11,11 +11,11 @@ export { cx, formatCount, formatDateRange, timeAgo } from "@/lib/utils";
 // ── Button ───────────────────────────────────────────────────────────────
 type Variant = "primary" | "secondary" | "ghost" | "accent" | "danger";
 const variants: Record<Variant, string> = {
-  primary: "bg-lagoon text-white hover:bg-lagoon-600 shadow-sm",
-  accent: "bg-sunset-600 text-white hover:bg-sunset-700 shadow-sm",
+  primary: "bg-primary text-white hover:bg-primary-600 shadow-sm",
+  accent: "bg-accent-600 text-white hover:bg-accent-700 shadow-sm",
   secondary: "bg-surface text-ink border border-line hover:bg-sand-2",
   ghost: "text-ink-2 hover:bg-sand-2",
-  danger: "bg-surface text-danger border border-line hover:bg-sunset-50",
+  danger: "bg-surface text-danger border border-line hover:bg-accent-50",
 };
 /**
  * Small controls keep their compact look but get an invisible 44px hit area (`hit`) so they're
@@ -32,7 +32,7 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ variant = "primary", size = "md", className, href, children, ...rest }: BtnProps) {
   const cls = cx(
-    "inline-flex items-center justify-center rounded-full font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+    "inline-flex items-center justify-center rounded-full font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
     variants[variant],
     sizes[size],
     className,
@@ -93,7 +93,7 @@ export function Chip({ active, children, className, ...rest }: React.ButtonHTMLA
     <button
       aria-pressed={active}
       className={cx(
-        "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-colors",
+        "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors",
         hit,
         active ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink-2 hover:border-ink-2",
         className,
@@ -105,12 +105,12 @@ export function Chip({ active, children, className, ...rest }: React.ButtonHTMLA
   );
 }
 
-export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "lagoon" | "sunset" | "gold"; children: React.ReactNode }) {
+export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "primary" | "accent" | "gold"; children: React.ReactNode }) {
   const tones = {
     neutral: "bg-sand-2 text-ink-2",
-    lagoon: "bg-lagoon-50 text-lagoon",
-    sunset: "bg-sunset-50 text-sunset-700",
-    gold: "bg-[#fbf1dc] text-[#8a6114]",
+    primary: "bg-primary-50 text-primary",
+    accent: "bg-accent-50 text-accent-700",
+    gold: "bg-gold-50 text-gold-700",
   };
   return <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold", tones[tone])}>{children}</span>;
 }
@@ -225,14 +225,14 @@ export function Field({ label, hint, error, group, children }: { label: string; 
 }
 
 export const inputCls =
-  "w-full h-11 rounded-xl border border-line bg-surface px-3.5 text-[15px] text-ink placeholder:text-muted/70 focus:border-lagoon focus:outline-none focus:ring-2 focus:ring-lagoon/20";
+  "w-full h-11 rounded-xl border border-line bg-surface px-3.5 text-[15px] text-ink placeholder:text-muted/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 // ── Empty state ──────────────────────────────────────────────────────────
 export function EmptyState({ icon, title, body, action, level = "h2" }: { icon: React.ReactNode; title: string; body?: string; action?: React.ReactNode; level?: "h1" | "h2" | "h3" }) {
   const H = level;
   return (
     <div className="flex flex-col items-center rounded-[var(--radius-card)] border border-dashed border-line bg-surface/60 px-6 py-12 text-center">
-      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-lagoon-50 text-lagoon">{icon}</div>
+      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-50 text-primary">{icon}</div>
       <H className="font-display text-xl font-semibold">{title}</H>
       {body && <p className="mt-1 max-w-xs text-sm text-muted">{body}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -340,7 +340,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function PageLoader({ label = "Loading" }: { label?: string }) {
   return (
     <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label={label}>
-      <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-lagoon" />
+      <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-primary" />
     </div>
   );
 }

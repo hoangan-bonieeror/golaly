@@ -121,9 +121,9 @@ function RolePicker({ role, setRole }: { role: InvRole; setRole: (r: InvRole) =>
           role="radio"
           aria-checked={role === o.value}
           onClick={() => setRole(o.value)}
-          className={cx("rounded-2xl border p-3 text-left", role === o.value ? "border-lagoon bg-lagoon-50" : "border-line hover:border-ink-2")}
+          className={cx("rounded-2xl border p-3 text-left", role === o.value ? "border-primary bg-primary-50" : "border-line hover:border-ink-2")}
         >
-          <div className={cx("text-sm font-semibold", role === o.value && "text-lagoon")}>{o.title}</div>
+          <div className={cx("text-sm font-semibold", role === o.value && "text-primary")}>{o.title}</div>
           <div className="mt-0.5 text-xs text-muted">{o.body}</div>
         </button>
       ))}

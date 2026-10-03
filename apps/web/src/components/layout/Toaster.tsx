@@ -17,7 +17,7 @@ export function Toaster() {
             t.tone === "error" ? "bg-[#3b1d17] text-white" : "bg-ink text-white",
           )}
         >
-          {t.tone === "error" ? <AlertCircle className="size-4 shrink-0 text-sunset" /> : <CheckCircle2 className="size-4 shrink-0 text-[#7fd1c7]" />}
+          {t.tone === "error" ? <AlertCircle className="size-4 shrink-0 text-accent" /> : <CheckCircle2 className="size-4 shrink-0 text-success" />}
           {t.text}
         </div>
       ))}

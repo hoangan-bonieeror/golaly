@@ -4,7 +4,7 @@ import { Button } from "@/components/ui";
 export default function NotFound() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-      <span className="flex size-16 items-center justify-center rounded-2xl bg-lagoon-50 text-lagoon">
+      <span className="flex size-16 items-center justify-center rounded-2xl bg-primary-50 text-primary">
         <Compass className="size-8" />
       </span>
       <h1 className="font-display text-3xl font-semibold">Looks like you wandered off the map</h1>

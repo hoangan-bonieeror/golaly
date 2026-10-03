@@ -16,7 +16,7 @@ export default function ForgotPassword() {
   if (sent)
     return (
       <div className="animate-rise text-center">
-        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-lagoon-50 text-lagoon">
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-50 text-primary">
           <MailCheck className="size-7" />
         </div>
         <h1 className="font-display text-3xl font-semibold">Check your inbox</h1>
@@ -63,7 +63,7 @@ export default function ForgotPassword() {
         Send reset link
       </Button>
       <p className="text-center text-sm">
-        <Link href="/login" className="inline-block py-2.5 font-semibold text-lagoon hover:underline">
+        <Link href="/login" className="inline-block py-2.5 font-semibold text-primary hover:underline">
           Back to log in
         </Link>
       </p>

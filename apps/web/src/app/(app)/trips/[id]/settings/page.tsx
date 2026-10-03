@@ -149,9 +149,9 @@ function TripSettings({ trip }: { trip: TripDetail }) {
                 role="radio"
                 aria-checked={on}
                 onClick={() => set("visibility", v)}
-                className={cx("flex items-center gap-4 rounded-2xl border bg-surface p-4 text-left", on ? "border-lagoon ring-2 ring-lagoon/15" : "border-line hover:border-ink-2")}
+                className={cx("flex items-center gap-4 rounded-2xl border bg-surface p-4 text-left", on ? "border-primary ring-2 ring-primary/15" : "border-line hover:border-ink-2")}
               >
-                <span className={cx("flex size-10 items-center justify-center rounded-xl", on ? "bg-lagoon text-white" : "bg-sand-2 text-ink-2")}>
+                <span className={cx("flex size-10 items-center justify-center rounded-xl", on ? "bg-primary text-white" : "bg-sand-2 text-ink-2")}>
                   <Icon className="size-5" />
                 </span>
                 <span>
@@ -184,7 +184,7 @@ function TripSettings({ trip }: { trip: TripDetail }) {
       </div>
 
       {trip.permissions.includes("trip.delete") && (
-        <section className="rounded-[var(--radius-card)] border border-[#f1c9bf] bg-sunset-50/50 p-5">
+        <section className="rounded-[var(--radius-card)] border border-accent/30 bg-accent-50/50 p-5">
           <h2 className="font-semibold text-danger">Delete trip</h2>
           <p className="mt-1 text-sm text-ink-2">Removes the trip for every member and cancels pending invites. Remixes others made stay intact.</p>
           <Button type="button" variant="danger" className="mt-3" onClick={() => setConfirmDelete(true)}>
@@ -225,7 +225,7 @@ function Toggle({ label, hint, checked, onChange }: { label: string; hint: strin
         <span className="block text-sm text-muted">{hint}</span>
       </span>
       <input type="checkbox" className="peer sr-only" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="relative h-7 w-12 shrink-0 rounded-full bg-line transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-lagoon peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-lagoon/40" />
+      <span className="relative h-7 w-12 shrink-0 rounded-full bg-line transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-primary peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40" />
     </label>
   );
 }

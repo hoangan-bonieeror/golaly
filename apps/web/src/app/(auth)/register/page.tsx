@@ -80,7 +80,7 @@ export default function Register() {
       <GoogleButton />
       <p className="text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link href="/login" className="inline-block py-2.5 font-semibold text-lagoon hover:underline">
+        <Link href="/login" className="inline-block py-2.5 font-semibold text-primary hover:underline">
           Log in
         </Link>
       </p>

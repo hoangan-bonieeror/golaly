@@ -56,7 +56,7 @@ export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: Trip
           aria-pressed={trip.savedByMe}
           className="absolute right-3 top-12 flex size-9 items-center justify-center rounded-full bg-white/90 text-ink shadow-sm backdrop-blur hover:bg-white"
         >
-          <Bookmark className={cx("size-4", trip.savedByMe && "fill-sunset text-sunset")} />
+          <Bookmark className={cx("size-4", trip.savedByMe && "fill-accent text-accent")} />
         </button>
       )}
       <div className="mt-2.5 flex items-center gap-2 px-0.5 text-[13px] text-muted">

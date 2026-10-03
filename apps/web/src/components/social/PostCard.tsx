@@ -45,7 +45,7 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
   const { like, save } = usePostActions(post);
   const trip = post.trip;
   const requireLogin = (fn: () => void) => (me ? fn() : router.push("/login"));
-  const photo = post.photos[0] ?? { palette: ["#0e6e6a", "#f26b4e"] as [string, string], url: null, image: null };
+  const photo = post.photos[0] ?? { palette: ["#6b3a1f", "#e0662d"] as [string, string], url: null, image: null };
 
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">
@@ -98,7 +98,7 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
 
       <footer className="flex items-center gap-1 px-2 py-2">
         <ActionBtn label={post.likedByMe ? "Unlike" : "Like"} onClick={() => requireLogin(() => like.run(!post.likedByMe))} active={post.likedByMe}>
-          <Heart className={cx("size-5", post.likedByMe && "fill-sunset text-sunset")} />
+          <Heart className={cx("size-5", post.likedByMe && "fill-accent text-accent")} />
           {formatCount(post.likeCount)}
         </ActionBtn>
         <ActionBtn label="Comments" href={`/posts/${post.id}#comments`}>

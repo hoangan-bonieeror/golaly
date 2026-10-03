@@ -66,7 +66,7 @@ export default function NotificationsPage() {
                     if (!n.readAt && !(n.type === "TRIP_INVITE" && n.invitationId)) void markOne.run(n.id);
                     router.push(href);
                   }}
-                  className={cx("flex w-full items-start gap-3 p-4 text-left hover:bg-sand/60", !n.readAt && "bg-lagoon-50/50")}
+                  className={cx("flex w-full items-start gap-3 p-4 text-left hover:bg-sand/60", !n.readAt && "bg-primary-50/50")}
                 >
                   <span className="relative">
                     <Avatar user={n.actor} size={42} />
@@ -78,10 +78,10 @@ export default function NotificationsPage() {
                     <b>{n.actor?.displayName ?? "Someone"}</b> {n.text}
                     <span className="mt-0.5 block text-xs text-muted">{timeAgo(n.createdAt)}</span>
                     {n.type === "TRIP_INVITE" && n.invitationId && !n.readAt && (
-                      <span className="mt-2 inline-flex rounded-full bg-lagoon px-3 py-1 text-xs font-semibold text-white">View invitation</span>
+                      <span className="mt-2 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">View invitation</span>
                     )}
                   </span>
-                  {!n.readAt && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-sunset" aria-label="Unread" />}
+                  {!n.readAt && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-accent" aria-label="Unread" />}
                 </button>
               </li>
             );

@@ -36,7 +36,7 @@ export function PlaceRow({ place }: { place: PlaceView }) {
           onClick={() => save.run(!place.savedByMe)}
           className="flex size-9 items-center justify-center rounded-full hover:bg-sand-2"
         >
-          <Bookmark className={cx("size-4", place.savedByMe && "fill-sunset text-sunset")} />
+          <Bookmark className={cx("size-4", place.savedByMe && "fill-accent text-accent")} />
         </button>
       )}
     </div>

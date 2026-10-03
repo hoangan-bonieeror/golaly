@@ -100,7 +100,7 @@ function ItemSheetBody({ open, onClose, trip, defaultDayId, item }: Props) {
           <div>
             <span className="mb-1.5 block text-sm font-medium text-ink-2">Place</span>
             {place ? (
-              <div className="flex items-center gap-3 rounded-xl border border-lagoon bg-lagoon-50/60 p-2.5">
+              <div className="flex items-center gap-3 rounded-xl border border-primary bg-primary-50/60 p-2.5">
                 <ItemTypeIcon type={place.category} size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{place.name}</div>

@@ -12,7 +12,7 @@ import { RealtimeService } from "../realtime/realtime";
 import { SearchIndexService } from "../search/search-index";
 import { TripAccessService } from "./trip-access.service";
 
-const FALLBACK_COVER: [string, string] = ["#0e6e6a", "#f26b4e"];
+const FALLBACK_COVER: [string, string] = ["#6b3a1f", "#e0662d"];
 
 @Injectable()
 export class TripsService {

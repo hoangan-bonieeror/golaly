@@ -59,7 +59,7 @@ export function DemoSwitcher() {
             <button
               key={u.email}
               onClick={() => actAs(u.email)}
-              className={cx("flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm hover:bg-sand-2", me?.email === u.email && "bg-lagoon-50")}
+              className={cx("flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm hover:bg-sand-2", me?.email === u.email && "bg-primary-50")}
             >
               <Avatar user={{ displayName: u.displayName, avatarHue: u.hue }} size={28} />
               <span className="font-medium">{u.displayName}</span>
@@ -89,7 +89,7 @@ export function DemoSwitcher() {
         aria-expanded={open}
         aria-label="Developer: switch demo user"
       >
-        <FlaskConical className="size-4 text-sunset" />
+        <FlaskConical className="size-4 text-accent" />
         {me ? (
           <>
             <Avatar user={me} size={20} /> {me.displayName}
