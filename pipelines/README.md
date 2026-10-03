@@ -92,6 +92,10 @@ docker compose --profile pipelines run --rm catalog bootstrap
 docker compose --profile pipelines run --rm catalog boundaries --country VN
 ```
 
+`pipelines/dags/` and `pipelines/triply_catalog/` are mounted into the containers, so code changes apply without a
+rebuild (restart the `airflow` service to reload the package). Rebuild (`docker compose --profile pipelines up -d --build`)
+only when dependencies in `pyproject.toml` change. Set `CATALOG_CONTACT` in the root `.env` for the photos step.
+
 In the UI trigger **catalog_sync** with config `{"area": "vn", "providers": ["overture", "osm"]}`, or from the API:
 
 ```bash

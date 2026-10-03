@@ -99,6 +99,10 @@ services:
       airflow-db: { condition: service_completed_successfully }
     environment: &catalog-env
       DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      # The package is also mounted from ./pipelines (below) and put first on the path, so code changes
+      # apply without rebuilding the image. Rebuild only when pyproject.toml dependencies change.
+      PYTHONPATH: /opt/triply/src
+      CATALOG_CONTACT: ${CATALOG_CONTACT:-}
       OVERTURE_RELEASE: ${OVERTURE_RELEASE:-}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://triply:triply@db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
@@ -107,6 +111,7 @@ services:
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
     volumes:
       - ./pipelines/dags:/opt/airflow/dags:ro
+      - ./pipelines/triply_catalog:/opt/triply/src/triply_catalog:ro
       - triply-catalog:/data/catalog
     ports:
       - "127.0.0.1:8080:8080"
@@ -121,6 +126,7 @@ services:
       db: { condition: service_healthy }
     environment: *catalog-env
     volumes:
+      - ./pipelines/triply_catalog:/opt/triply/src/triply_catalog:ro
       - triply-catalog:/data/catalog
 
 volumes:
