@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -62,17 +63,36 @@ FILES = {
 }
 
 
+_CORNER = re.compile(r"Point\(([-\d.]+) ([-\d.]+)\)")
+
+
 class FakeWikimedia:
-    def __init__(self):
+    """Fake WDQS + Commons. WDQS answers only items inside the queried box, and times out (like the real
+    service after 60 s) for boxes wider than `max_span` degrees, or always for boxes containing `broken`."""
+
+    def __init__(self, max_span: float = 10.0, broken: tuple[float, float] | None = None, read_timeout: bool = False):
         self.files = json.loads(json.dumps(FILES))
         self.requests: list[httpx.Request] = []
+        self.max_span = max_span
+        self.broken = broken
+        self.read_timeout = read_timeout
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         q = {k: v[0] for k, v in parse_qs(urlparse(str(request.url)).query).items()}
         if request.url.host == "query.wikidata.org":
             assert "wikibase:box" in q["query"]
-            return httpx.Response(200, json={"results": {"bindings": ITEMS}})
+            (x0, y0), (x1, y1) = [(float(a), float(b)) for a, b in _CORNER.findall(q["query"])]
+            if x1 - x0 > self.max_span or (self.broken and x0 <= self.broken[1] <= x1 and y0 <= self.broken[0] <= y1):
+                if self.read_timeout:
+                    raise httpx.ReadTimeout("The read operation timed out", request=request)
+                return httpx.Response(500, text="java.util.concurrent.TimeoutException")
+            inside = [
+                b
+                for b in ITEMS
+                if x0 <= float(_CORNER.search(b["coord"]["value"]).group(1)) <= x1 and y0 <= float(_CORNER.search(b["coord"]["value"]).group(2)) <= y1
+            ]
+            return httpx.Response(200, json={"results": {"bindings": inside}})
         if q.get("list") == "categorymembers":
             assert q["cmtitle"] == "Category:Japanese Covered Bridge"
             return httpx.Response(200, json={"query": {"categorymembers": [{"title": t} for t in FILES if t.startswith("File:Bridge")]}})
@@ -217,3 +237,27 @@ def test_403_explains_the_user_agent_policy(photo_settings, db):
         sync_photos(photo_settings, "hoi-an", None, client=httpx.Client(transport=refused))
     row = db.execute("SELECT status, error FROM sync_runs WHERE trigger = 'photos' ORDER BY started_at DESC LIMIT 1").fetchone()
     assert row["status"] == "failed" and "403" in row["error"]
+
+
+def test_big_areas_are_queried_in_tiles_that_split_on_timeout(photo_settings, db):
+    """A whole region in one query times out on the real service (ReadTimeout / 500): tiles, then quarters."""
+    from triply_catalog.models import BBox
+    from triply_catalog.photos import Wikimedia, tiles, wikidata_items
+
+    assert len(tiles(BBox(0, 0, 2, 1))) == 8  # 0.5° tiles
+    for fake in (FakeWikimedia(max_span=0.1), FakeWikimedia(max_span=0.1, read_timeout=True)):
+        wm = Wikimedia(photo_settings, httpx.Client(transport=httpx.MockTransport(fake)))
+        failed: list = []
+        items = wikidata_items(wm, BBox(108.0, 15.6, 108.6, 16.1), failed)
+        assert {i.qid for i in items} == {b["item"]["value"].rsplit("/", 1)[-1] for b in ITEMS}  # nothing lost
+        assert failed == [] and len(fake.requests) > 4
+
+
+def test_a_tile_that_never_answers_is_skipped_and_reported(photo_settings, db):
+    # Every query covering the Phúc Kiến hall's coordinates times out, even the smallest tile.
+    fake = FakeWikimedia(broken=(15.8775, 108.3310))
+    out = run(photo_settings, fake)
+    assert out["status"] == "partial" and out["skipped_tiles"] == 1
+    assert out["matched"] >= 2  # items outside the broken ~3 km tile (the bridge, the coconut forest) still match
+    row = db.execute("SELECT status, stats FROM sync_runs WHERE trigger = 'photos' ORDER BY started_at DESC LIMIT 1").fetchone()
+    assert row["status"] == "partial"

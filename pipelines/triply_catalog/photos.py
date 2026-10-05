@@ -104,23 +104,39 @@ def check_contact(contact: str | None) -> str:
     return c
 
 
+class QueryTooBig(RuntimeError):
+    """The Wikidata Query Service gave up on a query (it stops after 60 s): ask for a smaller box."""
+
+
 class Wikimedia:
     """A polite client: identifies itself, spaces requests out, honours Retry-After and maxlag."""
 
     def __init__(self, settings: Settings, client: httpx.Client | None = None) -> None:
         check_contact(settings.contact)
         self.s = settings
-        self.client = client or httpx.Client(timeout=60, follow_redirects=True)
+        # WDQS stops queries after 60 s; wait a little longer so we see its answer rather than our own timeout.
+        self.client = client or httpx.Client(timeout=httpx.Timeout(75, connect=15), follow_redirects=True)
         self.client.headers["User-Agent"] = settings.user_agent
         self._last = 0.0
 
-    def get(self, url: str, params: dict[str, Any]) -> Any:
+    def get(self, url: str, params: dict[str, Any], *, sparql: bool = False) -> Any:
+        """GET with retries. For SPARQL, a server-side timeout raises QueryTooBig instead of being retried
+        (the same query would just time out again)."""
         for attempt in range(5):
             wait = self.s.wikimedia_delay - (time.monotonic() - self._last)
             if wait > 0:
                 time.sleep(wait)
             self._last = time.monotonic()
-            r = self.client.get(url, params=params)
+            try:
+                r = self.client.get(url, params=params)
+            except httpx.TimeoutException as e:
+                if sparql:
+                    raise QueryTooBig(str(e) or "timed out") from e
+                log.warning("%s timed out, retrying", url)
+                time.sleep(2**attempt)
+                continue
+            if sparql and (r.status_code == 504 or (r.status_code == 500 and "timeout" in r.text[:2000].lower())):
+                raise QueryTooBig(f"HTTP {r.status_code}")
             if r.status_code in (429, 502, 503, 504):
                 retry = float(r.headers.get("retry-after", 2**attempt))
                 log.warning("%s → %s, retrying in %.0fs", url, r.status_code, retry)
@@ -166,10 +182,55 @@ def file_title_from_url(url: str) -> str:
     return "File:" + unquote(url.rsplit("/", 1)[-1]).replace("_", " ")
 
 
-def wikidata_items(wm: Wikimedia, box: BBox) -> list[WikiItem]:
-    q = SPARQL.format(x0=box.min_lng, y0=box.min_lat, x1=box.max_lng, y1=box.max_lat, langs=", ".join(f'"{lang}"' for lang in LANGS))
-    data = wm.get(wm.s.wikidata_sparql, {"query": q, "format": "json"})
+#: Boxes are queried in tiles at most this many degrees wide/high (a French region is several degrees across;
+#: Paris alone has tens of thousands of items with coordinates).
+TILE_DEGREES = 0.5
+#: A tile that still times out is split in four, down to this many levels (0.5° → ~3 km).
+MAX_SPLITS = 4
+
+
+def tiles(box: BBox, size: float = TILE_DEGREES) -> list[BBox]:
+    nx = max(1, math.ceil((box.max_lng - box.min_lng) / size - 1e-9))
+    ny = max(1, math.ceil((box.max_lat - box.min_lat) / size - 1e-9))
+    dx = (box.max_lng - box.min_lng) / nx
+    dy = (box.max_lat - box.min_lat) / ny
+    return [BBox(box.min_lng + i * dx, box.min_lat + j * dy, box.min_lng + (i + 1) * dx, box.min_lat + (j + 1) * dy) for j in range(ny) for i in range(nx)]
+
+
+def quarter(box: BBox) -> list[BBox]:
+    mx, my = (box.min_lng + box.max_lng) / 2, (box.min_lat + box.max_lat) / 2
+    return [
+        BBox(box.min_lng, box.min_lat, mx, my),
+        BBox(mx, box.min_lat, box.max_lng, my),
+        BBox(box.min_lng, my, mx, box.max_lat),
+        BBox(mx, my, box.max_lng, box.max_lat),
+    ]
+
+
+def wikidata_items(wm: Wikimedia, box: BBox, failed: list[BBox] | None = None) -> list[WikiItem]:
+    """All items in `box`, queried tile by tile; tiles the service can't answer in time are split further.
+    Tiles that still fail at the smallest size are listed in `failed` (the rest of the box is still returned)."""
     items: dict[str, WikiItem] = {}
+    queue = [(t, 0) for t in tiles(box)]
+    while queue:
+        t, depth = queue.pop(0)
+        try:
+            _parse_items(wm.get(wm.s.wikidata_sparql, {"query": _sparql(t), "format": "json"}, sparql=True), items)
+        except QueryTooBig:
+            if depth >= MAX_SPLITS:
+                log.warning("Wikidata query still too big at %s; skipped", t)
+                if failed is not None:
+                    failed.append(t)
+                continue
+            queue[:0] = [(q, depth + 1) for q in quarter(t)]
+    return list(items.values())
+
+
+def _sparql(box: BBox) -> str:
+    return SPARQL.format(x0=box.min_lng, y0=box.min_lat, x1=box.max_lng, y1=box.max_lat, langs=", ".join(f'"{lang}"' for lang in LANGS))
+
+
+def _parse_items(data: dict[str, Any], items: dict[str, WikiItem]) -> None:
     for b in data["results"]["bindings"]:
         qid = b["item"]["value"].rsplit("/", 1)[-1]
         m = _POINT.search(b["coord"]["value"])
@@ -181,7 +242,6 @@ def wikidata_items(wm: Wikimedia, box: BBox) -> list[WikiItem]:
         if "category" in b and not it.category:
             it.category = "Category:" + b["category"]["value"]
         it.names |= {n for n in b.get("names", {}).get("value", "").split("\u001f") if n}
-    return list(items.values())
 
 
 # ── 2. Matching ──────────────────────────────────────────────────────────────
@@ -428,7 +488,8 @@ def upsert(conn: psycopg.Connection, candidates: list[Candidate], unusable: set[
 
 
 def sync_partition(conn: psycopg.Connection, wm: Wikimedia, settings: Settings, box: BBox) -> dict[str, int]:
-    items = wikidata_items(wm, box)
+    failed: list[BBox] = []
+    items = wikidata_items(wm, box, failed)
     matches = match_items(conn, settings, box, items)
     gallery: dict[str, list[str]] = {}
     for m in matches:
@@ -438,7 +499,7 @@ def sync_partition(conn: psycopg.Connection, wm: Wikimedia, settings: Settings, 
     infos = file_infos(wm, titles) if titles else {}
     candidates, unusable = choose(matches, infos, gallery, settings)
     stats = upsert(conn, candidates, unusable)
-    return {"items": len(items), "matched": len(matches), "places": len({c.place_id for c in candidates}), **stats}
+    return {"items": len(items), "matched": len(matches), "places": len({c.place_id for c in candidates}), **stats, "skipped_tiles": len(failed)}
 
 
 def sync_photos(settings: Settings, area: str | None, bbox: str | None, dry_run: bool = False, client: httpx.Client | None = None) -> dict[str, Any]:
@@ -449,18 +510,33 @@ def sync_photos(settings: Settings, area: str | None, bbox: str | None, dry_run:
         parts, _ = resolve_scope(conn, settings, area, bbox)
         run_id = None if dry_run else db.start_run(conn, "photos", {"kind": "photos", "area": area, "bbox": bbox})
         totals: dict[str, Any] = {"partitions": {}}
+        errors: dict[str, str] = {}
         try:
-            for p in parts:
-                s = sync_partition(conn, wm, settings, p.bbox)
+            for i, p in enumerate(parts, 1):
+                log.info("photos %d/%d: %s", i, len(parts), p.key)
+                try:
+                    s = sync_partition(conn, wm, settings, p.bbox)
+                except (httpx.HTTPError, RuntimeError) as e:
+                    # One region failing (network, Wikimedia hiccup) shouldn't throw away the others; re-runs are safe.
+                    conn.rollback()
+                    errors[p.key] = f"{type(e).__name__}: {e}"[:300]
+                    log.warning("photos %s failed: %s", p.key, errors[p.key])
+                    continue
                 totals["partitions"][p.key] = s
                 for k, v in s.items():
                     totals[k] = totals.get(k, 0) + v
                 if not dry_run:
                     conn.commit()
+            if errors:
+                totals["failed_partitions"] = errors
+                if len(errors) == len(parts):
+                    raise RuntimeError(f"every partition failed, e.g. {next(iter(errors.items()))}")
+            status = "partial" if errors or totals.get("skipped_tiles") else "succeeded"
+            totals["status"] = status
             if dry_run:
                 conn.rollback()
             else:
-                db.finish_run(conn, run_id, "succeeded", totals)  # type: ignore[arg-type]
+                db.finish_run(conn, run_id, status, totals)  # type: ignore[arg-type]
         except Exception as e:
             conn.rollback()
             if run_id:
