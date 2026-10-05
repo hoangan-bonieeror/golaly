@@ -9,7 +9,16 @@ import { api } from "@/lib/api/client";
  * Google credentials configured (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).
  */
 export function GoogleButton({ next }: { next?: string }) {
-  const providers = useQuery({ queryKey: ["auth", "providers"], queryFn: () => api.get<{ google: boolean }>("/auth/providers"), staleTime: Infinity, retry: false });
+  // The answer never changes while the API runs, so it's cached for good once we have it. But in dev the web
+  // server is often up before the API (`npm run dev` starts both), so keep asking for a while instead of hiding
+  // the button forever after one refused connection.
+  const providers = useQuery({
+    queryKey: ["auth", "providers"],
+    queryFn: () => api.get<{ google: boolean }>("/auth/providers"),
+    staleTime: Infinity,
+    retry: 8,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
+  });
   if (!providers.data?.google) return null;
   const href = `/api/v1/auth/google/start${next ? `?next=${encodeURIComponent(next)}` : ""}`;
   return (
