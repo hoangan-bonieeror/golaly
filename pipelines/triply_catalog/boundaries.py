@@ -14,8 +14,8 @@ import psycopg
 
 from .config import Settings
 from .normalize import clean_text, english_area_name, lang_tag, name_key, normalize_search, short_area_name, slugify
-from .providers.overture import as_dict, duck, release_path
 from .publish import reassign_areas
+from .sources.overture import as_dict, duck, release_path
 
 log = logging.getLogger(__name__)
 

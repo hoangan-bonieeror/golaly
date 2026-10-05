@@ -1,38 +1,19 @@
-"""Provider adapter interface. Adding a source = one module implementing PlaceProvider."""
+"""Deprecated: sources live in `triply_catalog.sources` now. Kept so older imports keep working."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Protocol
-
 from ..config import Settings
 from ..models import BBox, NormalizedPlace, Partition
+from ..sources import check_keys, get_source
+from ..sources.base import PlaceSource
+
+PlaceProvider = PlaceSource
 
 
-class PlaceProvider(Protocol):
-    key: str
-    license: str
-    attribution: str
-
-    def partitions(self, scope: list[Partition]) -> list[Partition]:
-        """Split the run's scope into units of work (one per region for file sources, one for a single extract)."""
-        ...
-
-    def fetch(self, partition: Partition) -> Iterator[list[NormalizedPlace]]:
-        """Yield batches of normalised records inside the partition's bounding box."""
-        ...
-
-
-def get_provider(key: str, settings: Settings) -> PlaceProvider:
-    if key == "overture":
-        from .overture import OvertureProvider
-
-        return OvertureProvider(settings)
-    if key == "osm":
-        from .osm import OsmProvider
-
-        return OsmProvider(settings)
-    raise ValueError(f"Unknown provider {key!r} (available: overture, osm)")
+def get_provider(key: str, settings: Settings) -> PlaceSource:
+    check_keys([key], "places")
+    src: PlaceSource = get_source(key, settings)
+    return src
 
 
 __all__ = ["BBox", "NormalizedPlace", "Partition", "PlaceProvider", "get_provider"]

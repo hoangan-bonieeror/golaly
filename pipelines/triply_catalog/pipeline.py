@@ -18,11 +18,11 @@ from typing import Any
 import psycopg
 
 from . import db
-from .config import LICENSES, Settings
+from .config import Settings
 from .load import assign_areas, load_batch
 from .models import BBox, NormalizedPlace, Partition
-from .providers import get_provider
 from .publish import mark_missing, publish
+from .sources import MANUAL, check_keys, check_ready, get_source
 from .taxonomy import sync_taxonomy
 
 log = logging.getLogger(__name__)
@@ -96,7 +96,7 @@ def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:
         for r in rows
     ]
     if batch:
-        load_batch(conn, run_id, batch, *LICENSES["manual"])
+        load_batch(conn, run_id, batch, MANUAL.license, MANUAL.attribution)
         conn.execute(
             "UPDATE place_sources SET place_id = external_id::uuid WHERE provider = 'manual' AND place_id IS NULL AND changed_run_id = %s::uuid",
             [run_id],
@@ -113,15 +113,29 @@ def start(settings: Settings, params: dict[str, Any], trigger: str) -> str:
         return db.start_run(conn, trigger, params)
 
 
+def _intersects(a: BBox, b: BBox) -> bool:
+    return a.min_lng <= b.max_lng and b.min_lng <= a.max_lng and a.min_lat <= b.max_lat and b.min_lat <= a.max_lat
+
+
+def partition_dicts(settings: Settings, scope: list[Partition], require_area: bool, providers: list[str]) -> list[dict[str, Any]]:
+    """Each source's partitions as plain dicts (Airflow XCom), with the scope keys each one covers — so a partial
+    run knows which areas were fully fetched."""
+    out = []
+    for key in providers:
+        for p in get_source(key, settings).partitions(scope):
+            covers = [s.key for s in scope if _intersects(s.bbox, p.bbox)]
+            out.append({**asdict(p), "require_area": require_area, "covers": covers})
+    return out
+
+
 def plan(settings: Settings, run_id: str, area: str | None, bbox: str | None, providers: list[str]) -> list[dict[str, Any]]:
+    providers = check_keys(providers, "places")
+    check_ready(providers, settings)
     with db.connect(settings.database_url) as conn:
         scope, require_area = resolve_scope(conn, settings, area, bbox)
         adopted = adopt_manual_places(conn, run_id)
         conn.commit()
-    out = []
-    for key in providers:
-        for p in get_provider(key, settings).partitions(scope):
-            out.append({**asdict(p), "require_area": require_area})
+    out = partition_dicts(settings, scope, require_area, providers)
     log.info("run %s: %d partition(s), adopted %d manual place(s)", run_id, len(out), adopted)
     return out
 
@@ -133,14 +147,15 @@ def _partition(d: dict[str, Any]) -> Partition:
 def extract_load(settings: Settings, run_id: str, part: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, int]:
     """One partition: fetch from the provider and upsert into place_sources, a batch per transaction."""
     partition = _partition(part)
-    provider = get_provider(partition.provider, settings)
+    source = get_source(partition.provider, settings)
+    m = source.manifest
     own = conn is None
     conn = conn or db.connect(settings.database_url)
     totals = {"fetched": 0, "inserted": 0, "changed": 0}
     t0 = time.monotonic()
     try:
-        for batch in provider.fetch(partition):
-            stats = load_batch(conn, run_id, batch, provider.license, provider.attribution)
+        for batch in source.fetch_places(partition):
+            stats = load_batch(conn, run_id, batch, m.license, m.attribution, m.storage)
             for k in totals:
                 totals[k] += stats[k]
             if own:
@@ -183,6 +198,24 @@ def finish(settings: Settings, run_id: str, status: str, stats: dict[str, Any], 
         db.finish_run(conn, run_id, status, stats, error)
 
 
+def photo_scope(area: str | None, bbox: str | None, parts: list[dict[str, Any]], done: set[str] | None = None) -> dict[str, Any] | None:
+    """What a finished sync hands to the photo step: the areas whose places were fully fetched.
+
+    `done` holds the "provider/key" of partitions that finished (None = all). A scope key (region or destination)
+    counts when every partition covering it finished; nothing counts → None (don't look for photos).
+    """
+    finished = done if done is not None else {f"{p['provider']}/{p['key']}" for p in parts}
+    if all(f"{p['provider']}/{p['key']}" in finished for p in parts):
+        return {"areas": [area] if area else [], "bbox": None if area else bbox}
+    keys = list(dict.fromkeys(k for p in parts for k in p.get("covers", [])))
+    ok = [k for k in keys if all(f"{p['provider']}/{p['key']}" in finished for p in parts if k in p.get("covers", []))]
+    if not ok:
+        return None
+    if bbox and not area:
+        return {"areas": [], "bbox": bbox}
+    return {"areas": ok, "bbox": None}
+
+
 # ── one-shot run (CLI) ───────────────────────────────────────────────────────
 
 
@@ -193,9 +226,11 @@ def run_sync(settings: Settings, area: str | None, bbox: str | None, providers: 
         run_id = str(uuid.uuid4())
         with db.connect(settings.database_url) as conn:
             sync_taxonomy(conn)  # commits taxonomy only; harmless and idempotent
+            providers = check_keys(providers, "places")
+            check_ready(providers, settings)
             scope, require_area = resolve_scope(conn, settings, area, bbox)
             adopt_manual_places(conn, run_id)
-            parts = [{**asdict(p), "require_area": require_area} for k in providers for p in get_provider(k, settings).partitions(scope)]
+            parts = partition_dicts(settings, scope, require_area, providers)
             loaded = {f"{p['provider']}/{p['key']}": extract_load(settings, run_id, p, conn) for p in parts}
             stats = finalize(settings, run_id, parts, providers, complete=True, conn=conn)
             conn.rollback()
@@ -208,6 +243,7 @@ def run_sync(settings: Settings, area: str | None, bbox: str | None, providers: 
             stats = finalize(settings, run_id, parts, providers)
         result = {"run_id": run_id, "loaded": loaded, **stats}
         finish(settings, run_id, stats["status"], result)
+        result["photo_scope"] = photo_scope(area, bbox, parts)
         return result
     except Exception as e:
         finish(settings, run_id, "failed", {}, f"{type(e).__name__}: {e}"[:2000])

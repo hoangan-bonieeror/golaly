@@ -18,7 +18,13 @@ def _json(v: Any) -> str:
     return json.dumps(v, ensure_ascii=False, default=str)
 
 
-def load_batch(conn: psycopg.Connection, run_id: str, batch: list[NormalizedPlace], license: str, attribution: str) -> dict[str, int]:
+def load_batch(conn: psycopg.Connection, run_id: str, batch: list[NormalizedPlace], license: str, attribution: str, storage: str = "store") -> dict[str, int]:
+    if storage != "store":
+        # Sources whose terms forbid keeping their content (Google: ids only) can't feed place_sources, which stores
+        # names, addresses and raw records. Refused here, at the save layer, whatever the caller does.
+        from .sources import SourceConfigError
+
+        raise SourceConfigError(f"place records from a {storage!r} source can't be stored (only 'store' sources feed the catalog)")
     if not batch:
         return {"fetched": 0, "inserted": 0, "changed": 0}
     conn.execute(

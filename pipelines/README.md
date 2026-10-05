@@ -9,6 +9,9 @@ runnable as a plain CLI.
 | [Overture Maps](https://docs.overturemaps.org/) `places`, `divisions` | names (many languages), category, phone, website, address; province/country boundaries | CDLA-Permissive 2.0 (places), ODbL (divisions) | yes |
 | [OpenStreetMap](https://www.openstreetmap.org/) via [Geofabrik](https://download.geofabrik.de/asia/vietnam.html) | names (`name:xx`), tags → category, opening hours, precise coordinates | ODbL — attribution “© OpenStreetMap contributors” | yes |
 | App seed / admin edits | provider `manual` | — | yes |
+| [Wikimedia Commons](https://commons.wikimedia.org) via Wikidata | photos of places, with author and licence | per file: CC0, public domain, CC BY, CC BY-SA | yes (the API downloads them) |
+
+`uv run triply-catalog sources` lists every registered source with its manifest and whether it is configured.
 
 The design (data model, matching rules, survivorship, Airflow layout, later phases) is in the TRIPLY design doc
 “Thiết kế: Catalog địa điểm & công cụ đồng bộ dữ liệu”.
@@ -64,6 +67,8 @@ uv run triply-catalog stats
 export CATALOG_CONTACT="https://github.com/<you>/triply"   # required: a URL or email (Wikimedia answers 403 without one)
 uv run triply-catalog photos --area hoi-an --dry-run   # what would be queued
 uv run triply-catalog photos --area hoi-an             # queue them (then the API downloads them)
+uv run triply-catalog photos --area hoi-an --only-due  # only places never checked, renamed, moved or checked > 30 days ago
+uv run triply-catalog sync --area hoi-an --photos      # sync, then photos for the places that need them (like Airflow)
 npm run build -w @triply/api && npm run photos:ingest -w @triply/api   # optional: download now instead of waiting
 ```
 
@@ -82,6 +87,21 @@ next to every photo. The pipeline writes rows to `place_photos` with a `remote_u
 them (only from `upload.wikimedia.org`, https, no redirects, size-capped) into TRIPLY's own media in three WebP sizes.
 Re-runs refresh credits, keep moderators' decisions and hide files whose licence changed. Airflow: DAG
 `catalog_photos` with `{"area": "vn"}`.
+
+**Automatically after a sync.** When `catalog_sync` publishes places, its last task (`announce`) emits the Airflow
+Asset `triply://catalog/places` with the areas that were fully synced; `catalog_photos` is scheduled on that Asset and
+looks for photos of those areas, incrementally:
+
+- only places that are new, renamed or moved since their last check (a database trigger clears
+  `places.photos_checked_at` when the name or position changes), or checked more than `CATALOG_PHOTO_RECHECK_DAYS`
+  (30) days ago — and Wikidata is only asked about the tiles around them;
+- no event (`announce` is *skipped*) when the sync failed, `photos` is `false` in the sync's config, no area finished,
+  or no place needs checking; after a partial sync only the areas whose partitions all finished are handed over;
+- syncs that finish while a photo run is going are merged into the next run (one run at a time, one polite client);
+- without `CATALOG_CONTACT` the automatic run is skipped with a warning instead of failing; a run you start by hand
+  still fails with the explanation.
+
+Triggered by hand, `catalog_photos` re-checks every place of the area (as before) unless `only_due` is `true`.
 
 Expect landmarks, temples, museums, beaches and markets to get photos; small cafés and restaurants mostly won't —
 traveler uploads (place page → *Add photo*, or *Also show on place pages* when posting) fill that gap.
@@ -111,6 +131,33 @@ curl -X POST http://localhost:8080/api/v2/dags/catalog_sync/dagRuns \
 Each province is a separate mapped task (retried on its own); progress and results are also written to the
 `sync_runs` table, which the admin screen reads.
 
+## Adding a source
+
+Every source — places or photos, open or paid — is one module in `triply_catalog/sources/` implementing the interface in
+`sources/base.py`, plus one line in the registry (`sources/__init__.py`). The adapter only splits the scope and returns
+normalised records; it never touches the database. Matching, merging, saving, credits and the licence filter are shared.
+
+1. **Manifest** — `key`, `name`, `provides` (`places` / `photos`), `license`, `attribution`, `storage`
+   (`store` · `reference` · `id_only`), `partitioning` (`extract` · `region` · `tiles`), `rate`, `requires` (environment
+   variables), `coverage`, `cost`. The pipeline reads it instead of `if provider == "…"`.
+2. **Implement** `PlaceSource.fetch_places(partition)` → batches of `NormalizedPlace`, or `PhotoSource.find_subjects(partition,
+   focus)` → what the source has photos of (each with a `PlaceRef`: external ids, names, coordinates) and
+   `fetch_photos(subjects)` → `NormalizedPhoto`s for the subjects that matched a place. `check()` lists configuration
+   problems without sending anything.
+3. **Use the shared plumbing** for APIs: `sources/http.py` has the polite client (`PoliteClient`: User-Agent with
+   contact, request spacing, Retry-After, 403 explained) and `tiled()` (0.5° tiles, split in four on `QueryTooBig`,
+   skipped tiles reported). Raise the standard errors: `SourceConfigError` (stops the run before any request),
+   `SourceRefused` (403 — stops), `SourceUnavailable` / `RateLimited` (that partition fails, the run is `partial`),
+   `QueryTooBig` (ask for a smaller box).
+4. **Storage is enforced when saving**: a `reference` photo source keeps credits and a link but no `remote_url`
+   (nothing is downloaded); `id_only` keeps just the id; place records from a non-`store` source are refused.
+5. **Tests** — add an offline fixture to `FIXTURES` in `tests/test_sources.py`; the contract tests then run for it:
+   complete manifest, `check()` reports missing settings without network, partitions cover the scope, valid and stable
+   records. A place source also needs its categories in `data/category_maps.json` and a place in `FIELD_PRIORITY`
+   / `PUBLISH_ORDER` (`config.py`).
+
+`triply_catalog.providers` still works as an alias of the place sources for older imports.
+
 ## Configuration
 
 | Variable | Default | |
@@ -124,6 +171,7 @@ Each province is a separate mapped task (retried on its own); progress and resul
 | `CATALOG_CONTACT` | — | URL or email put in the User-Agent sent to Wikidata/Commons (please set it) |
 | `CATALOG_PHOTO_MATCH_METERS` / `CATALOG_PHOTO_REVIEW_METERS` | `100` / `300` | name matches publish / go to review |
 | `CATALOG_PHOTOS_PER_PLACE` | `4` | main image + quality images per place |
+| `CATALOG_PHOTO_RECHECK_DAYS` | `30` | incremental photo runs re-check a place after this many days |
 
 Category mapping lives in `triply_catalog/data/taxonomy.json` (TRIPLY's categories, vi/en labels) and
 `category_maps.json` (Overture category / OSM tag → TRIPLY category). Unmapped records are stored but not published;
@@ -143,4 +191,7 @@ their ids, cross-source matching (incl. a name only in another language), surviv
 itineraries untouched, dry runs, locked fields, closing after 3 missed runs, the safety brake and re-opening.
 `test_pipeline_photos.py` runs the photo step against a fake Wikidata/Commons (httpx MockTransport): exact and name
 matches, the review distance, licence filtering, category quality images, idempotent re-runs, kept moderation decisions
-and licence changes. `normalize_search` is checked against the same cases as the app's TypeScript (`packages/shared/fixtures/normalize-cases.json`).
+and licence changes. `test_pipeline_photos_auto.py` covers incremental runs (the trigger on renames/moves, no
+requests when nothing is due, only due places touched), the sync → photos hand-over after full and partial syncs, and
+storage modes. `test_sources.py` is the contract every registered source passes; `test_dags.py` (where Airflow is
+installed) checks that only `announce` emits the Asset and how `catalog_photos` merges several events. `normalize_search` is checked against the same cases as the app's TypeScript (`packages/shared/fixtures/normalize-cases.json`).

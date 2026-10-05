@@ -48,6 +48,8 @@ class Settings:
     photo_review_meters: float = field(default_factory=lambda: float(_env("CATALOG_PHOTO_REVIEW_METERS", "300")))  # type: ignore[arg-type]
     #: Most photos imported per place (the item's main image + quality images from its Commons category).
     photos_per_place: int = field(default_factory=lambda: int(_env("CATALOG_PHOTOS_PER_PLACE", "4")))  # type: ignore[arg-type]
+    #: An automatic photo run (after a sync) re-checks a place after this many days; new, renamed or moved places at once.
+    photo_recheck_days: int = field(default_factory=lambda: int(_env("CATALOG_PHOTO_RECHECK_DAYS", "30")))  # type: ignore[arg-type]
     #: Seconds between requests to Wikimedia (be a polite client).
     wikimedia_delay: float = field(default_factory=lambda: float(_env("CATALOG_WIKIMEDIA_DELAY", "1.0")))  # type: ignore[arg-type]
 
@@ -77,11 +79,7 @@ FIELD_PRIORITY: dict[str, list[str]] = {
 #: Order in which providers are published within a run: later providers attach to places created by earlier ones.
 PUBLISH_ORDER = ["manual", "overture", "osm"]
 
-LICENSES = {
-    "overture": ("CDLA-Permissive-2.0", "© Overture Maps Foundation"),
-    "osm": ("ODbL-1.0", "© OpenStreetMap contributors"),
-    "manual": ("TRIPLY", "TRIPLY"),
-}
+#: Licences and attributions are declared by each source's manifest (triply_catalog/sources/).
 
 
 def settings() -> Settings:

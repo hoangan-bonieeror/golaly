@@ -282,42 +282,44 @@ model Destination {
 /// The canonical place the app shows. Imported places are merged from `place_sources`;
 /// `id` never changes, so itineraries and saved places survive re-imports and merges.
 model Place {
-  id            String                                 @id @default(uuid()) @db.Uuid
+  id              String                                 @id @default(uuid()) @db.Uuid
   /// Local (on-the-ground) name. Translations live in `place_names`.
-  name          String
+  name            String
   /// Accent-free, lower-cased name used for matching.
-  nameNorm      String                                 @default("") @map("name_norm")
+  nameNorm        String                                 @default("") @map("name_norm")
   /// Coarse type the itinerary UI uses; derived from `categoryId` for imported places.
-  category      ItemType
-  categoryId    String?                                @map("category_id") @db.Uuid
+  category        ItemType
+  categoryId      String?                                @map("category_id") @db.Uuid
   /// Curated destination page this place belongs to, if any.
-  destinationId String?                                @map("destination_id") @db.Uuid
+  destinationId   String?                                @map("destination_id") @db.Uuid
   /// Smallest administrative area containing the place.
-  areaId        String?                                @map("area_id") @db.Uuid
-  address       String                                 @default("")
-  lat           Float
-  lng           Float
+  areaId          String?                                @map("area_id") @db.Uuid
+  address         String                                 @default("")
+  lat             Float
+  lng             Float
   /// geography(Point) kept in sync with lat/lng by a trigger (migration 20261005000000_catalog).
-  location      Unsupported("geography(Point, 4326)")?
-  phone         String?
-  website       String?
+  location        Unsupported("geography(Point, 4326)")?
+  phone           String?
+  website         String?
   /// OSM opening_hours syntax, e.g. "Mo-Su 07:00-22:00".
-  openingHours  String?                                @map("opening_hours")
-  rating        Float?
-  status        PlaceStatus                            @default(ACTIVE)
+  openingHours    String?                                @map("opening_hours")
+  rating          Float?
+  status          PlaceStatus                            @default(ACTIVE)
   /// 0–1: how many sources confirm it and how complete it is.
-  qualityScore  Float                                  @default(0) @map("quality_score")
+  qualityScore    Float                                  @default(0) @map("quality_score")
   /// Fields an admin edited by hand; imports never overwrite them.
-  lockedFields  String[]                               @default([]) @map("locked_fields")
+  lockedFields    String[]                               @default([]) @map("locked_fields")
   /// Which provider supplied each published field, e.g. {"name":"overture","phone":"osm"}.
-  fieldSources  Json                                   @default("{}") @map("field_sources")
-  mergedIntoId  String?                                @map("merged_into_id") @db.Uuid
-  lastSeenAt    DateTime?                              @map("last_seen_at")
-  searchText    String                                 @default("") @map("search_text")
+  fieldSources    Json                                   @default("{}") @map("field_sources")
+  mergedIntoId    String?                                @map("merged_into_id") @db.Uuid
+  lastSeenAt      DateTime?                              @map("last_seen_at")
+  searchText      String                                 @default("") @map("search_text")
   /// Same text lower-cased but WITH accents, so a query typed with diacritics can tell "phở" from "phố".
-  searchAccent  String                                 @default("") @map("search_accent")
-  createdAt     DateTime                               @default(now()) @map("created_at")
-  updatedAt     DateTime                               @default(now()) @updatedAt @map("updated_at")
+  searchAccent    String                                 @default("") @map("search_accent")
+  /// When catalog_photos last looked for photos of this place; cleared by a trigger when the name or position changes.
+  photosCheckedAt DateTime?                              @map("photos_checked_at")
+  createdAt       DateTime                               @default(now()) @map("created_at")
+  updatedAt       DateTime                               @default(now()) @updatedAt @map("updated_at")
 
   destination Destination?    @relation(fields: [destinationId], references: [id])
   area        GeoArea?        @relation(fields: [areaId], references: [id], onDelete: SetNull)

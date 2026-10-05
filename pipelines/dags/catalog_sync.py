@@ -2,7 +2,8 @@
 
 catalog_sync       start → plan → extract_load (one mapped task per provider × partition) → finalize → finish
 catalog_bootstrap  taxonomy + adopt seed places → country/province boundaries
-catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them
+catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them.
+                   Runs by itself after a sync (Asset triply://catalog/places) for the places that need it, or by hand.
 
 Trigger catalog_sync from the Airflow UI ("Trigger DAG w/ config") or the REST API:
 
@@ -15,17 +16,37 @@ task or a re-run DAG never duplicates data.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
 try:  # Airflow 3
-    from airflow.sdk import Param, dag, get_current_context, task
+    from airflow.sdk import Asset, Param, dag, get_current_context, task
 except ImportError:  # Airflow 2.x
+    from airflow.datasets import Dataset as Asset
     from airflow.decorators import dag, task
     from airflow.models.param import Param
     from airflow.operators.python import get_current_context
 
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.exceptions import AirflowSkipException
+
+try:
+    from airflow.task.trigger_rule import TriggerRule
+except ImportError:  # Airflow 2.x
+    from airflow.utils.trigger_rule import TriggerRule
+
+log = logging.getLogger(__name__)
+
+#: Emitted by catalog_sync when places were published that need photos; catalog_photos is scheduled on it.
+#: extra = {"areas": [...], "bbox": str | None, "sync_run_id": str}
+PLACES = Asset("triply://catalog/places")
+
+try:  # the registry is cheap to read (no DuckDB/pyosmium import); fall back if the package isn't importable here
+    from triply_catalog.sources import keys as _source_keys
+
+    PLACE_SOURCES = _source_keys("places")
+except Exception:  # pragma: no cover
+    PLACE_SOURCES = ["overture", "osm"]
 
 DEFAULT_ARGS = {"owner": "triply", "retries": 2, "retry_delay": timedelta(minutes=2)}
 
@@ -53,8 +74,11 @@ def _ids(values: Any) -> list[Any]:
     params={
         "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
         "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
-        "providers": Param(["overture", "osm"], type="array", items={"type": "string", "enum": ["overture", "osm"]}),
+        "providers": Param(
+            list(PLACE_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}, description="place sources (registry: triply_catalog/sources)"
+        ),
         "sync_run_id": Param(None, type=["null", "string"], description="existing sync_runs.id (set by the admin API); created if empty"),
+        "photos": Param(True, type="boolean", description="afterwards, look for photos of the places that need it (catalog_photos)"),
     },
     render_template_as_native_obj=True,
 )
@@ -103,18 +127,39 @@ def catalog_sync():
         return stats
 
     @task(trigger_rule=TriggerRule.ALL_DONE, retries=1)
-    def finish(sync_id: str, stats: dict[str, Any] | None) -> None:
+    def finish(sync_id: str, stats: dict[str, Any] | None) -> dict[str, Any]:
         from triply_catalog import pipeline
 
         if not stats:
             pipeline.finish(_settings(), sync_id, "failed", {}, "finalize failed — see the Airflow task log")
             raise RuntimeError("catalog_sync failed")
         pipeline.finish(_settings(), sync_id, stats["status"], stats)
+        return stats
+
+    @task(outlets=[PLACES], retries=1)
+    def announce(sync_id: str, parts: list[dict[str, Any]], stats: dict[str, Any]) -> dict[str, Any]:
+        """One task (not the mapped ones) emits the Asset event that starts catalog_photos. Skipped — no event —
+        when photos are turned off, no area finished, or no place in the finished areas needs checking."""
+        from triply_catalog import photos, pipeline
+
+        ctx = get_current_context()
+        p = ctx["params"]
+        if not p.get("photos", True):
+            raise AirflowSkipException("photos: false")
+        scope = pipeline.photo_scope(p.get("area"), p.get("bbox"), parts, set(stats.get("loaded", {})))
+        if not scope:
+            raise AirflowSkipException("no area was fully synced")
+        due = photos.count_due(_settings(), scope["areas"], scope["bbox"])
+        if not due:
+            raise AirflowSkipException("no place needs its photos checked")
+        extra = {**scope, "sync_run_id": sync_id, "places_due": due}
+        ctx["outlet_events"][PLACES].extra = extra
+        return extra
 
     sync_id = start()
     parts = plan(sync_id)
     loaded = extract_load.partial(sync_id=sync_id).expand(part=parts)
-    finish(sync_id, finalize(sync_id, parts, loaded))
+    announce(sync_id, parts, finish(sync_id, finalize(sync_id, parts, loaded)))
 
 
 @dag(
@@ -159,7 +204,9 @@ def catalog_bootstrap():
 @dag(
     dag_id="catalog_photos",
     description="Queue openly licensed photos (Wikimedia Commons via Wikidata) for the places in an area",
-    schedule=None,
+    # After each catalog_sync that published places needing photos; events that arrive while a run is going are
+    # handled together by the next run. Can still be triggered by hand (then the params below apply).
+    schedule=[PLACES],
     start_date=datetime(2026, 1, 1),
     catchup=False,
     max_active_runs=1,  # one polite client towards Wikimedia at a time
@@ -168,6 +215,7 @@ def catalog_bootstrap():
     params={
         "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
         "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
+        "only_due": Param(False, type="boolean", description="only places never checked, renamed, moved or checked long ago"),
     },
 )
 def catalog_photos():
@@ -175,12 +223,40 @@ def catalog_photos():
     def queue_photos() -> dict[str, Any]:
         from triply_catalog.photos import sync_photos
 
-        p = get_current_context()["params"]
-        if not p.get("area") and not p.get("bbox"):
-            raise ValueError("set either 'area' or 'bbox'")
-        return sync_photos(_settings(), p.get("area"), p.get("bbox"))
+        ctx = get_current_context()
+        events = [e for evs in (ctx.get("triggering_asset_events") or {}).values() for e in evs]
+        if not events:  # triggered by hand
+            p = ctx["params"]
+            if not p.get("area") and not p.get("bbox"):
+                raise ValueError("set either 'area' or 'bbox'")
+            return sync_photos(_settings(), p.get("area"), p.get("bbox"), only_due=bool(p.get("only_due")))
+        # After one or more syncs: the union of their areas, incremental. Params (defaults) don't apply here.
+        return photos_after_sync([dict(e.extra or {}) for e in events])
 
     queue_photos()
+
+
+def photos_after_sync(extras: list[dict[str, Any]], sync_photos: Any = None) -> dict[str, Any]:
+    """Incremental photo runs for the areas of one or more finished syncs (the Asset events' extras)."""
+    from triply_catalog.photos import ContactMissing
+    from triply_catalog.photos import sync_photos as default_sync
+
+    sync_photos = sync_photos or default_sync
+    areas = list(dict.fromkeys(a for x in extras for a in x.get("areas") or []))
+    boxes = list(dict.fromkeys(x["bbox"] for x in extras if x.get("bbox")))
+    after = ",".join(dict.fromkeys(x["sync_run_id"] for x in extras if x.get("sync_run_id"))) or None
+    s = _settings()
+    try:
+        out: dict[str, Any] = {"areas": areas, "bboxes": boxes, "runs": []}
+        if areas:
+            out["runs"].append(sync_photos(s, areas=areas, only_due=True, after_sync=after))
+        for b in boxes:
+            out["runs"].append(sync_photos(s, bbox=b, only_due=True, after_sync=after))
+        return out
+    except ContactMissing as e:
+        # Automatic runs shouldn't turn every sync red while the operator hasn't set a contact yet.
+        log.warning("photos skipped: %s", e)
+        raise AirflowSkipException("CATALOG_CONTACT is not set") from e
 
 
 catalog_sync()
