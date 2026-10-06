@@ -14,6 +14,8 @@ triply-catalog merges decide <candidate-id> merge|reject
 triply-catalog merges undo <merge-id>           # put a merge back exactly as it was
 triply-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # pairs to label by hand (same / different)
 triply-catalog merges evaluate pairs.csv        # precision / recall per threshold on the labelled pairs
+triply-catalog jobs add "vn weekly" --area vn --schedule "0 3 * * mon"   # a scheduled sync (cron, UTC)
+triply-catalog jobs list | run <job> [--dry-run] | enable <job> | disable <job> | delete <job>
 triply-catalog stats
 triply-catalog status --area cn                 # is a country ready? boundaries, places per source, last runs
 """
@@ -81,6 +83,22 @@ def main(argv: list[str] | None = None) -> int:
     ms.add_argument("--out", default="merge_pairs.csv")
     me = msub.add_parser("evaluate")
     me.add_argument("labels")
+    jb = sub.add_parser("jobs", help="scheduled syncs (sync_jobs) — the catalog_scheduler DAG starts the due ones")
+    jsub = jb.add_subparsers(dest="action", required=True)
+    ja = jsub.add_parser("add")
+    ja.add_argument("name")
+    ja.add_argument("--area")
+    ja.add_argument("--bbox")
+    ja.add_argument("--providers", default=",".join(keys("places", default_only=True)))
+    ja.add_argument("--categories", default="", help="comma-separated TRIPLY groups / categories (default: all)")
+    ja.add_argument("--schedule", help='5-field cron in UTC, e.g. "0 3 * * mon" (omit: by hand only)')
+    ja.add_argument("--no-photos", action="store_true")
+    jsub.add_parser("list")
+    for name in ("enable", "disable", "delete"):
+        jsub.add_parser(name).add_argument("job")
+    jr = jsub.add_parser("run", help="run a job now, here (without Airflow)")
+    jr.add_argument("job")
+    jr.add_argument("--dry-run", action="store_true")
     sub.add_parser("stats", help="catalog counts")
     st = sub.add_parser("status", help="one area: boundaries imported? places per source? last runs and their errors")
     st.add_argument("--area", required=True)
@@ -117,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
             out = run_merges(cfg, args)
         elif args.cmd == "status":
             out = area_status(cfg, args.area)
+        elif args.cmd == "jobs":
+            out = run_jobs(cfg, args)
         else:
             with db.connect(cfg.database_url) as conn:
                 out = conn.execute(
@@ -206,6 +226,39 @@ def area_status(cfg: Any, area: str) -> dict[str, Any]:
     return out
 
 
+def run_jobs(cfg: Any, args: Any) -> Any:
+    from . import jobs
+
+    with db.connect(cfg.database_url) as conn:
+        if args.action == "add":
+            if not args.area and not args.bbox:
+                raise ScopeError("Give --area or --bbox.")
+            providers = check_keys([p.strip() for p in args.providers.split(",") if p.strip()], "places")
+            cats = [c.strip() for c in args.categories.split(",") if c.strip()]
+            try:
+                return jobs.create_job(conn, args.name, args.area, args.bbox, providers, schedule=args.schedule, category_keys=cats, photos=not args.no_photos)
+            except Exception as e:
+                raise LookupError(str(e).split("\n")[0]) from e
+        if args.action == "list":
+            return conn.execute(
+                """SELECT j.name, j.area, j.bbox, j.providers, j.category_keys, j.schedule, j.enabled, j.next_run_at,
+                          (SELECT r.status FROM sync_runs r WHERE r.job_id = j.id ORDER BY r.started_at DESC LIMIT 1) AS last_status
+                   FROM sync_jobs j ORDER BY j.name"""
+            ).fetchall()
+        j = jobs.job(conn, args.job)
+        if args.action in ("enable", "disable"):
+            conn.execute("UPDATE sync_jobs SET enabled = %s, next_run_at = NULL, updated_at = now() WHERE id = %s::uuid", [args.action == "enable", j["id"]])
+            conn.commit()
+            return {"job": j["name"], "enabled": args.action == "enable"}
+        if args.action == "delete":
+            conn.execute("DELETE FROM sync_jobs WHERE id = %s::uuid", [j["id"]])
+            conn.commit()
+            return {"deleted": j["name"]}
+        run_id = jobs.queue_run(conn, j, "cli", dry_run=args.dry_run)
+        conn.commit()
+    return run_sync(cfg, j["area"], j["bbox"], list(j["providers"]), dry_run=args.dry_run, category_keys=list(j["category_keys"]), sync_run_id=run_id)
+
+
 def run_merges(cfg: Any, args: Any) -> Any:
     from . import dedupe
 
@@ -238,14 +291,15 @@ def run_merges(cfg: Any, args: Any) -> Any:
                 )
                 conn.commit()
                 return {"candidate": args.candidate, "status": "REJECTED"}
-            places = dedupe.load_places(conn, [c["a"], c["b"]])
-            if len(places) < 2:
-                raise LookupError("one of the two places no longer exists")
-            w, lose = dedupe.pick_winner(places[c["a"]], places[c["b"]])
-            merge_id = dedupe.merge(conn, w.id, lose.id, "cli", c["score"], c["signals"])
-            dedupe.republish(conn, cfg, [w.id])
+            w, lose = dedupe.winner_of(conn, c["a"], c["b"])
+            try:
+                merge_id = dedupe.merge(conn, w, lose, "cli", c["score"], c["signals"])
+            except Exception as e:  # e.g. one of the two was merged elsewhere meanwhile
+                conn.rollback()
+                raise LookupError(str(e).split("\n")[0]) from e
+            dedupe.republish(conn, cfg, [w])
             conn.commit()
-            return {"candidate": args.candidate, "status": "MERGED", "merge": merge_id, "winner": w.id, "loser": lose.id}
+            return {"candidate": args.candidate, "status": "MERGED", "merge": merge_id, "winner": w, "loser": lose}
         if args.action == "undo":
             try:
                 out = dedupe.unmerge(conn, cfg, args.merge, "cli")

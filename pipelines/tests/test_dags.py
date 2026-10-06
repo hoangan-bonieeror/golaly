@@ -15,9 +15,12 @@ def test_dags_parse():
     assert bag.import_errors == {}
     sync = bag.get_dag("catalog_sync")
     assert {t.task_id for t in sync.tasks} == {"start", "plan", "extract_load", "finalize", "finish", "announce"}
-    assert set(sync.params.keys()) == {"area", "bbox", "providers", "sync_run_id", "photos"}
+    assert set(sync.params.keys()) == {"area", "bbox", "providers", "sync_run_id", "photos", "category_keys"}
     assert sync.max_active_runs == 1
     assert bag.get_dag("catalog_bootstrap") is not None
+    sched = bag.get_dag("catalog_scheduler")
+    assert {t.task_id for t in sched.tasks} == {"due_jobs", "start_syncs", "republish"} and sched.max_active_runs == 1
+    assert {t.task_id for t in bag.get_dag("catalog_dry_run").tasks} == {"dry_run"}
     photos = bag.get_dag("catalog_photos")
     assert {t.task_id for t in photos.tasks} == {"queue_photos"} and set(photos.params.keys()) == {"area", "bbox", "only_due"}
     assert photos.max_active_runs == 1

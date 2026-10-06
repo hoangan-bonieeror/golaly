@@ -33,14 +33,57 @@ def advisory_lock(conn: psycopg.Connection, key: str) -> Iterator[None]:
         conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", [key])
 
 
-def start_run(conn: psycopg.Connection, trigger: str, params: dict[str, Any]) -> str:
+def start_run(conn: psycopg.Connection, trigger: str, params: dict[str, Any], job_id: str | None = None, status: str = "running") -> str:
     row = conn.execute(
-        "INSERT INTO sync_runs (id, trigger, params) VALUES (gen_random_uuid(), %s, %s) RETURNING id::text AS id",
-        [trigger, jsonb(params)],
+        "INSERT INTO sync_runs (id, trigger, params, job_id, status) VALUES (gen_random_uuid(), %s, %s, %s::uuid, %s) RETURNING id::text AS id",
+        [trigger, jsonb(params), job_id, status],
     ).fetchone()
     conn.commit()
     assert row
     return row["id"]
+
+
+def set_progress(conn: psycopg.Connection, run_id: str, **fields: Any) -> None:
+    """Merge fields into sync_runs.progress (each update is NOTIFYed to the admin screens). Own transaction."""
+    conn.execute("UPDATE sync_runs SET progress = progress || %s WHERE id = %s::uuid", [jsonb(fields), run_id])
+    conn.commit()
+
+
+def bump_progress(conn: psycopg.Connection, run_id: str, key: str, current: str | None = None) -> None:
+    conn.execute(
+        """UPDATE sync_runs SET progress = progress || jsonb_build_object(%(k)s::text, coalesce((progress->>%(k)s::text)::int, 0) + 1)
+                  || CASE WHEN %(c)s::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('current', %(c)s::text) END
+           WHERE id = %(id)s::uuid""",
+        {"k": key, "c": current, "id": run_id},
+    )
+    conn.commit()
+
+
+def add_error(conn: psycopg.Connection, run_id: str | None, stage: str, message: str, provider: str | None = None, external_id: str | None = None) -> None:
+    """Record a failed record or partition (the run goes on). Own transaction; never raises."""
+    if not run_id:
+        return
+    try:
+        conn.execute(
+            """INSERT INTO sync_run_errors (id, run_id, provider, external_id, stage, message)
+               SELECT gen_random_uuid(), %s::uuid, %s, %s, %s, %s WHERE EXISTS (SELECT 1 FROM sync_runs WHERE id = %s::uuid)""",
+            [run_id, provider, external_id, stage, message[:2000], run_id],
+        )
+        conn.commit()
+    except psycopg.Error:
+        conn.rollback()
+
+
+class Cancelled(RuntimeError):
+    """An admin asked to stop this run."""
+
+
+def check_cancel(conn: psycopg.Connection, run_id: str | None) -> None:
+    if not run_id:
+        return
+    row = conn.execute("SELECT cancel_requested FROM sync_runs WHERE id = %s::uuid", [run_id]).fetchone()
+    if row and row["cancel_requested"]:
+        raise Cancelled("cancelled by an admin")
 
 
 def finish_run(conn: psycopg.Connection, run_id: str, status: str, stats: dict[str, Any], error: str | None = None) -> None:

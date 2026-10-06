@@ -22,6 +22,7 @@ from .config import Settings
 from .load import assign_areas, load_batch
 from .models import BBox, NormalizedPlace, Partition
 from .publish import mark_missing, publish
+from .quality import quality_checks
 from .sources import MANUAL, check_keys, check_ready, get_source
 from .taxonomy import sync_taxonomy
 
@@ -155,25 +156,30 @@ def _intersects(a: BBox, b: BBox) -> bool:
     return a.min_lng <= b.max_lng and b.min_lng <= a.max_lng and a.min_lat <= b.max_lat and b.min_lat <= a.max_lat
 
 
-def partition_dicts(settings: Settings, scope: list[Partition], require_area: bool, providers: list[str]) -> list[dict[str, Any]]:
+def partition_dicts(
+    settings: Settings, scope: list[Partition], require_area: bool, providers: list[str], category_keys: list[str] | None = None
+) -> list[dict[str, Any]]:
     """Each source's partitions as plain dicts (Airflow XCom), with the scope keys each one covers — so a partial
-    run knows which areas were fully fetched."""
+    run knows which areas were fully fetched — and the run's category filter."""
     out = []
     for key in providers:
         for p in get_source(key, settings).partitions(scope):
             covers = [s.key for s in scope if _intersects(s.bbox, p.bbox)]
-            out.append({**asdict(p), "require_area": require_area, "covers": covers})
+            out.append({**asdict(p), "require_area": require_area, "covers": covers, "categories": list(category_keys or [])})
     return out
 
 
-def plan(settings: Settings, run_id: str, area: str | None, bbox: str | None, providers: list[str]) -> list[dict[str, Any]]:
+def plan(
+    settings: Settings, run_id: str, area: str | None, bbox: str | None, providers: list[str], category_keys: list[str] | None = None
+) -> list[dict[str, Any]]:
     providers = check_keys(providers, "places")
     check_ready(providers, settings)
     with db.connect(settings.database_url) as conn:
         scope, require_area = resolve_scope(conn, settings, area, bbox)
         adopted = adopt_manual_places(conn, run_id)
         conn.commit()
-    out = partition_dicts(settings, scope, require_area, providers)
+        out = partition_dicts(settings, scope, require_area, providers, category_keys)
+        db.set_progress(conn, run_id, total=len(out), done=0, failed=0)
     log.info("run %s: %d partition(s), adopted %d manual place(s)", run_id, len(out), adopted)
     return out
 
@@ -183,7 +189,10 @@ def _partition(d: dict[str, Any]) -> Partition:
 
 
 def extract_load(settings: Settings, run_id: str, part: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, int]:
-    """One partition: fetch from the provider and upsert into place_sources, a batch per transaction."""
+    """One partition: fetch from the provider and upsert into place_sources, a batch per transaction.
+
+    A real run (own connection) reports progress, stops between batches when an admin cancels, and records a
+    failure in sync_run_errors before re-raising. A dry run (caller's connection) does none of that."""
     partition = _partition(part)
     source = get_source(partition.provider, settings)
     m = source.manifest
@@ -191,13 +200,25 @@ def extract_load(settings: Settings, run_id: str, part: dict[str, Any], conn: ps
     conn = conn or db.connect(settings.database_url)
     totals = {"fetched": 0, "inserted": 0, "changed": 0}
     t0 = time.monotonic()
+    label = f"{partition.provider}/{partition.key}"
     try:
         for batch in source.fetch_places(partition):
+            if own:
+                db.check_cancel(conn, run_id)
             stats = load_batch(conn, run_id, batch, m.license, m.attribution, m.storage)
             for k in totals:
                 totals[k] += stats[k]
             if own:
                 conn.commit()
+        if own:
+            db.bump_progress(conn, run_id, "done", label)
+    except Exception as e:
+        if own:
+            conn.rollback()
+            if not isinstance(e, db.Cancelled):
+                db.add_error(conn, run_id, "extract", f"{type(e).__name__}: {e}", partition.provider, partition.key)
+                db.bump_progress(conn, run_id, "failed", label)
+        raise
     finally:
         if own:
             conn.close()
@@ -229,7 +250,9 @@ def finalize(
                     stats[f"{provider}_missing"] = m
                     blocked = blocked or m["blocked"]
         require_area = any(p.get("require_area") for p in parts)
-        stats["publish"] = publish(conn, settings, run_id, ["manual", *providers], require_area)
+        categories = next((p.get("categories") for p in parts if p.get("categories")), [])
+        stats["publish"] = publish(conn, settings, run_id, ["manual", *providers], require_area, category_keys=categories)
+        stats["quality"] = quality_checks(conn, settings, [p["bbox"] for p in parts])
         stats["status"] = "needs_review" if blocked else "succeeded"
         if own:
             conn.commit()
@@ -242,6 +265,31 @@ def finalize(
 def finish(settings: Settings, run_id: str, status: str, stats: dict[str, Any], error: str | None = None) -> None:
     with db.connect(settings.database_url) as conn:
         db.finish_run(conn, run_id, status, stats, error)
+    alert(settings, run_id, status, stats, error)
+
+
+def cancel_requested(settings: Settings, run_id: str) -> bool:
+    with db.connect(settings.database_url) as conn:
+        row = conn.execute("SELECT cancel_requested FROM sync_runs WHERE id = %s::uuid", [run_id]).fetchone()
+        return bool(row and row["cancel_requested"])
+
+
+def alert(settings: Settings, run_id: str, status: str, stats: dict[str, Any], error: str | None) -> None:
+    """Post to CATALOG_ALERT_WEBHOOK (Slack-compatible {"text": …}) when a run fails, needs review or has quality
+    warnings. Best effort: an unreachable webhook never fails the run."""
+    warnings = (stats.get("quality") or {}).get("warnings") or []
+    if not settings.alert_webhook or (status not in ("failed", "needs_review", "partial") and not warnings):
+        return
+    import httpx
+
+    lines = [f"TRIPLY catalog run {run_id}: {status}"]
+    if error:
+        lines.append(error[:500])
+    lines += [f"- {w}" for w in warnings]
+    try:
+        httpx.post(settings.alert_webhook, json={"text": "\n".join(lines)}, timeout=10)
+    except httpx.HTTPError as e:
+        log.warning("alert webhook failed: %s", e)
 
 
 def photo_scope(area: str | None, bbox: str | None, parts: list[dict[str, Any]], done: set[str] | None = None) -> dict[str, Any] | None:
@@ -265,32 +313,67 @@ def photo_scope(area: str | None, bbox: str | None, parts: list[dict[str, Any]],
 # ── one-shot run (CLI) ───────────────────────────────────────────────────────
 
 
-def run_sync(settings: Settings, area: str | None, bbox: str | None, providers: list[str], dry_run: bool = False, trigger: str = "cli") -> dict[str, Any]:
-    params = {"area": area, "bbox": bbox, "providers": providers, "dry_run": dry_run}
+def run_sync(
+    settings: Settings,
+    area: str | None,
+    bbox: str | None,
+    providers: list[str],
+    dry_run: bool = False,
+    trigger: str = "cli",
+    category_keys: list[str] | None = None,
+    job_id: str | None = None,
+    sync_run_id: str | None = None,
+) -> dict[str, Any]:
+    """`sync_run_id`: an existing sync_runs row to report into (created by the admin API or the scheduler)."""
+    params = {"area": area, "bbox": bbox, "providers": providers, "dry_run": dry_run, "category_keys": category_keys or []}
     if dry_run:
-        # Everything in one transaction that is rolled back: real numbers, no writes.
-        run_id = str(uuid.uuid4())
+        try:
+            out = _dry_run(settings, area, bbox, providers, category_keys)
+        except Exception as e:
+            if sync_run_id:
+                finish(settings, sync_run_id, "failed", {}, f"{type(e).__name__}: {e}"[:2000])
+            raise
+        if sync_run_id:
+            finish(settings, sync_run_id, "dry_run", out)
+        return out
+    if sync_run_id:
         with db.connect(settings.database_url) as conn:
-            sync_taxonomy(conn)  # commits taxonomy only; harmless and idempotent
-            providers = check_keys(providers, "places")
-            check_ready(providers, settings)
-            scope, require_area = resolve_scope(conn, settings, area, bbox)
-            adopt_manual_places(conn, run_id)
-            parts = partition_dicts(settings, scope, require_area, providers)
-            loaded = {f"{p['provider']}/{p['key']}": extract_load(settings, run_id, p, conn) for p in parts}
-            stats = finalize(settings, run_id, parts, providers, complete=True, conn=conn)
-            conn.rollback()
-        return {"run_id": None, "dry_run": True, "loaded": loaded, **stats}
-    run_id = start(settings, params, trigger)
+            sync_taxonomy(conn)
+            conn.execute("UPDATE sync_runs SET status = 'running', started_at = now() WHERE id = %s::uuid", [sync_run_id])
+            conn.commit()
+        run_id = sync_run_id
+    else:
+        with db.connect(settings.database_url) as conn:
+            sync_taxonomy(conn)
+            run_id = db.start_run(conn, trigger, params, job_id)
     try:
         with db.connect(settings.database_url) as lock_conn, db.advisory_lock(lock_conn, f"catalog:{area or bbox}"):
-            parts = plan(settings, run_id, area, bbox, providers)
+            parts = plan(settings, run_id, area, bbox, providers, category_keys)
             loaded = {f"{p['provider']}/{p['key']}": extract_load(settings, run_id, p) for p in parts}
             stats = finalize(settings, run_id, parts, providers)
         result = {"run_id": run_id, "loaded": loaded, **stats}
         finish(settings, run_id, stats["status"], result)
         result["photo_scope"] = photo_scope(area, bbox, parts)
         return result
+    except db.Cancelled:
+        finish(settings, run_id, "cancelled", {}, "cancelled by an admin")
+        raise
     except Exception as e:
         finish(settings, run_id, "failed", {}, f"{type(e).__name__}: {e}"[:2000])
         raise
+
+
+def _dry_run(settings: Settings, area: str | None, bbox: str | None, providers: list[str], category_keys: list[str] | None) -> dict[str, Any]:
+    """Everything in one transaction that is rolled back: real numbers, no writes."""
+    run_id = str(uuid.uuid4())
+    with db.connect(settings.database_url) as conn:
+        sync_taxonomy(conn)  # commits taxonomy only; harmless and idempotent
+        providers = check_keys(providers, "places")
+        check_ready(providers, settings)
+        scope, require_area = resolve_scope(conn, settings, area, bbox)
+        adopt_manual_places(conn, run_id)
+        parts = partition_dicts(settings, scope, require_area, providers, category_keys)
+        loaded = {f"{p['provider']}/{p['key']}": extract_load(settings, run_id, p, conn) for p in parts}
+        stats = finalize(settings, run_id, parts, providers, complete=True, conn=conn)
+        conn.rollback()
+    return {"run_id": None, "dry_run": True, "loaded": loaded, **stats}

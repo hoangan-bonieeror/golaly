@@ -312,97 +312,37 @@ def score_places(conn: psycopg.Connection, settings: Settings, ids: list[str]) -
 
 def pick_winner(a: P, b: P) -> tuple[P, P]:
     """The place more of TRIPLY points at survives (itinerary items, saves, approved photos), then the one with more
-    sources, a curated (manual) one, the older one."""
+    sources, a curated (manual) one, the older one. Same order as the database's catalog_pick_winner()."""
     ka = (-a.links, -a.sources, not a.manual, a.created_at, a.id)
     kb = (-b.links, -b.sources, not b.manual, b.created_at, b.id)
     return (a, b) if ka <= kb else (b, a)
 
 
+def winner_of(conn: psycopg.Connection, a: str, b: str) -> tuple[str, str]:
+    w = conn.execute("SELECT catalog_pick_winner(%s::uuid, %s::uuid)::text AS w", [a, b]).fetchone()["w"]  # type: ignore[index]
+    return (w, b if w == a else a)
+
+
 def merge(conn: psycopg.Connection, winner: str, loser: str, actor: str, score: float | None = None, signals: dict[str, Any] | None = None) -> str:
-    """Move everything from `loser` to `winner` (one transaction, the caller's). Returns the place_merges id.
-    The winner's sources get a fresh changed_run_id; `republish` recomputes its fields."""
-    sources = [
-        r["id"]
-        for r in conn.execute("UPDATE place_sources SET place_id = %s::uuid WHERE place_id = %s::uuid RETURNING id::text AS id", [winner, loser]).fetchall()
-    ]
-    items = [
-        r["id"]
-        for r in conn.execute("UPDATE itinerary_items SET place_id = %s::uuid WHERE place_id = %s::uuid RETURNING id::text AS id", [winner, loser]).fetchall()
-    ]
-    saved = [
-        r["user_id"]
-        for r in conn.execute(
-            """UPDATE saved_places sp SET place_id = %(w)s::uuid WHERE place_id = %(l)s::uuid
-               AND NOT EXISTS (SELECT 1 FROM saved_places x WHERE x.user_id = sp.user_id AND x.place_id = %(w)s::uuid)
-               RETURNING user_id::text AS user_id""",
-            {"w": winner, "l": loser},
-        ).fetchall()
-    ]
-    dropped = [r["user_id"] for r in conn.execute("DELETE FROM saved_places WHERE place_id = %s::uuid RETURNING user_id::text AS user_id", [loser]).fetchall()]
-    photos = [
-        r["id"]
-        for r in conn.execute(
-            """UPDATE place_photos ph SET place_id = %(w)s::uuid WHERE place_id = %(l)s::uuid
-               AND NOT EXISTS (SELECT 1 FROM place_photos x WHERE x.place_id = %(w)s::uuid
-                               AND ((ph.source_id IS NOT NULL AND x.source = ph.source AND x.source_id = ph.source_id)
-                                    OR (ph.media_id IS NOT NULL AND x.media_id = ph.media_id)))
-               RETURNING id::text AS id""",
-            {"w": winner, "l": loser},
-        ).fetchall()
-    ]
-    conn.execute("UPDATE places SET merged_into_id = %s::uuid, updated_at = now() WHERE id = %s::uuid", [winner, loser])
-    moved = {"sources": sources, "items": items, "saved": saved, "saved_dropped": dropped, "photos": photos}
+    """Move everything from `loser` to `winner` (the database function catalog_merge_places, shared with the admin
+    API) in the caller's transaction. Returns the place_merges id; the winner is flagged needs_publish."""
     row = conn.execute(
-        """INSERT INTO place_merges (id, winner_id, loser_id, score, signals, moved, actor)
-           VALUES (gen_random_uuid(), %s::uuid, %s::uuid, %s, %s, %s, %s) RETURNING id::text AS id""",
-        [winner, loser, score, db.jsonb(signals or {}), db.jsonb(moved), actor],
+        "SELECT catalog_merge_places(%s::uuid, %s::uuid, %s, %s, %s)::text AS id", [winner, loser, actor, score, db.jsonb(signals or {})]
     ).fetchone()
-    a, b = sorted([winner, loser])
-    conn.execute(
-        """INSERT INTO merge_candidates (id, place_a, place_b, score, signals, status, decided_by, decided_at)
-           VALUES (gen_random_uuid(), %s::uuid, %s::uuid, %s, %s, 'MERGED', %s, now())
-           ON CONFLICT (place_a, place_b) DO UPDATE SET status = 'MERGED', decided_by = EXCLUDED.decided_by, decided_at = now(), updated_at = now()""",
-        [a, b, score if score is not None else 1.0, db.jsonb(signals or {}), actor],
-    )
     assert row
     return row["id"]
 
 
 def unmerge(conn: psycopg.Connection, settings: Settings, merge_id: str, actor: str) -> dict[str, Any]:
-    """Undo a merge: everything it moved goes back (when it's still on the winner), the loser is a place again, and
-    the pair is marked rejected so it isn't merged again automatically."""
-    m = conn.execute("SELECT * FROM place_merges WHERE id = %s::uuid", [merge_id]).fetchone()
-    if not m:
-        raise ValueError(f"no merge {merge_id}")
-    if m["undone_at"]:
-        raise ValueError(f"merge {merge_id} was already undone")
-    w, loser, moved = str(m["winner_id"]), str(m["loser_id"]), m["moved"] or {}
-    back = {
-        "sources": conn.execute(
-            "UPDATE place_sources SET place_id = %s::uuid WHERE id = ANY(%s::uuid[]) AND place_id = %s::uuid", [loser, moved.get("sources", []), w]
-        ).rowcount,
-        "items": conn.execute(
-            "UPDATE itinerary_items SET place_id = %s::uuid WHERE id = ANY(%s::uuid[]) AND place_id = %s::uuid", [loser, moved.get("items", []), w]
-        ).rowcount,
-        "saved": conn.execute(
-            "UPDATE saved_places SET place_id = %s::uuid WHERE user_id = ANY(%s::uuid[]) AND place_id = %s::uuid", [loser, moved.get("saved", []), w]
-        ).rowcount,
-        "photos": conn.execute(
-            "UPDATE place_photos SET place_id = %s::uuid WHERE id = ANY(%s::uuid[]) AND place_id = %s::uuid", [loser, moved.get("photos", []), w]
-        ).rowcount,
-    }
-    for user in moved.get("saved_dropped", []):
-        conn.execute("INSERT INTO saved_places (user_id, place_id) VALUES (%s::uuid, %s::uuid) ON CONFLICT DO NOTHING", [user, loser])
-    conn.execute("UPDATE places SET merged_into_id = NULL, updated_at = now() WHERE id = %s::uuid AND merged_into_id = %s::uuid", [loser, w])
-    conn.execute("UPDATE place_merges SET undone_at = now(), undone_by = %s WHERE id = %s::uuid", [actor, merge_id])
-    a, b = sorted([w, loser])
-    conn.execute(
-        """UPDATE merge_candidates SET status = 'REJECTED', decided_by = %s, decided_at = now(), updated_at = now()
-           WHERE place_a = %s::uuid AND place_b = %s::uuid""",
-        [actor, a, b],
-    )
-    republish(conn, settings, [w, loser])
-    return {"merge_id": merge_id, "winner": w, "loser": loser, "restored": back}
+    """Undo a merge (catalog_unmerge): everything it moved goes back when it's still on the winner, the loser is a
+    place again, and the pair is marked rejected so it isn't merged again automatically."""
+    try:
+        out = conn.execute("SELECT catalog_unmerge(%s::uuid, %s) AS r", [merge_id, actor]).fetchone()["r"]  # type: ignore[index]
+    except psycopg.errors.RaiseException as e:
+        conn.rollback()
+        raise ValueError(str(e).split("\n")[0]) from e
+    republish(conn, settings, [out["winner"], out["loser"]])
+    return out
 
 
 def republish(conn: psycopg.Connection, settings: Settings, place_ids: list[str]) -> None:
@@ -415,6 +355,14 @@ def republish(conn: psycopg.Connection, settings: Settings, place_ids: list[str]
     conn.execute("UPDATE place_sources SET changed_run_id = %s::uuid WHERE place_id = ANY(%s::uuid[])", [run, place_ids])
     refresh_places(conn, settings, run)
     refresh_names_and_search(conn, settings, run)
+    conn.execute("UPDATE places SET needs_publish = false WHERE id = ANY(%s::uuid[]) AND needs_publish", [place_ids])
+
+
+def republish_dirty(conn: psycopg.Connection, settings: Settings, limit: int = 2000) -> int:
+    """Places an admin merged or unmerged (needs_publish): recompute their fields. Run by catalog_scheduler."""
+    ids = [r["id"] for r in conn.execute("SELECT id::text AS id FROM places WHERE needs_publish LIMIT %s", [limit]).fetchall()]
+    republish(conn, settings, ids)
+    return len(ids)
 
 
 # ── a dedupe pass ────────────────────────────────────────────────────────────
@@ -443,11 +391,10 @@ def dedupe(conn: psycopg.Connection, settings: Settings, place_ids: list[str], a
         if p.key in decided or p.a in gone or p.b in gone or p.score < settings.merge_review:
             continue
         if p.score >= settings.merge_auto and not p.blocked:
-            places = load_places(conn, [p.a, p.b])
-            w, lose = pick_winner(places[p.a], places[p.b])
-            merge(conn, w.id, lose.id, actor, p.score, p.signals)
-            gone.add(lose.id)
-            winners.add(w.id)
+            w, lose = winner_of(conn, p.a, p.b)
+            merge(conn, w, lose, actor, p.score, p.signals)
+            gone.add(lose)
+            winners.add(w)
             stats["merged"] += 1
             continue
         stats["blocked"] += int(bool(p.blocked))

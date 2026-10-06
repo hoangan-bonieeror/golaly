@@ -346,6 +346,7 @@ def sync_photos(
                     # One region failing (network, a source hiccup) shouldn't throw away the others; re-runs are safe.
                     conn.rollback()
                     errors[p.key] = f"{type(e).__name__}: {e}"[:300]
+                    db.add_error(conn, run_id, "photos", errors[p.key], source, p.key)
                     log.warning("photos %s failed: %s", p.key, errors[p.key])
                     continue
                 totals["partitions"][p.key] = s

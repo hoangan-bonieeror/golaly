@@ -144,6 +144,9 @@ model User {
   invitationsBy TripInvitation[]         @relation("Inviter")
   itemsEdited   ItineraryItem[]          @relation("ItemEditor")
   auditLogs     AuditLog[]
+  syncJobs      SyncJob[]
+  syncRuns      SyncRun[]
+  placeEdits    PlaceEdit[]
 
   @@map("users")
 }
@@ -317,6 +320,8 @@ model Place {
   /// Same text lower-cased but WITH accents, so a query typed with diacritics can tell "phở" from "phố".
   searchAccent    String                                 @default("") @map("search_accent")
   /// When catalog_photos last looked for photos of this place; cleared by a trigger when the name or position changes.
+  /// Published fields must be recomputed by the pipeline (set after an admin merge / unmerge).
+  needsPublish    Boolean                                @default(false) @map("needs_publish")
   photosCheckedAt DateTime?                              @map("photos_checked_at")
   createdAt       DateTime                               @default(now()) @map("created_at")
   updatedAt       DateTime                               @default(now()) @updatedAt @map("updated_at")
@@ -335,6 +340,7 @@ model Place {
   mergeCandidatesB MergeCandidate[] @relation("MergeCandidateB")
   mergesWon        PlaceMerge[]     @relation("MergeWinner")
   mergesLost       PlaceMerge[]     @relation("MergeLoser")
+  edits            PlaceEdit[]
 
   @@index([destinationId])
   @@index([areaId, categoryId, status])
@@ -808,22 +814,97 @@ model PlaceName {
   @@map("place_names")
 }
 
-/// One pipeline run (CLI or Airflow). Phase 3 adds sync_jobs and the admin screens on top.
+/// One pipeline run (CLI, Airflow, a scheduled job or an admin's button).
 model SyncRun {
-  id         String    @id @default(uuid()) @db.Uuid
-  /// "cli" | "airflow" | "admin"
-  trigger    String
-  /// { area, providers, dry_run, … }
-  params     Json
-  /// running | succeeded | failed | needs_review
-  status     String    @default("running")
-  stats      Json      @default("{}")
-  error      String?
-  startedAt  DateTime  @default(now()) @map("started_at")
-  finishedAt DateTime? @map("finished_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  /// "cli" | "airflow" | "admin" | "schedule" | "photos" | "dry_run"
+  trigger         String
+  /// { area, bbox, providers, category_keys, photos, dry_run, … }
+  params          Json
+  /// queued | running | succeeded | partial | needs_review | failed | cancelled
+  status          String    @default("running")
+  stats           Json      @default("{}")
+  error           String?
+  jobId           String?   @map("job_id") @db.Uuid
+  /// {"total": 34, "done": 12, "failed": 1, "current": "osm/vn-da-nang"}
+  progress        Json      @default("{}")
+  cancelRequested Boolean   @default(false) @map("cancel_requested")
+  requestedById   String?   @map("requested_by") @db.Uuid
+  startedAt       DateTime  @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+
+  job         SyncJob?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  requestedBy User?          @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  errors      SyncRunError[]
 
   @@index([startedAt])
+  @@index([jobId, startedAt])
+  @@index([status])
   @@map("sync_runs")
+}
+
+/// What an admin wants imported, and when: an area (or a box), sources, categories, a cron schedule (UTC).
+/// The `catalog_scheduler` DAG starts due jobs; "Run now" starts one from the admin screen.
+model SyncJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @unique
+  /// Geo area slug ("vn", "vn-da-nang") or destination slug ("hoi-an").
+  area         String?
+  /// "minLng,minLat,maxLng,maxLat" instead of an area.
+  bbox         String?
+  providers    String[]  @default(["overture", "osm"])
+  /// Empty = every category; otherwise TRIPLY group / category keys ("food", "sights.historic").
+  categoryKeys String[]  @default([]) @map("category_keys")
+  /// 5-field cron in UTC ("0 3 * * 1"); null = by hand only.
+  schedule     String?
+  enabled      Boolean   @default(true)
+  photos       Boolean   @default(true)
+  options      Json      @default("{}")
+  nextRunAt    DateTime? @map("next_run_at")
+  createdById  String?   @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  runs      SyncRun[]
+
+  @@index([enabled, nextRunAt])
+  @@map("sync_jobs")
+}
+
+/// A record or a whole partition that failed in a run (the rest of the run went on).
+model SyncRunError {
+  id         String   @id @default(uuid()) @db.Uuid
+  runId      String   @map("run_id") @db.Uuid
+  provider   String?
+  /// The record's id, or the partition key when a whole partition failed.
+  externalId String?  @map("external_id")
+  /// extract | load | publish | photos
+  stage      String
+  message    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  run SyncRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("sync_run_errors")
+}
+
+/// An admin's change to a published field (the field is then locked against imports).
+model PlaceEdit {
+  id        String   @id @default(uuid()) @db.Uuid
+  placeId   String   @map("place_id") @db.Uuid
+  field     String
+  old       Json?
+  new       Json?
+  actorId   String?  @map("actor_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  place Place @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([placeId, createdAt])
+  @@map("place_edits")
 }
 
 /// A photo shown on a place page: uploaded by a TRIPLY user, or imported from an open source

@@ -2,6 +2,8 @@
 
 catalog_sync       start → plan → extract_load (one mapped task per provider × partition) → finalize → finish
 catalog_bootstrap  taxonomy + adopt seed places → country/province boundaries
+catalog_scheduler  every 10 minutes: start the sync_jobs whose cron schedule is due; republish places an admin merged
+catalog_dry_run    a sync in one rolled-back transaction: what a job would change (the admin's "Dry run" button)
 catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them.
                    Runs by itself after a sync (Asset triply://catalog/places) for the places that need it, or by hand.
 
@@ -28,7 +30,7 @@ except ImportError:  # Airflow 2.x
     from airflow.models.param import Param
     from airflow.operators.python import get_current_context
 
-from airflow.exceptions import AirflowSkipException
+from airflow.exceptions import AirflowFailException, AirflowSkipException
 
 try:
     from airflow.task.trigger_rule import TriggerRule
@@ -80,6 +82,7 @@ def _ids(values: Any) -> list[Any]:
         ),
         "sync_run_id": Param(None, type=["null", "string"], description="existing sync_runs.id (set by the admin API); created if empty"),
         "photos": Param(True, type="boolean", description="afterwards, look for photos of the places that need it (catalog_photos)"),
+        "category_keys": Param([], type="array", items={"type": "string"}, description="only these TRIPLY groups/categories (empty = all)"),
     },
     render_template_as_native_obj=True,
 )
@@ -92,26 +95,32 @@ def catalog_sync():
         if not p.get("area") and not p.get("bbox"):
             raise ValueError("set either 'area' or 'bbox'")
         if p.get("sync_run_id"):
+            from triply_catalog.taxonomy import sync_taxonomy
+
             with db.connect(_settings().database_url) as conn:
+                sync_taxonomy(conn)
                 conn.execute("UPDATE sync_runs SET status = 'running', started_at = now() WHERE id = %s", [p["sync_run_id"]])
                 conn.commit()
             return p["sync_run_id"]
-        return pipeline.start(_settings(), {k: p.get(k) for k in ("area", "bbox", "providers")}, "airflow")
+        return pipeline.start(_settings(), {k: p.get(k) for k in ("area", "bbox", "providers", "category_keys")}, "airflow")
 
     @task
     def plan(sync_id: str) -> list[dict[str, Any]]:
         from triply_catalog import pipeline
 
         p = get_current_context()["params"]
-        return pipeline.plan(_settings(), sync_id, p.get("area"), p.get("bbox"), list(p["providers"]))
+        return pipeline.plan(_settings(), sync_id, p.get("area"), p.get("bbox"), list(p["providers"]), list(p.get("category_keys") or []))
 
     @task(max_active_tis_per_dagrun=4, execution_timeout=timedelta(hours=2), map_index_template="{{ partition_label }}")
     def extract_load(sync_id: str, part: dict[str, Any]) -> dict[str, Any]:
-        from triply_catalog import pipeline
+        from triply_catalog import db, pipeline
 
         key = f"{part['provider']}/{part['key']}"
         get_current_context()["partition_label"] = key  # shown instead of the map index in the UI
-        return {"key": key, **pipeline.extract_load(_settings(), sync_id, part)}
+        try:
+            return {"key": key, **pipeline.extract_load(_settings(), sync_id, part)}
+        except db.Cancelled as e:
+            raise AirflowFailException(str(e)) from e  # no retries
 
     @task(trigger_rule=TriggerRule.ALL_DONE, retries=0)
     def finalize(sync_id: str, parts: list[dict[str, Any]], loaded: Any) -> dict[str, Any]:
@@ -134,6 +143,8 @@ def catalog_sync():
         if not stats:
             pipeline.finish(_settings(), sync_id, "failed", {}, "finalize failed — see the Airflow task log")
             raise RuntimeError("catalog_sync failed")
+        if pipeline.cancel_requested(_settings(), sync_id):
+            stats["status"] = "cancelled"  # what was loaded before the stop is published; nothing counts as missing
         pipeline.finish(_settings(), sync_id, stats["status"], stats)
         return stats
 
@@ -147,6 +158,8 @@ def catalog_sync():
         p = ctx["params"]
         if not p.get("photos", True):
             raise AirflowSkipException("photos: false")
+        if stats.get("status") == "cancelled":
+            raise AirflowSkipException("the run was cancelled")
         scope = pipeline.photo_scope(p.get("area"), p.get("bbox"), parts, set(stats.get("loaded", {})))
         if not scope:
             raise AirflowSkipException("no area was fully synced")
@@ -200,6 +213,81 @@ def catalog_bootstrap():
             return b.import_boundaries(conn, s, get_current_context()["params"]["country"].upper())
 
     boundaries(taxonomy_and_seed())
+
+
+@dag(
+    dag_id="catalog_scheduler",
+    description="Start the sync jobs whose schedule is due; republish places an admin merged or unmerged",
+    schedule="*/10 * * * *",
+    start_date=datetime(2026, 1, 1),
+    catchup=False,
+    max_active_runs=1,
+    default_args={**DEFAULT_ARGS, "retries": 0},
+    tags=["triply", "catalog"],
+)
+def catalog_scheduler():
+    try:
+        from airflow.providers.standard.operators.trigger_dagrun import TriggerDagRunOperator
+    except ImportError:  # Airflow 2.x
+        from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+    @task
+    def due_jobs() -> list[dict[str, Any]]:
+        from triply_catalog import db, jobs
+
+        with db.connect(_settings().database_url) as conn:
+            return jobs.start_due_jobs(conn)
+
+    @task
+    def republish() -> int:
+        from triply_catalog import db, dedupe
+
+        s = _settings()
+        with db.connect(s.database_url) as conn:
+            n = dedupe.republish_dirty(conn, s)
+            conn.commit()
+        return n
+
+    TriggerDagRunOperator.partial(task_id="start_syncs", trigger_dag_id="catalog_sync", wait_for_completion=False).expand(conf=due_jobs())
+    republish()
+
+
+@dag(
+    dag_id="catalog_dry_run",
+    description="What a sync would change, without writing (one transaction, rolled back); results in sync_runs",
+    schedule=None,
+    start_date=datetime(2026, 1, 1),
+    catchup=False,
+    max_active_runs=2,
+    default_args={**DEFAULT_ARGS, "retries": 0},
+    tags=["triply", "catalog"],
+    params={
+        "area": Param("hoi-an", type=["null", "string"]),
+        "bbox": Param(None, type=["null", "string"]),
+        "providers": Param(list(DEFAULT_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}),
+        "category_keys": Param([], type="array", items={"type": "string"}),
+        "sync_run_id": Param(None, type=["null", "string"], description="sync_runs row to report into (set by the admin API)"),
+    },
+    render_template_as_native_obj=True,
+)
+def catalog_dry_run():
+    @task(execution_timeout=timedelta(hours=2))
+    def dry_run() -> dict[str, Any]:
+        from triply_catalog import pipeline
+
+        p = get_current_context()["params"]
+        out = pipeline.run_sync(
+            _settings(),
+            p.get("area"),
+            p.get("bbox"),
+            list(p["providers"]),
+            dry_run=True,
+            category_keys=list(p.get("category_keys") or []),
+            sync_run_id=p.get("sync_run_id"),
+        )
+        return {k: v for k, v in out.items() if k in ("loaded", "publish", "status")}
+
+    dry_run()
 
 
 @dag(
@@ -262,4 +350,6 @@ def photos_after_sync(extras: list[dict[str, Any]], sync_photos: Any = None) -> 
 
 catalog_sync()
 catalog_bootstrap()
+catalog_scheduler()
+catalog_dry_run()
 catalog_photos()

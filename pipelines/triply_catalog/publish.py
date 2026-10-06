@@ -26,11 +26,15 @@ ELIGIBLE = """
   AND s.normalized->>'name' IS NOT NULL
   AND s.operating_status <> 'permanently_closed'
   AND (NOT %(require_area)s OR s.area_id IS NOT NULL)
+  AND (cardinality(%(cats)s::text[]) = 0 OR s.category_id IN (
+       SELECT c.id FROM categories c LEFT JOIN categories g ON g.id = c.parent_id WHERE c.key = ANY(%(cats)s) OR g.key = ANY(%(cats)s)))
 """
 
 
-def attach_and_create(conn: psycopg.Connection, settings: Settings, run_id: str, provider: str, require_area: bool) -> dict[str, int]:
-    params = {"run": run_id, "provider": provider, "m": settings.same_place_meters, "require_area": require_area}
+def attach_and_create(
+    conn: psycopg.Connection, settings: Settings, run_id: str, provider: str, require_area: bool, category_keys: list[str] | None = None
+) -> dict[str, int]:
+    params = {"run": run_id, "provider": provider, "m": settings.same_place_meters, "require_area": require_area, "cats": list(category_keys or [])}
     # A) Attach to an existing place: same normalised name (any language), close by, and that place
     #    doesn't already have a record from this provider (one provider never lists the same place twice).
     attached = conn.execute(
@@ -281,10 +285,19 @@ def mark_missing(conn: psycopg.Connection, settings: Settings, run_id: str, prov
     return {"missing": len(rows), "would_close": closing, "active": active, "blocked": False}
 
 
-def publish(conn: psycopg.Connection, settings: Settings, run_id: str, providers: list[str], require_area: bool, dedupe: bool = True) -> dict[str, Any]:
+def publish(
+    conn: psycopg.Connection,
+    settings: Settings,
+    run_id: str,
+    providers: list[str],
+    require_area: bool,
+    dedupe: bool = True,
+    category_keys: list[str] | None = None,
+) -> dict[str, Any]:
+    """`category_keys` (a job's filter): only records in those TRIPLY groups / categories become or join places."""
     stats: dict[str, Any] = {}
     for provider in [p for p in PUBLISH_ORDER if p in providers]:
-        stats[provider] = attach_and_create(conn, settings, run_id, provider, require_area)
+        stats[provider] = attach_and_create(conn, settings, run_id, provider, require_area, category_keys)
     stats["updated"] = refresh_places(conn, settings, run_id)
     stats["indexed"] = refresh_names_and_search(conn, settings, run_id)
     if dedupe:

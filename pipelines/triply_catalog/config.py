@@ -55,6 +55,8 @@ class Settings:
     merge_auto: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_AUTO", "0.85")))  # type: ignore[arg-type]
     #: … and from which a pair waits for review in merge_candidates.
     merge_review: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_REVIEW", "0.6")))  # type: ignore[arg-type]
+    #: Slack-compatible webhook told about failed / needs-review runs and quality warnings (optional).
+    alert_webhook: str | None = field(default_factory=lambda: _env("CATALOG_ALERT_WEBHOOK"))
     #: Sources missing from this many complete runs in a row count as gone.
     missing_runs_to_close: int = 3
 
