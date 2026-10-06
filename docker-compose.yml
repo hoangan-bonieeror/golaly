@@ -106,6 +106,8 @@ services:
       PYTHONPATH: /opt/triply/src
       CATALOG_CONTACT: ${CATALOG_CONTACT:-}
       OVERTURE_RELEASE: ${OVERTURE_RELEASE:-}
+      HF_TOKEN: ${HF_TOKEN:-}
+      FSQ_RELEASE: ${FSQ_RELEASE:-}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://triply:triply@db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"

@@ -45,8 +45,9 @@ try:  # the registry is cheap to read (no DuckDB/pyosmium import); fall back if 
     from triply_catalog.sources import keys as _source_keys
 
     PLACE_SOURCES = _source_keys("places")
+    DEFAULT_SOURCES = _source_keys("places", default_only=True)
 except Exception:  # pragma: no cover
-    PLACE_SOURCES = ["overture", "osm"]
+    PLACE_SOURCES = DEFAULT_SOURCES = ["overture", "osm"]
 
 DEFAULT_ARGS = {"owner": "triply", "retries": 2, "retry_delay": timedelta(minutes=2)}
 
@@ -75,7 +76,7 @@ def _ids(values: Any) -> list[Any]:
         "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
         "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
         "providers": Param(
-            list(PLACE_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}, description="place sources (registry: triply_catalog/sources)"
+            list(DEFAULT_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}, description="place sources (registry: triply_catalog/sources)"
         ),
         "sync_run_id": Param(None, type=["null", "string"], description="existing sync_runs.id (set by the admin API); created if empty"),
         "photos": Param(True, type="boolean", description="afterwards, look for photos of the places that need it (catalog_photos)"),

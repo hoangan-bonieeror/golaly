@@ -3,6 +3,7 @@
 - overture/fixture/theme=places/type=place/*.parquet        (Overture Places schema, Sept 2026 release)
 - overture/fixture/theme=divisions/type=division_area/*.parquet
 - osm/hoian.osm                                            (OSM XML; pyosmium reads it like a .pbf)
+- fsq/dt=fixture/places/parquet/*.parquet                   (Foursquare OS Places schema)
 
 Coordinates are approximate and boundaries are simplified rectangles — good enough to exercise
 the pipeline end-to-end, not real data. Run: python tests/fixtures/make_fixtures.py
@@ -191,6 +192,93 @@ def build_overture(con: duckdb.DuckDBPyConnection) -> None:
     con.execute(f"COPY divisions TO '{div_dir / 'part-00000.parquet'}' (FORMAT parquet, KV_METADATA {{geo: '{geo}'}})")
 
 
+# fsq_place_id, name, lat, lng, address, tel, website, category labels, date_refreshed, date_closed, unresolved_flags
+FSQ = [
+    # Same place as Overture's / OSM's bánh mì shop (attaches by name), with a finer category.
+    (
+        "fsq-banh-mi",
+        "Bánh Mì Phượng",
+        15.87946,
+        108.33170,
+        "2B Phan Châu Trinh",
+        "0235 0000 001",
+        None,
+        ["Dining and Drinking > Restaurant > Asian Restaurant > Vietnamese Restaurant"],
+        "2026-08-01",
+        None,
+        [],
+    ),
+    # Only in Foursquare.
+    (
+        "fsq-reaching-out",
+        "Reaching Out Tea House",
+        15.87705,
+        108.32905,
+        "131 Trần Phú",
+        None,
+        "reachingoutvietnam.example",
+        ["Dining and Drinking > Cafe, Coffee, and Tea House > Tea Room"],
+        "2026-07-15",
+        None,
+        [],
+    ),
+    ("fsq-tailor", "Bebe Tailor", 15.87790, 108.32990, "11 Hoàng Diệu", None, None, ["Retail > Fashion Retail > Tailor Shop"], "2026-06-01", None, []),
+    # Closed upstream → kept as closed.
+    (
+        "fsq-closed",
+        "Old Town Noodles",
+        15.87720,
+        108.32800,
+        None,
+        None,
+        None,
+        ["Dining and Drinking > Restaurant > Noodle Restaurant"],
+        "2026-05-01",
+        "2025-11-01",
+        [],
+    ),
+    # Not refreshed for years → skipped (stale listings are common in Foursquare data).
+    ("fsq-stale", "Ghost Bar", 15.87700, 108.32700, None, None, None, ["Dining and Drinking > Bar"], "2019-01-01", None, []),
+    # Flagged as not existing → skipped.
+    (
+        "fsq-flagged",
+        "Fake Spa",
+        15.87760,
+        108.32760,
+        None,
+        None,
+        None,
+        ["Business and Professional Services > Health and Beauty Service > Spa"],
+        "2026-08-01",
+        None,
+        ["doesnt_exist"],
+    ),
+    # A dentist: stored, but not a travel category (no mapping) → not published.
+    ("fsq-dentist", "Nha Khoa Hội An", 15.87810, 108.33010, None, None, None, ["Health and Medicine > Dentist"], "2026-08-01", None, []),
+    # Outside the Hội An box.
+    ("fsq-danang", "Cầu Rồng", 16.06110, 108.22760, None, None, None, ["Landmarks and Outdoors > Bridge"], "2026-08-01", None, []),
+]
+
+
+def build_fsq(con: duckdb.DuckDBPyConnection) -> None:
+    out = HERE / "fsq" / "dt=fixture" / "places" / "parquet"
+    out.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for pid, name, lat, lng, addr, tel, web, labels, refreshed, closed, flags in FSQ:
+        rows.append(
+            f"""SELECT {lit(pid)} AS fsq_place_id, {lit(name)} AS name, {lat}::DOUBLE AS latitude, {lng}::DOUBLE AS longitude,
+              {lit(addr)} AS address, 'Hội An' AS locality, 'Quảng Nam' AS region, NULL::VARCHAR AS postcode, 'VN' AS country,
+              DATE '2015-01-01' AS date_created, DATE {lit(refreshed)} AS date_refreshed, {f"DATE {lit(closed)}" if closed else "NULL::DATE"} AS date_closed,
+              {lit(tel)} AS tel, {lit(web)} AS website, NULL::VARCHAR AS email,
+              ['cat-' || {lit(pid)}]::VARCHAR[] AS fsq_category_ids, {labels}::VARCHAR[] AS fsq_category_labels,
+              {flags}::VARCHAR[] AS unresolved_flags,
+              {{'xmin': {lng}::DOUBLE, 'ymin': {lat}::DOUBLE, 'xmax': {lng}::DOUBLE, 'ymax': {lat}::DOUBLE}} AS bbox,
+              from_hex('{wkb_point(lng, lat).hex()}') AS geom"""
+        )
+    con.execute("CREATE OR REPLACE TABLE fsq AS " + " UNION ALL ".join(rows))
+    con.execute(f"COPY fsq TO '{out / 'places-00000.zstd.parquet'}' (FORMAT parquet)")
+
+
 OSM = """<?xml version='1.0' encoding='UTF-8'?>
 <osm version="0.6" generator="triply-fixture">
   <node id="1001" lat="15.87948" lon="108.33166" version="1">
@@ -225,6 +313,7 @@ OSM = """<?xml version='1.0' encoding='UTF-8'?>
 def main() -> None:
     con = duckdb.connect()
     build_overture(con)
+    build_fsq(con)
     (HERE / "osm").mkdir(exist_ok=True)
     (HERE / "osm" / "hoian.osm").write_text(OSM, encoding="utf-8")
     print("fixtures written to", HERE)

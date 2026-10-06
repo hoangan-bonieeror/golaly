@@ -57,3 +57,30 @@ def test_osm_name_fallback_to_translation():
     p = to_place("n9", 15.0, 108.0, {"amenity": "cafe", "name:en": "Only English"})
     assert p and p.name == "Only English"
     assert to_place("n10", 15.0, 108.0, {"amenity": "cafe"}) is None
+
+
+def test_foursquare_filters_and_normalises(settings):
+    places = fetch(settings, "fsq")
+    # stale (not refreshed for years) and flagged-as-nonexistent listings are skipped; the Đà Nẵng one is outside the box
+    assert set(places) == {"fsq-banh-mi", "fsq-reaching-out", "fsq-tailor", "fsq-closed", "fsq-dentist"}
+    p = places["fsq-banh-mi"]
+    assert p.name == "Bánh Mì Phượng" and p.names == {"vi": "Bánh Mì Phượng"}
+    assert p.phone == "+842350000001" and p.address == "2B Phan Châu Trinh, Hội An"
+    assert p.category_candidates == [
+        "Dining and Drinking > Restaurant > Asian Restaurant > Vietnamese Restaurant",
+        "Dining and Drinking > Restaurant > Asian Restaurant",
+        "Dining and Drinking > Restaurant",
+        "Dining and Drinking",
+    ]
+    assert places["fsq-closed"].operating_status == "permanently_closed"
+    assert places["fsq-reaching-out"].website == "https://reachingoutvietnam.example/"
+
+
+def test_foursquare_needs_a_token_for_hugging_face(settings):
+    import dataclasses
+
+    from triply_catalog.sources import get_source
+
+    hf = dataclasses.replace(settings, fsq_base="hf://datasets/foursquare/fsq-os-places/release", hf_token=None)
+    assert "HF_TOKEN" in get_source("fsq", hf).check()[0]
+    assert get_source("fsq", dataclasses.replace(hf, hf_token="hf_x")).check() == []

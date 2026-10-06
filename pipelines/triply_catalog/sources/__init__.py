@@ -33,6 +33,7 @@ from .base import (
 SOURCES: dict[str, str] = {
     "overture": "overture:OvertureSource",
     "osm": "osm:OsmSource",
+    "fsq": "foursquare:FoursquareSource",
     "wikimedia": "wikimedia:WikimediaSource",
 }
 
@@ -55,9 +56,9 @@ def manifests() -> dict[str, Manifest]:
     return {k: manifest(k) for k in SOURCES}
 
 
-def keys(provides: str) -> list[str]:
-    """Registered sources of one kind ("places" or "photos"), in registry order."""
-    return [k for k, m in manifests().items() if provides in m.provides]
+def keys(provides: str, default_only: bool = False) -> list[str]:
+    """Registered sources of one kind ("places" or "photos"), in registry order; `default_only` leaves out opt-in ones."""
+    return [k for k, m in manifests().items() if provides in m.provides and (m.default or not default_only)]
 
 
 def get_source(key: str, settings: Settings, **kwargs: Any) -> Any:

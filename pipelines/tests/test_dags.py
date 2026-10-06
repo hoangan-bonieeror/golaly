@@ -34,7 +34,7 @@ def test_sync_announces_places_and_photos_follow():
     (asset,) = sync.get_task("announce").outlets
     assert asset.uri == "triply://catalog/places"
     assert "triply://catalog/places" in repr(photos.timetable.asset_condition)
-    assert sync.params["providers"] == ["overture", "osm"]  # from the source registry
+    assert sync.params["providers"] == ["overture", "osm"]  # the registry's default sources (Foursquare is opt-in)
 
 
 def test_photos_after_sync_merges_events():

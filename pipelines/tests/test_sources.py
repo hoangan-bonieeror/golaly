@@ -35,6 +35,7 @@ def _wikimedia(settings):
 FIXTURES = {
     "overture": lambda settings: (get_source("overture", settings), None),
     "osm": lambda settings: (get_source("osm", settings), None),
+    "fsq": lambda settings: (get_source("fsq", settings), None),
     "wikimedia": _wikimedia,
 }
 
@@ -142,7 +143,8 @@ def test_focus_limits_the_area_asked(settings):
 
 
 def test_registry_validates_selections():
-    assert keys("places") == ["overture", "osm"] and keys("photos") == ["wikimedia"]
+    assert keys("places") == ["overture", "osm", "fsq"] and keys("photos") == ["wikimedia"]
+    assert keys("places", default_only=True) == ["overture", "osm"]  # Foursquare needs an account: opt-in
     assert set(manifests()) == set(SOURCES)
     assert check_keys(["osm", "overture", "osm"], "places") == ["osm", "overture"]
     with pytest.raises(SourceConfigError, match="Not places sources: wikimedia"):

@@ -47,6 +47,8 @@ class Manifest:
     coverage: str = "global"
     cost: str = "free"
     homepage: str | None = None
+    #: Used when a run doesn't name its sources. False for sources that need an account or cost money.
+    default: bool = True
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -63,6 +65,7 @@ class Manifest:
             "coverage": self.coverage,
             "cost": self.cost,
             "homepage": self.homepage,
+            "default": self.default,
         }
 
 

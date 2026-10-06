@@ -245,3 +245,16 @@ def test_sync_runs_dedupe_on_what_it_touched(settings, database):
 
     out = run_sync(settings, "hoi-an", None, ["overture", "osm"], dry_run=True)
     assert set(out["publish"]["dedupe"]) == {"pairs", "merged", "queued", "blocked"}
+
+
+@pytest.mark.integration
+def test_foursquare_joins_the_same_places(settings, database, db):
+    """A sync with Foursquare attaches its records to the places Overture/OSM already made, adds the new ones, and
+    Foursquare's finer category wins (FIELD_PRIORITY)."""
+    from triply_catalog.pipeline import run_sync
+
+    out = run_sync(settings, "hoi-an", None, ["overture", "osm", "fsq"], dry_run=True)
+    assert out["loaded"]["fsq/hoi-an"]["fetched"] == 5
+    # Bánh Mì Phượng (and the tea house, which the demo seed already has) attach; the tailor shop is new; the dentist
+    # has no travel category and the closed noodle shop isn't published.
+    assert out["publish"]["fsq"] == {"attached": 2, "created": 1}

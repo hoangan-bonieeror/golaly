@@ -22,6 +22,13 @@ class Settings:
     overture_base: str = field(default_factory=lambda: _env("OVERTURE_BASE", "s3://overturemaps-us-west-2/release"))  # type: ignore[arg-type]
     #: Places below this Overture confidence are skipped (Overture recommends filtering low-confidence rows).
     overture_min_confidence: float = field(default_factory=lambda: float(_env("OVERTURE_MIN_CONFIDENCE", "0.6")))  # type: ignore[arg-type]
+    #: Foursquare OS Places: the Hugging Face dataset (gated: accept its terms, then set HF_TOKEN) or a local copy.
+    fsq_base: str = field(default_factory=lambda: _env("FSQ_BASE", "hf://datasets/foursquare/fsq-os-places/release"))  # type: ignore[arg-type]
+    #: Release folder ("2026-09-15" for dt=2026-09-15); empty = the release this version was tested with.
+    fsq_release: str | None = field(default_factory=lambda: _env("FSQ_RELEASE"))
+    hf_token: str | None = field(default_factory=lambda: _env("HF_TOKEN"))
+    #: Foursquare listings nobody refreshed for longer than this are skipped (stale venues are common).
+    fsq_max_age_years: float = field(default_factory=lambda: float(_env("FSQ_MAX_AGE_YEARS", "3")))  # type: ignore[arg-type]
     #: Geofabrik extract for OpenStreetMap (a local path or an https URL that gets downloaded and cached).
     osm_source: str = field(default_factory=lambda: _env("OSM_SOURCE", "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf"))  # type: ignore[arg-type]
     #: Working directory for downloads.
@@ -76,14 +83,14 @@ class Settings:
 #: Which provider wins for each published field (survivorship). "manual" = admin / seed data.
 #: Stored here, not in SQL, so it can be tuned per field after measuring real data quality.
 FIELD_PRIORITY: dict[str, list[str]] = {
-    "name": ["manual", "overture", "osm"],
-    "coords": ["manual", "osm", "overture"],
+    "name": ["manual", "fsq", "overture", "osm"],
+    "coords": ["manual", "osm", "overture", "fsq"],
     # Seed/manual categories come from the app's coarse item type (PLACE → landmark), so real sources refine them;
-    # an admin who wants a specific category locks the field instead.
-    "category": ["overture", "osm", "manual"],
-    "address": ["manual", "overture", "osm"],
-    "phone": ["manual", "overture", "osm"],
-    "website": ["manual", "overture", "osm"],
+    # an admin who wants a specific category locks the field instead. Foursquare's categories are the most detailed.
+    "category": ["fsq", "overture", "osm", "manual"],
+    "address": ["manual", "overture", "osm", "fsq"],
+    "phone": ["manual", "overture", "fsq", "osm"],
+    "website": ["manual", "overture", "fsq", "osm"],
     "opening_hours": ["manual", "osm", "overture"],
 }
 
@@ -96,7 +103,7 @@ GROUP_FAMILIES: list[set[str]] = [{"food", "drink", "nightlife"}, {"sights", "cu
 LANDMARK_GROUPS: set[str] = {"sights", "culture", "nature"}
 
 #: Order in which providers are published within a run: later providers attach to places created by earlier ones.
-PUBLISH_ORDER = ["manual", "overture", "osm"]
+PUBLISH_ORDER = ["manual", "overture", "fsq", "osm"]
 
 #: Licences and attributions are declared by each source's manifest (triply_catalog/sources/).
 

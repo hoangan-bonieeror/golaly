@@ -28,6 +28,9 @@ def settings() -> Settings:
         overture_base=str(FIXTURES / "overture"),
         overture_release="fixture",
         osm_source=str(FIXTURES / "osm" / "hoian.osm"),
+        fsq_base=str(FIXTURES / "fsq"),
+        fsq_release="fixture",
+        fsq_max_age_years=3,
         batch_size=4,  # several batches even on tiny fixtures
     )
 

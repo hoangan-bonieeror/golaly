@@ -8,6 +8,7 @@ runnable as a plain CLI.
 |---|---|---|---|
 | [Overture Maps](https://docs.overturemaps.org/) `places`, `divisions` | names (many languages), category, phone, website, address; province/country boundaries | CDLA-Permissive 2.0 (places), ODbL (divisions) | yes |
 | [OpenStreetMap](https://www.openstreetmap.org/) via [Geofabrik](https://download.geofabrik.de/asia/vietnam.html) | names (`name:xx`), tags → category, opening hours, precise coordinates | ODbL — attribution “© OpenStreetMap contributors” | yes |
+| [Foursquare OS Places](https://opensource.foursquare.com/os-places/) (opt-in) | names, fine-grained categories, address, phone, website | Apache 2.0 — “© Foursquare” | yes |
 | App seed / admin edits | provider `manual` | — | yes |
 | [Wikimedia Commons](https://commons.wikimedia.org) via Wikidata | photos of places, with author and licence | per file: CC0, public domain, CC BY, CC BY-SA | yes (the API downloads them) |
 
@@ -136,6 +137,24 @@ Triggered by hand, `catalog_photos` re-checks every place of the area (as before
 Expect landmarks, temples, museums, beaches and markets to get photos; small cafés and restaurants mostly won't —
 traveler uploads (place page → *Add photo*, or *Also show on place pages* when posting) fill that gap.
 
+### Foursquare OS Places (opt-in)
+
+Foursquare's open dataset is a *gated* Hugging Face dataset: sign in at
+[huggingface.co/datasets/foursquare/fsq-os-places](https://huggingface.co/datasets/foursquare/fsq-os-places), accept
+its terms once, create a read token, then:
+
+```bash
+export HF_TOKEN=hf_…                                   # PowerShell: $env:HF_TOKEN = "hf_…"
+uv run triply-catalog sources                          # fsq should say "ready": true
+uv run triply-catalog sync --area hoi-an --providers overture,osm,fsq
+```
+
+DuckDB reads only the row groups of the area from Hugging Face. Closed venues close their place, listings flagged as
+non-existent / private / inappropriate are skipped, and so are venues nobody refreshed for `FSQ_MAX_AGE_YEARS` (3).
+Categories are mapped by path (`Dining and Drinking > Restaurant > …`, most specific first) in
+`data/category_maps.json`; `triply-catalog stats` shows how many records stay unmapped. Foursquare is not in the
+default source list (`--providers`, the DAG's `providers`) because it needs an account.
+
 `--area` accepts a geo area slug (`vn`, `vn-da-nang`, `vn-ha-noi`), a destination slug (`hoi-an` → its point ± 15 km)
 or use `--bbox minLng,minLat,maxLng,maxLat`. `--providers overture` limits the sources.
 
@@ -197,6 +216,9 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `OVERTURE_BASE` | `s3://overturemaps-us-west-2/release` | or a local folder with the same layout |
 | `OVERTURE_MIN_CONFIDENCE` | `0.6` | Overture's own existence confidence |
 | `OSM_SOURCE` | Geofabrik Vietnam `.pbf` URL | or a local `.pbf`/`.osm` file |
+| `HF_TOKEN` | — | Hugging Face read token, for Foursquare OS Places |
+| `FSQ_BASE` / `FSQ_RELEASE` | `hf://datasets/foursquare/fsq-os-places/release` / `2026-09-15` | or a local copy with the same `dt=…/places/parquet/` layout |
+| `FSQ_MAX_AGE_YEARS` | `3` | skip Foursquare venues not refreshed for this long |
 | `CATALOG_DATA_DIR` | `./data` | download cache |
 | `CATALOG_CONTACT` | — | URL or email put in the User-Agent sent to Wikidata/Commons (please set it) |
 | `CATALOG_PHOTO_MATCH_METERS` / `CATALOG_PHOTO_REVIEW_METERS` | `100` / `300` | name matches publish / go to review |

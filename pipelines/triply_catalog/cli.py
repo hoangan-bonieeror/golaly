@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sync", help="import places for an area")
     s.add_argument("--area", help="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)")
     s.add_argument("--bbox", help="minLng,minLat,maxLng,maxLat")
-    s.add_argument("--providers", default=",".join(keys("places")), help="place sources (see `triply-catalog sources`)")
+    s.add_argument("--providers", default=",".join(keys("places", default_only=True)), help="place sources (see `triply-catalog sources`; fsq is opt-in)")
     s.add_argument("--dry-run", action="store_true")
     s.add_argument("--photos", action="store_true", help="afterwards, look for photos of places that are new, renamed, moved or due")
     ph = sub.add_parser("photos", help="queue openly licensed photos (Wikimedia Commons) for places in an area")
