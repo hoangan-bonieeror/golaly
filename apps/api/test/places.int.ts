@@ -232,3 +232,35 @@ describe("add to trip", () => {
     expect((await t.anon().get(`/places/${place("sensoji")}/trip-targets`)).status).toBe(401);
   });
 });
+
+describe("place names in the viewer's language", () => {
+  const id = place("banh-mi-phuong");
+  beforeAll(async () => {
+    await t.prisma.placeName.createMany({
+      data: [
+        { placeId: id, lang: "en", kind: "primary", name: "Phuong Banh Mi Shop", source: "test" },
+        { placeId: id, lang: "ja", kind: "primary", name: "バインミー・フーン", source: "test" },
+      ],
+      skipDuplicates: true,
+    });
+  });
+  afterAll(() => t.prisma.placeName.deleteMany({ where: { placeId: id, source: "test" } }));
+
+  it("follows Accept-Language with fallbacks and keeps the local name next to a translation", async () => {
+    const get = async (lang?: string) => {
+      const req = t.anon().get(`/places/${id}`);
+      const res = await (lang ? req.set("Accept-Language", lang) : req);
+      expect(res.status).toBe(200);
+      return res.body as PlaceDetail;
+    };
+    const local = await get();
+    expect(local.localName).toBeNull();
+    const en = await get("en-GB,en;q=0.9");
+    expect(en.name).toBe("Phuong Banh Mi Shop");
+    expect(en.localName).toBe(local.name);
+    expect(en.names.map((n) => n.name)).not.toContain("Phuong Banh Mi Shop"); // shown as the title, not "also known as"
+    expect((await get("fr,ja;q=0.5")).name).toBe("バインミー・フーン"); // no French name → next language
+    expect((await get("de")).name).toBe(local.name); // nothing in German → local name, never machine-translated
+    expect((await get("und")).name).toBe(local.name); // Settings → "Local names"
+  });
+});

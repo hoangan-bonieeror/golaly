@@ -2,11 +2,13 @@
 
 import { passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
 import { Camera, LogOut, ShieldCheck, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { Avatar, Button, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
 import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
+import { getPlaceNameChoice, PLACE_NAME_OPTIONS, setPlaceNameChoice, type PlaceNameChoice } from "@/lib/placeLanguage";
 import { useSession } from "@/lib/session";
 
 export default function SettingsPage() {
@@ -89,6 +91,8 @@ function Settings({ me }: { me: Me }) {
           Save profile
         </Button>
       </form>
+
+      <PlaceNamesCard />
 
       <PasswordCard hasPassword={me.hasPassword} providers={me.providers} />
 
@@ -194,5 +198,34 @@ function PasswordCard({ hasPassword, providers }: { hasPassword: boolean; provid
         {hasPassword ? "Change password" : "Set password"}
       </Button>
     </form>
+  );
+}
+
+/** Which language place names appear in (stored on this device). */
+function PlaceNamesCard() {
+  const qc = useQueryClient();
+  const [choice, setChoice] = useState<PlaceNameChoice>(() => getPlaceNameChoice());
+  return (
+    <section className="space-y-3 rounded-[var(--radius-card)] border border-line bg-surface p-5">
+      <h2 className="font-display text-xl font-semibold">Place names</h2>
+      <Field label="Show place names in" hint="When a place has no name in that language, its local name is shown. Saved on this device.">
+        <select
+          className={inputCls}
+          value={choice}
+          onChange={(e) => {
+            const v = e.target.value as PlaceNameChoice;
+            setChoice(v);
+            setPlaceNameChoice(v);
+            void qc.invalidateQueries(); // every list with places refetches in the new language
+          }}
+        >
+          {PLACE_NAME_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </section>
   );
 }

@@ -57,6 +57,7 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
           {place.name}
         </Link>
         <div className="truncate text-xs text-muted">
+          {place.localName && <span className="text-ink-2">{place.localName} · </span>}
           {place.categoryLabel}
           {place.destinationName && ` · ${place.destinationName}`}
         </div>

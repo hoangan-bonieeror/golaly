@@ -15,6 +15,7 @@ import type {
   TripSummary,
   UserSummary,
 } from "@triply/shared";
+import { pickPlaceName } from "./locale";
 import { ITEM_TYPE_LABEL } from "@triply/shared";
 import type { Prisma } from "../generated/prisma/client";
 import { fromDate } from "./dates";
@@ -63,6 +64,7 @@ export const placeInclude = (viewerId: string | null) =>
     destination: { select: { name: true } },
     area: { select: { name: true } },
     categoryRef: { select: { key: true, labelEn: true } },
+    names: { where: { kind: "primary" }, select: { lang: true, name: true } },
     photos: { where: visiblePhoto, orderBy: photoOrder, take: 1, include: { media: true, uploadedBy: { select: userSummarySelect } } },
     savedBy: { where: { userId: viewerId ?? "00000000-0000-0000-0000-000000000000" }, select: { userId: true } },
   }) satisfies Prisma.PlaceInclude;
@@ -75,7 +77,8 @@ export type PlaceRow = Prisma.PlaceGetPayload<{ include: ReturnType<typeof place
 export function toPlaceView(p: PlaceRow): PlaceView {
   return {
     id: p.id,
-    name: p.name,
+    // In the viewer's language when the place has a name in it; `localName` keeps the on-the-ground name.
+    ...pickPlaceName(p.name, p.names),
     category: p.category,
     destinationId: p.destinationId,
     // Imported places outside a curated destination fall back to their administrative area.

@@ -5,6 +5,7 @@
  * - Errors carry the API's friendly message — raw backend errors are never shown (spec §40).
  */
 import type { ApiErrorBody } from "@triply/shared";
+import { placeNameHeader } from "../placeLanguage";
 
 export class ApiError extends Error {
   constructor(
@@ -41,12 +42,14 @@ type Method = "GET" | "POST" | "PATCH" | "DELETE";
 async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   let res: Response;
+  const lang = placeNameHeader();
   try {
     res = await fetch(`/api/v1${path}`, {
       method,
       credentials: "include",
       headers: {
         Accept: "application/json",
+        ...(lang ? { "Accept-Language": lang } : {}),
         ...(method !== "GET" ? { "X-Requested-With": "triply" } : {}),
         ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
       },

@@ -59,7 +59,10 @@ export interface FollowListItem extends UserSummary {
 
 export interface PlaceView {
   id: string;
+  /** In the viewer's language (Accept-Language) when the place has a name in it, else the local name. */
   name: string;
+  /** The on-the-ground name when `name` is a translation ("Chùa Cầu" under "Japanese Covered Bridge"); else null. */
+  localName: string | null;
   category: ItineraryItemType;
   /** null for imported places outside any curated destination; destinationName then names their area. */
   destinationId: string | null;

@@ -72,6 +72,11 @@ export default function PlacePage() {
                 {p.status === "CLOSED" && <Badge tone="gold">Permanently closed</Badge>}
               </div>
               <h1 className="font-display text-3xl font-bold leading-tight md:text-4xl">{p.name}</h1>
+              {p.localName && (
+                <p className="text-base text-ink-2">
+                  {p.localName} <span className="text-xs text-muted">· local name</span>
+                </p>
+              )}
               <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-2">
                 <span>{p.categoryLabel}</span>
                 {p.destinationName && (

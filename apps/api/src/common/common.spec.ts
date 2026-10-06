@@ -1,6 +1,7 @@
 import { createInvitationSchema, createItemSchema, createTripSchema, registerSchema } from "@triply/shared";
 import { hashPassword, randomToken, sha256, verifyPassword } from "./crypto";
 import { addDays, dayCount } from "./dates";
+import { parseAcceptLanguage, pickPlaceName } from "./locale";
 
 describe("crypto", () => {
   it("hashes passwords with argon2id and verifies them", async () => {
@@ -74,5 +75,25 @@ describe("search normalisation", () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { cases } = require("../../../../packages/shared/fixtures/normalize-cases.json") as { cases: [string, string][] };
     for (const [input, expected] of cases) expect([input, normalizeSearch(input)]).toEqual([input, expected]);
+  });
+});
+
+describe("place name language", () => {
+  it("orders Accept-Language by preference, each tag followed by its base language", () => {
+    expect(parseAcceptLanguage("vi;q=0.8, en-GB, en;q=0.9")).toEqual(["en-gb", "en", "vi"]);
+    expect(parseAcceptLanguage("*, x;q=0, <script>")).toEqual([]);
+    expect(parseAcceptLanguage(undefined)).toEqual([]);
+  });
+
+  it("picks the first language the place has a name in, else the local name", () => {
+    const names = [
+      { lang: "vi", name: "Chùa Cầu" },
+      { lang: "en", name: "Japanese Covered Bridge" },
+      { lang: "zh-Hant", name: "日本橋" },
+    ];
+    expect(pickPlaceName("Chùa Cầu", names, ["en-us", "en"])).toEqual({ name: "Japanese Covered Bridge", localName: "Chùa Cầu" });
+    expect(pickPlaceName("Chùa Cầu", names, ["zh"])).toEqual({ name: "日本橋", localName: "Chùa Cầu" });
+    expect(pickPlaceName("Chùa Cầu", names, ["vi"])).toEqual({ name: "Chùa Cầu", localName: null });
+    expect(pickPlaceName("Chùa Cầu", names, ["ko"])).toEqual({ name: "Chùa Cầu", localName: null });
   });
 });

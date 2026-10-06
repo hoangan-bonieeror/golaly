@@ -273,7 +273,7 @@ export class PlacesService {
       groupLabel: p.categoryRef?.parent?.labelEn ?? null,
       destinationSlug: p.destination?.slug ?? null,
       areaName: p.area?.name ?? null,
-      names: p.names.filter((n) => n.name !== p.name),
+      names: p.names.filter((n) => n.name !== p.name && n.name !== base.name),
       attribution: p.sources.map((s) => s.attribution).filter(Boolean),
       photos: photos.map((ph) => toPlacePhotoView(ph as typeof ph & { media: NonNullable<typeof ph.media> }, viewerId)),
       nearby: byRank(nearRows, nearIds.map((n) => n.id)).map((r) => ({ ...toPlaceView(r), distanceM: Math.round(nearDist.get(r.id) ?? 0) })),
