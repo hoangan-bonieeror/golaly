@@ -129,6 +129,9 @@ export interface GeoAreaOption {
   name: string;
   /** Without the type prefix, e.g. "Đà Nẵng". */
   shortName: string;
+  /** English name shown in pickers: the destination that stands for it ("Da Nang", "Hanoi"), or the English
+   *  name for countries ("Vietnam"); falls back to `shortName`. */
+  displayName: string;
   /** "city" / "province" when the name says so (Vietnam), otherwise the boundary level. */
   kind: "country" | "city" | "province" | "region";
   countryCode: string;

@@ -1,5 +1,6 @@
 import { Global, Injectable, Logger, Module, OnApplicationBootstrap } from "@nestjs/common";
 import { accentSearch, normalizeSearch, splitAreaName } from "@triply/shared";
+import { env } from "../../config/env";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 
 /**
@@ -34,12 +35,13 @@ export class SearchIndexService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap() {
-    try {
-      const n = await this.backfill();
-      if (n) this.log.log(`Indexed ${n} rows for search`);
-    } catch (e) {
-      this.log.warn(`Search backfill skipped: ${(e as Error).message}`);
-    }
+    // Nest awaits this hook before `listen()`, so a slow or lock-blocked database (a migration queued behind a long
+    // transaction) would keep the port closed. Outside tests, index in the background and serve meanwhile.
+    const run = this.backfill().then(
+      (n) => n && this.log.log(`Indexed ${n} rows for search`),
+      (e) => this.log.warn(`Search backfill skipped: ${(e as Error).message}`),
+    );
+    if (env.NODE_ENV === "test") await run;
   }
 
   /** Fills empty search_text columns. Safe to run repeatedly. */

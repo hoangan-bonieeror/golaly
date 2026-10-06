@@ -55,7 +55,18 @@ export class PlacesService {
   async areas(): Promise<GeoAreaOption[]> {
     if (this.areaCache && Date.now() - this.areaCache.at < 5 * 60_000) return this.areaCache.list;
     const [rows, counts] = await Promise.all([
-      this.prisma.geoArea.findMany({ select: { id: true, parentId: true, slug: true, name: true, level: true, countryCode: true } }),
+      this.prisma.geoArea.findMany({
+        select: {
+          id: true,
+          parentId: true,
+          slug: true,
+          name: true,
+          level: true,
+          countryCode: true,
+          names: { where: { lang: "en" }, select: { name: true } },
+          represented: { select: { name: true } },
+        },
+      }),
       this.prisma.$queryRaw<{ area_id: string; n: bigint }[]>`
         SELECT area_id::text AS area_id, count(*) AS n FROM places
         WHERE area_id IS NOT NULL AND status = 'ACTIVE' AND merged_into_id IS NULL GROUP BY 1`,
@@ -75,13 +86,14 @@ export class PlacesService {
           slug: r.slug,
           name: r.name,
           shortName: short,
+          displayName: r.represented?.name ?? (r.level === "COUNTRY" ? r.names[0]?.name : undefined) ?? short,
           kind: r.level === "COUNTRY" ? "country" : (kind ?? "region"),
           countryCode: r.countryCode,
           parentSlug: r.parentId ? (byId.get(r.parentId)?.slug ?? null) : null,
           placeCount: total.get(r.id) ?? 0,
         };
       })
-      .sort((a, b) => a.countryCode.localeCompare(b.countryCode) || normalizeSearch(a.shortName).localeCompare(normalizeSearch(b.shortName)));
+      .sort((a, b) => a.countryCode.localeCompare(b.countryCode) || normalizeSearch(a.displayName).localeCompare(normalizeSearch(b.displayName)));
     this.areaCache = { at: Date.now(), list };
     return list;
   }

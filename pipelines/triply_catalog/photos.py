@@ -251,15 +251,27 @@ def mark_checked(conn: psycopg.Connection, places: list[dict[str, Any]], skipped
     return conn.execute("UPDATE places SET photos_checked_at = now() WHERE id = ANY(%s::uuid[])", [ids]).rowcount
 
 
-def sync_partition(conn: psycopg.Connection, source: Any, settings: Settings, part: Partition | BBox, only_due: bool = False) -> dict[str, int]:
+def _end_read(conn: psycopg.Connection, dry_run: bool) -> None:
+    """Close the read-only transaction before a slow network call. An open transaction keeps its locks on `places`
+    for as long as the source takes (minutes for a whole country), which queues any migration behind it — and every
+    API query behind that migration. A dry run keeps its single rolled-back transaction, so it can't let go."""
+    if not dry_run:
+        conn.commit()
+
+
+def sync_partition(
+    conn: psycopg.Connection, source: Any, settings: Settings, part: Partition | BBox, only_due: bool = False, dry_run: bool = False
+) -> dict[str, int]:
     if isinstance(part, BBox):
         part = Partition(source.manifest.key, "bbox", part)
     box = part.bbox
     places = places_in(conn, settings, box, only_due)
+    _end_read(conn, dry_run)
     if only_due and not places:
         return {"due": 0, "items": 0, "matched": 0, "places": 0, "added": 0, "updated": 0, "hidden": 0, "skipped_tiles": 0, "checked": 0}
     found = source.find_subjects(part, focus=[(p["lat"], p["lng"]) for p in places] if only_due else None)
     matches = match_subjects(conn, settings, box, found.subjects)
+    _end_read(conn, dry_run)
     if only_due:
         due = {p["id"] for p in places}
         matches = [m for m in matches if m.place_id in due]
@@ -329,7 +341,7 @@ def sync_photos(
             for i, p in enumerate(parts, 1):
                 log.info("photos %d/%d: %s%s", i, len(parts), p.key, " (due only)" if only_due else "")
                 try:
-                    s = sync_partition(conn, src, settings, Partition(source, p.key, p.bbox, p.area_id), only_due)
+                    s = sync_partition(conn, src, settings, Partition(source, p.key, p.bbox, p.area_id), only_due, dry_run)
                 except (httpx.HTTPError, SourceUnavailable, RuntimeError) as e:
                     # One region failing (network, a source hiccup) shouldn't throw away the others; re-runs are safe.
                     conn.rollback()

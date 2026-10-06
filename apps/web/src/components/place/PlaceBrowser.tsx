@@ -1,33 +1,18 @@
 "use client";
 
-import type { CategoryView, GeoAreaOption } from "@triply/shared";
+import type { CategoryView } from "@triply/shared";
 import { List, LocateFixed, Map as MapIcon, MapPinned, SearchX } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { PlacesMap } from "@/components/map/PlacesMap";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { Chip, EmptyState, ErrorState, LoadMore, Skeleton, cx, inputCls } from "@/components/ui";
 import { useCategories, useDestinations, useGeoAreas, usePlaceBrowse } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { groupMeta } from "./categoryMeta";
+import { WherePicker, type WhereValue } from "./WherePicker";
 
 const RADII = [2, 5, 10, 25] as const;
-const KIND_LABEL: Record<GeoAreaOption["kind"], string> = { country: "Country", city: "Cities", province: "Provinces", region: "Regions" };
-
-/** Countries that have places, each with its provinces/cities grouped by kind ("Cities", "Provinces"). */
-function areaGroups(areas: GeoAreaOption[], selected?: string) {
-  const shown = areas.filter((a) => a.placeCount > 0 || a.slug === selected);
-  return shown
-    .filter((a) => a.kind === "country")
-    .map((country) => {
-      const inside = shown.filter((a) => a.parentSlug === country.slug);
-      const kinds = (["city", "province", "region"] as const)
-        .map((kind) => ({ kind, areas: inside.filter((a) => a.kind === kind) }))
-        .filter((g) => g.areas.length > 0);
-      return { country, kinds };
-    });
-}
-
 const SORTS = [
   ["recommended", "Recommended"],
   ["distance", "Nearest first"],
@@ -47,6 +32,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
   const destinations = useDestinations().data ?? [];
   const areas = useGeoAreas().data ?? [];
   const [locating, setLocating] = useState(false);
+  const whereId = useId();
   const [view, setView] = useState<"list" | "map">("list");
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -94,7 +80,30 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     );
   };
 
-  const where = dest ? `dest:${dest}` : area ? `area:${area}` : near ? "near" : "";
+  const whereValue: WhereValue = dest ? { kind: "dest", slug: dest } : area ? { kind: "area", slug: area } : near ? { kind: "near" } : { kind: "any" };
+  const whereLabel = (() => {
+    if (dest) {
+      const d = destinations.find((x) => x.slug === dest);
+      return d ? `${d.name}, ${d.country}` : (meta?.center?.label ?? "Destination");
+    }
+    if (area) {
+      const a = areas.find((x) => x.slug === area);
+      const country = a?.kind === "country" ? null : areas.find((x) => x.slug === a?.parentSlug);
+      return a ? (country ? `${a.displayName}, ${country.displayName}` : `All of ${a.displayName}`) : (meta?.center?.label ?? "Area");
+    }
+    return near ? "Near me" : "Anywhere";
+  })();
+  const pickWhere = (v: WhereValue) => {
+    if (v.kind === "near") return locate();
+    set({
+      dest: v.kind === "dest" ? v.slug : undefined,
+      area: v.kind === "area" ? v.slug : undefined,
+      near: undefined,
+      r: undefined,
+      // Distance needs a point; a province or "anywhere" has none.
+      sort: v.kind === "dest" || sort !== "distance" ? sort : undefined,
+    });
+  };
   const summary = meta
     ? `${meta.total.toLocaleString()} place${meta.total === 1 ? "" : "s"}${meta.area ? ` in ${meta.center?.label ?? meta.area.name}` : meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
     : "";
@@ -103,53 +112,14 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     <div className="space-y-5">
       {/* Where + how far */}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="block min-w-[220px] flex-1 sm:flex-none">
-          <span className="mb-1.5 block text-sm font-medium text-ink-2">Where</span>
-          <select
-            className={cx(inputCls, "pr-8")}
-            value={where}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "near") return locate();
-              const [kind, slug] = v.split(":");
-              set({
-                dest: kind === "dest" ? slug : undefined,
-                area: kind === "area" ? slug : undefined,
-                near: undefined,
-                r: undefined,
-                // Distance needs a point; a province or "anywhere" has none.
-                sort: kind === "dest" || sort !== "distance" ? sort : undefined,
-              });
-            }}
-          >
-            <option value="">Anywhere</option>
-            <option value="near">{near ? "Near me" : "Near me (uses your location)"}</option>
-            <optgroup label="Destinations">
-              {/* Province/city destinations are listed with their area below. */}
-              {destinations.filter((d) => d.kind === "curated" || d.slug === dest).map((d) => (
-                <option key={d.slug} value={`dest:${d.slug}`}>
-                  {d.name}, {d.country}
-                </option>
-              ))}
-            </optgroup>
-            {areaGroups(areas, area).map(({ country, kinds }) => [
-              <optgroup key={country.slug} label={country.shortName}>
-                <option value={`area:${country.slug}`}>
-                  All of {country.shortName} · {country.placeCount.toLocaleString()}
-                </option>
-              </optgroup>,
-              ...kinds.map((g) => (
-                <optgroup key={`${country.slug}-${g.kind}`} label={`${country.shortName} · ${KIND_LABEL[g.kind]}`}>
-                  {g.areas.map((a) => (
-                    <option key={a.slug} value={`area:${a.slug}`}>
-                      {a.shortName} · {a.placeCount.toLocaleString()}
-                    </option>
-                  ))}
-                </optgroup>
-              )),
-            ])}
-          </select>
-        </label>
+        <div className="block min-w-[240px] flex-1 sm:max-w-sm">
+          <span id={whereId} className="mb-1.5 block text-sm font-medium text-ink-2">
+            Where
+          </span>
+          <div role="group" aria-labelledby={whereId}>
+            <WherePicker value={whereValue} label={whereLabel} areas={areas} destinations={destinations} onChange={pickWhere} />
+          </div>
+        </div>
         <button
           type="button"
           onClick={locate}
