@@ -34,6 +34,17 @@ class Settings:
     same_place_meters: float = field(default_factory=lambda: float(_env("CATALOG_SAME_PLACE_METERS", "50")))  # type: ignore[arg-type]
     #: Safety brake: a run that would close more than this share of an area's places stops as needs_review.
     max_close_ratio: float = field(default_factory=lambda: float(_env("CATALOG_MAX_CLOSE_RATIO", "0.10")))  # type: ignore[arg-type]
+    # ── Duplicate detection (phase 2) ────────────────────────────────────────
+    #: Candidate places within this distance of each other are scored …
+    merge_radius_m: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_RADIUS_M", "75")))  # type: ignore[arg-type]
+    #: … or this one when either is a sight / cultural or natural landmark (big footprints, imprecise points).
+    merge_radius_landmark_m: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_RADIUS_LANDMARK_M", "100")))  # type: ignore[arg-type]
+    #: Same phone or website, or an external id that points at the other place, within this distance = the same place.
+    merge_sure_m: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_SURE_M", "150")))  # type: ignore[arg-type]
+    #: Score at or above which two places are merged automatically (unless a blocking rule applies) …
+    merge_auto: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_AUTO", "0.85")))  # type: ignore[arg-type]
+    #: … and from which a pair waits for review in merge_candidates.
+    merge_review: float = field(default_factory=lambda: float(_env("CATALOG_MERGE_REVIEW", "0.6")))  # type: ignore[arg-type]
     #: Sources missing from this many complete runs in a row count as gone.
     missing_runs_to_close: int = 3
 
@@ -75,6 +86,14 @@ FIELD_PRIORITY: dict[str, list[str]] = {
     "website": ["manual", "overture", "osm"],
     "opening_hours": ["manual", "osm", "overture"],
 }
+
+#: Merge-score weights (they're renormalised over the signals both places have: many OSM places have no address).
+MERGE_WEIGHTS: dict[str, float] = {"name": 0.45, "distance": 0.25, "category": 0.15, "address": 0.15}
+
+#: Category groups that may be the same place (a café that serves food); anything across families is never auto-merged.
+GROUP_FAMILIES: list[set[str]] = [{"food", "drink", "nightlife"}, {"sights", "culture", "nature", "activity"}, {"lodging"}, {"shopping"}, {"transport"}]
+#: Groups whose places get the larger candidate radius.
+LANDMARK_GROUPS: set[str] = {"sights", "culture", "nature"}
 
 #: Order in which providers are published within a run: later providers attach to places created by earlier ones.
 PUBLISH_ORDER = ["manual", "overture", "osm"]

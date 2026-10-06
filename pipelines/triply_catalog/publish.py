@@ -1,8 +1,9 @@
 """Publish step: place_sources → places (the canonical rows the app reads).
 
-Phase 1 matching is deliberately conservative: a source record attaches to an existing place only when
-one of its names, normalised, equals the place's normalised name AND it lies within `same_place_meters`.
-Everything else becomes a new place; fuzzy scoring and a review queue arrive in phase 2.
+Attaching stays conservative: a source record joins an existing place only when one of its names, normalised,
+equals the place's normalised name AND it lies within `same_place_meters`; everything else becomes a new place.
+Places that are nevertheless the same are found afterwards by the scored duplicate detection (`dedupe.py`):
+merged automatically when the score is high, queued for review in `merge_candidates` when it's uncertain.
 
 All steps are incremental: only places touched by records that changed in this run are recomputed,
 so a re-run over unchanged data writes nothing.
@@ -280,10 +281,20 @@ def mark_missing(conn: psycopg.Connection, settings: Settings, run_id: str, prov
     return {"missing": len(rows), "would_close": closing, "active": active, "blocked": False}
 
 
-def publish(conn: psycopg.Connection, settings: Settings, run_id: str, providers: list[str], require_area: bool) -> dict[str, Any]:
+def publish(conn: psycopg.Connection, settings: Settings, run_id: str, providers: list[str], require_area: bool, dedupe: bool = True) -> dict[str, Any]:
     stats: dict[str, Any] = {}
     for provider in [p for p in PUBLISH_ORDER if p in providers]:
         stats[provider] = attach_and_create(conn, settings, run_id, provider, require_area)
     stats["updated"] = refresh_places(conn, settings, run_id)
     stats["indexed"] = refresh_names_and_search(conn, settings, run_id)
+    if dedupe:
+        from .dedupe import dedupe as run_dedupe
+
+        touched = [
+            r["id"]
+            for r in conn.execute(
+                "SELECT DISTINCT place_id::text AS id FROM place_sources WHERE changed_run_id = %s::uuid AND place_id IS NOT NULL", [run_id]
+            ).fetchall()
+        ]
+        stats["dedupe"] = run_dedupe(conn, settings, touched)
     return stats

@@ -30,12 +30,21 @@ start → plan ┤ Overture: DuckDB reads GeoParquet straight from S3, bbox + co
 2. **Publish – `places`**: a source record is attached to an existing place when one of its names matches (accents
    and case ignored, all languages) within 50 m and that place has no record from the same provider; otherwise it
    creates a place. Existing place ids never change, so itineraries keep working.
-3. **Survivorship**: each field comes from the best source that has it (`FIELD_PRIORITY` in `config.py`) — e.g. name
+3. **Duplicates** (`dedupe.py`): after publishing, every place the run touched is compared with its 10 nearest
+   neighbours (75 m; 100 m for sights, culture, nature). *Sure*: an Overture record built from that OSM / Foursquare
+   record, or the same phone or website within 150 m. Otherwise a score: name 0.45 (trigram similarity, any language,
+   generic words like "quán", "nhà hàng", "hotel" ignored), distance 0.25, category 0.15, address 0.15 — renormalised
+   over the signals both places have. ≥ 0.85 merges now; 0.6–0.85 waits in `merge_candidates`. Never merged
+   automatically: different kinds of place (a hotel and its restaurant), two records of the same provider, pairs
+   someone rejected. A merge moves source records, itinerary items, saves and photos to the place with more links,
+   points the other at it (`merged_into_id`, so old links still open the right page) and records everything in
+   `place_merges`, so `merges undo` restores it exactly.
+4. **Survivorship**: each field comes from the best source that has it (`FIELD_PRIORITY` in `config.py`) — e.g. name
    from manual → Overture → OSM, opening hours from OSM. Admins can lock fields (`places.locked_fields`).
    `places.field_sources` records where each value came from.
-4. **Names by locale**: every name variant goes to `place_names (lang)`; the app shows the one matching the device
+5. **Names by locale**: every name variant goes to `place_names (lang)`; the app shows the one matching the device
    locale and searches across all of them.
-5. **Closures**: a record missing from 3 complete runs (or marked closed upstream) closes the place
+6. **Closures**: a record missing from 3 complete runs (or marked closed upstream) closes the place
    (`status = CLOSED`, never deleted). If a run would close more than 10 % of a scope at once, nothing is closed and
    the run ends as `needs_review` — usually a truncated file or a wrong bbox.
 
@@ -60,6 +69,27 @@ uv run triply-catalog sync --area hoi-an     # one destination (≈ minutes; dow
 uv run triply-catalog sync --area vn         # all of Vietnam, one partition per province
 uv run triply-catalog stats
 ```
+
+### Duplicates
+
+```bash
+uv run triply-catalog dedupe --area hoi-an --dry-run     # what a pass over existing places would merge / queue
+uv run triply-catalog dedupe --area vn                   # syncs do this for what they touch; run once for older data
+uv run triply-catalog merges list --area hoi-an          # pairs waiting for review (highest score first)
+uv run triply-catalog merges decide <candidate-id> merge # or reject (a rejected pair is never merged automatically)
+uv run triply-catalog merges undo <merge-id>             # put a merge back exactly as it was
+```
+
+**Measuring it** (phase 2 goal: ≥ 98 % precision for automatic merges). Export pairs spread over the score bands,
+label them by hand, then measure each threshold:
+
+```bash
+uv run triply-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # fill the `label` column: same / different
+uv run triply-catalog merges evaluate pairs.csv                            # precision / recall at 0.6 … 0.95
+```
+
+Thresholds and radii are settings (`CATALOG_MERGE_AUTO`, `CATALOG_MERGE_REVIEW`, `CATALOG_MERGE_RADIUS_M`, …), so the
+measured best value can be applied without a code change.
 
 ### Photos (Wikimedia Commons)
 
@@ -171,6 +201,8 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `CATALOG_CONTACT` | — | URL or email put in the User-Agent sent to Wikidata/Commons (please set it) |
 | `CATALOG_PHOTO_MATCH_METERS` / `CATALOG_PHOTO_REVIEW_METERS` | `100` / `300` | name matches publish / go to review |
 | `CATALOG_PHOTOS_PER_PLACE` | `4` | main image + quality images per place |
+| `CATALOG_MERGE_AUTO` / `CATALOG_MERGE_REVIEW` | `0.85` / `0.6` | duplicate score that merges automatically / goes to review |
+| `CATALOG_MERGE_RADIUS_M` / `_LANDMARK_M` / `CATALOG_MERGE_SURE_M` | `75` / `100` / `150` | candidate radius; for sights/culture/nature; for same phone/website/external id |
 | `CATALOG_PHOTO_RECHECK_DAYS` | `30` | incremental photo runs re-check a place after this many days |
 
 Category mapping lives in `triply_catalog/data/taxonomy.json` (TRIPLY's categories, vi/en labels) and
@@ -191,7 +223,9 @@ their ids, cross-source matching (incl. a name only in another language), surviv
 itineraries untouched, dry runs, locked fields, closing after 3 missed runs, the safety brake and re-opening.
 `test_pipeline_photos.py` runs the photo step against a fake Wikidata/Commons (httpx MockTransport): exact and name
 matches, the review distance, licence filtering, category quality images, idempotent re-runs, kept moderation decisions
-and licence changes. `test_pipeline_photos_auto.py` covers incremental runs (the trigger on renames/moves, no
+and licence changes. `test_pipeline_dedupe.py` covers duplicate scoring (names in other languages, generic words, addresses, blocking
+rules, Overture → OSM references), merges moving itinerary items / saves / photos, exact unmerge, the review flow from
+the CLI and the labelling tools. `test_pipeline_photos_auto.py` covers incremental runs (the trigger on renames/moves, no
 requests when nothing is due, only due places touched), the sync → photos hand-over after full and partial syncs, and
 storage modes. `test_sources.py` is the contract every registered source passes; `test_dags.py` (where Airflow is
 installed) checks that only `announce` emits the Asset and how `catalog_photos` merges several events. `normalize_search` is checked against the same cases as the app's TypeScript (`packages/shared/fixtures/normalize-cases.json`).

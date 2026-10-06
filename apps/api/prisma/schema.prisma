@@ -321,16 +321,20 @@ model Place {
   createdAt       DateTime                               @default(now()) @map("created_at")
   updatedAt       DateTime                               @default(now()) @updatedAt @map("updated_at")
 
-  destination Destination?    @relation(fields: [destinationId], references: [id])
-  area        GeoArea?        @relation(fields: [areaId], references: [id], onDelete: SetNull)
-  categoryRef Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  mergedInto  Place?          @relation("PlaceMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
-  mergedFrom  Place[]         @relation("PlaceMerges")
-  items       ItineraryItem[]
-  savedBy     SavedPlace[]
-  sources     PlaceSource[]
-  names       PlaceName[]
-  photos      PlacePhoto[]
+  destination      Destination?     @relation(fields: [destinationId], references: [id])
+  area             GeoArea?         @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  categoryRef      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  mergedInto       Place?           @relation("PlaceMerges", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom       Place[]          @relation("PlaceMerges")
+  items            ItineraryItem[]
+  savedBy          SavedPlace[]
+  sources          PlaceSource[]
+  names            PlaceName[]
+  photos           PlacePhoto[]
+  mergeCandidatesA MergeCandidate[] @relation("MergeCandidateA")
+  mergeCandidatesB MergeCandidate[] @relation("MergeCandidateB")
+  mergesWon        PlaceMerge[]     @relation("MergeWinner")
+  mergesLost       PlaceMerge[]     @relation("MergeLoser")
 
   @@index([destinationId])
   @@index([areaId, categoryId, status])
@@ -864,4 +868,57 @@ model PlacePhoto {
   @@index([status, createdAt])
   @@index([mediaId])
   @@map("place_photos")
+}
+
+enum MergeStatus {
+  PENDING
+  MERGED
+  REJECTED
+}
+
+/// Two places that may be the same (score between the review and auto thresholds), waiting for a decision.
+/// `place_a < place_b` so a pair has one row. Written by the catalog pipeline; rejected pairs are never re-merged.
+model MergeCandidate {
+  id        String      @id @default(uuid()) @db.Uuid
+  placeAId  String      @map("place_a") @db.Uuid
+  placeBId  String      @map("place_b") @db.Uuid
+  score     Float
+  /// Per-signal scores and reasons, e.g. {"name": 0.92, "distance": 0.6, "category": 1, "blocked": "same_provider"}.
+  signals   Json        @default("{}")
+  status    MergeStatus @default(PENDING)
+  /// "auto", "cli" or an admin's user id.
+  decidedBy String?     @map("decided_by")
+  decidedAt DateTime?   @map("decided_at")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  placeA Place @relation("MergeCandidateA", fields: [placeAId], references: [id], onDelete: Cascade)
+  placeB Place @relation("MergeCandidateB", fields: [placeBId], references: [id], onDelete: Cascade)
+
+  @@unique([placeAId, placeBId])
+  @@index([placeBId])
+  @@index([status, score])
+  @@map("merge_candidates")
+}
+
+/// One merge: the loser points at the winner (`places.merged_into_id`), and `moved` lists what was moved so the
+/// merge can be undone exactly.
+model PlaceMerge {
+  id        String    @id @default(uuid()) @db.Uuid
+  winnerId  String    @map("winner_id") @db.Uuid
+  loserId   String    @map("loser_id") @db.Uuid
+  score     Float?
+  signals   Json      @default("{}")
+  moved     Json      @default("{}")
+  actor     String
+  createdAt DateTime  @default(now()) @map("created_at")
+  undoneAt  DateTime? @map("undone_at")
+  undoneBy  String?   @map("undone_by")
+
+  winner Place @relation("MergeWinner", fields: [winnerId], references: [id], onDelete: Cascade)
+  loser  Place @relation("MergeLoser", fields: [loserId], references: [id], onDelete: Cascade)
+
+  @@index([winnerId])
+  @@index([loserId])
+  @@map("place_merges")
 }
