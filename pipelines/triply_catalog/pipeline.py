@@ -46,6 +46,7 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
         return [Partition("", "bbox", BBox(x0, y0, x1, y1))], False
     if not area:
         raise ScopeError("Give --area (geo area or destination slug) or --bbox.")
+    area = area.strip().lower()  # slugs are lower-case: "MX" means "mx"
     g = conn.execute("SELECT id::text AS id, level::text AS level, slug, min_lng, min_lat, max_lng, max_lat FROM geo_areas WHERE slug = %s", [area]).fetchone()
     if g:
         rows = [g]
@@ -71,7 +72,12 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
         r = settings.destination_radius_km
         dlat, dlng = r / 111.32, r / (111.32 * math.cos(math.radians(d["lat"])))
         return [Partition("", d["slug"], BBox(d["lng"] - dlng, d["lat"] - dlat, d["lng"] + dlng, d["lat"] + dlat))], False
-    raise ScopeError(f"No geo area or destination with slug {area!r}.")
+    if len(area) == 2 and area.isalpha():
+        raise ScopeError(
+            f"Country {area.upper()!r} has no boundaries yet. Import them first: `triply-catalog boundaries --country {area.upper()}` "
+            f'(or the catalog_bootstrap DAG with {{"country": "{area.upper()}"}}), then sync --area {area}.'
+        )
+    raise ScopeError(f"No geo area or destination with slug {area!r} (geo areas look like 'vn' or 'vn-da-nang', destinations like 'hoi-an').")
 
 
 def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:

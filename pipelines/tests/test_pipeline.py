@@ -248,3 +248,12 @@ def test_reappearing_place_reopens(settings, db):
     run_sync(settings, "hoi-an", None, ["overture"])
     assert place(db, "Faifo Coffee")["status"] == "ACTIVE"
     assert db.execute("SELECT missing_runs FROM place_sources WHERE external_id = 'ovt-faifo'").fetchone()["missing_runs"] == 0
+
+
+def test_area_slugs_ignore_case_and_explain_missing_countries(settings, database, db):
+    from triply_catalog.pipeline import resolve_scope
+
+    parts, require_area = resolve_scope(db, settings, "VN", None)  # same as "vn"
+    assert require_area and parts
+    with pytest.raises(ScopeError, match=r"boundaries --country MX"):
+        resolve_scope(db, settings, "MX", None)
