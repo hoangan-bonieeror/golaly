@@ -130,10 +130,25 @@ def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:
 # ── steps ────────────────────────────────────────────────────────────────────
 
 
+#: A run still "running" after this long was interrupted (its process is gone); it's marked failed.
+STALE_RUNNING_HOURS = 48
+
+
 def start(settings: Settings, params: dict[str, Any], trigger: str) -> str:
     with db.connect(settings.database_url) as conn:
         sync_taxonomy(conn)
+        close_stale_runs(conn)
         return db.start_run(conn, trigger, params)
+
+
+def close_stale_runs(conn: psycopg.Connection) -> int:
+    n = conn.execute(
+        """UPDATE sync_runs SET status = 'failed', finished_at = now(), error = coalesce(error, 'interrupted (no result after %s h)')
+           WHERE status = 'running' AND started_at < now() - make_interval(hours => %s)""",
+        [STALE_RUNNING_HOURS, STALE_RUNNING_HOURS],
+    ).rowcount
+    conn.commit()
+    return n
 
 
 def _intersects(a: BBox, b: BBox) -> bool:
@@ -196,7 +211,15 @@ def finalize(
     own = conn is None
     conn = conn or db.connect(settings.database_url)
     try:
-        stats: dict[str, Any] = {"areas_assigned": assign_areas(conn, run_id)}
+        # Records this run saw that were never published — loaded by an earlier run that stopped before its own
+        # publish step (crash, timeout, Airflow restart). Their content didn't change since, so without this they
+        # would never count as "changed" again and never become places.
+        revived = conn.execute(
+            """UPDATE place_sources SET changed_run_id = %(run)s::uuid
+               WHERE last_run_id = %(run)s::uuid AND place_id IS NULL AND changed_run_id IS DISTINCT FROM %(run)s::uuid""",
+            {"run": run_id},
+        ).rowcount
+        stats: dict[str, Any] = {"areas_assigned": assign_areas(conn, run_id), "revived": revived}
         blocked = False
         if complete:
             for provider in providers:

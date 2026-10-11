@@ -272,3 +272,28 @@ def test_area_status_explains_what_is_there(settings, database, monkeypatch, cap
     assert cli.main(["status", "--area", "cn"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["boundaries"] is None and "boundaries --country CN" in out["problem"]
+
+
+def test_records_of_an_interrupted_run_are_published_by_the_next_one(settings, database, db):
+    """A run that loaded records but died before publishing (crash, timeout): the next run sees the same, unchanged
+    records — they must still become places."""
+    from triply_catalog.pipeline import extract_load, plan, run_sync, start
+
+    db.execute("DELETE FROM place_sources WHERE external_id = 'n1003'")  # OSM "Mini Mart" → shop; re-loaded below
+    db.execute(
+        "INSERT INTO category_maps (provider, external_category, category_id) "
+        "SELECT 'osm', 'shop=supermarket', id FROM categories WHERE key = 'shopping.market' ON CONFLICT DO NOTHING"
+    )
+    db.commit()
+    crashed = start(settings, {"area": "hoi-an"}, "test")
+    for p in plan(settings, crashed, "hoi-an", None, ["osm"]):
+        extract_load(settings, crashed, p)  # …and no finalize: the process died here
+    assert db.execute("SELECT place_id FROM place_sources WHERE external_id = 'n1003'").fetchone()["place_id"] is None
+    out = run_sync(settings, "hoi-an", None, ["osm"])
+    assert out["revived"] >= 1
+    assert db.execute("SELECT place_id FROM place_sources WHERE external_id = 'n1003'").fetchone()["place_id"] is not None
+    db.execute("UPDATE sync_runs SET started_at = now() - interval '3 days' WHERE id = %s", [crashed])
+    db.execute("UPDATE sync_runs SET status = 'running' WHERE id = %s", [crashed])
+    db.commit()
+    start(settings, {}, "test")
+    assert db.execute("SELECT status FROM sync_runs WHERE id = %s", [crashed]).fetchone()["status"] == "failed"
