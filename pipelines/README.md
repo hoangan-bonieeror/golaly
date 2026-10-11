@@ -71,6 +71,22 @@ uv run triply-catalog sync --area vn         # all of Vietnam, one partition per
 uv run triply-catalog stats
 ```
 
+### Adding a country — in this order
+
+1. **Boundaries** — `catalog_bootstrap` with `{"country": "CN"}` (CLI: `triply-catalog boundaries --country CN`).
+   Creates the country, its provinces/states (slugs like `cn`, `cn-yunnan`) and one destination per province.
+   Nothing can be synced for a country before this step.
+2. **Places** — `catalog_sync` with `{"area": "cn"}` (one task per province). OpenStreetMap uses the country's
+   Geofabrik extract automatically (China → `asia/china-latest.osm.pbf`, downloaded once, ~1–2 GB for big countries).
+3. **Photos** — nothing to do: `catalog_photos` starts by itself after the sync (Airflow Asset). Run it by hand
+   only to re-check a whole area.
+4. **Check** — `triply-catalog status --area cn`: boundaries, records per source (and how many were published,
+   unmapped or outside the boundaries), places Explore can show, the last runs. A country appears in Explore's
+   "Where" picker once at least one of its provinces has published places (the API caches the list for 5 minutes).
+
+Coverage differs a lot by country: Overture and OpenStreetMap are rich in Europe and the Americas, thinner in
+mainland China, so expect far fewer places there.
+
 ### Duplicates
 
 ```bash
@@ -215,7 +231,8 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `OVERTURE_RELEASE` | `2026-09-23.1` | pin a release; see [releases](https://docs.overturemaps.org/release/latest/) |
 | `OVERTURE_BASE` | `s3://overturemaps-us-west-2/release` | or a local folder with the same layout |
 | `OVERTURE_MIN_CONFIDENCE` | `0.6` | Overture's own existence confidence |
-| `OSM_SOURCE` | Geofabrik Vietnam `.pbf` URL | or a local `.pbf`/`.osm` file |
+| `OSM_SOURCE` | empty = each country's Geofabrik extract | or one fixed local `.pbf`/`.osm` file / URL for every run |
+| `GEOFABRIK_INDEX` | Geofabrik's `index-v1-nogeom.json` | the list of extracts the country is looked up in (cached a day) |
 | `HF_TOKEN` | — | Hugging Face read token, for Foursquare OS Places |
 | `FSQ_BASE` / `FSQ_RELEASE` | `hf://datasets/foursquare/fsq-os-places/release` / `2026-09-15` | or a local copy with the same `dt=…/places/parquet/` layout |
 | `FSQ_MAX_AGE_YEARS` | `3` | skip Foursquare venues not refreshed for this long |

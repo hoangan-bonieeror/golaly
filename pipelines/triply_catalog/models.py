@@ -30,6 +30,8 @@ class Partition:
     key: str  # e.g. "vn-da-nang" — stable, used in logs and task ids
     bbox: BBox
     area_id: str | None = None
+    #: ISO 3166-1 alpha-2 of the country the partition is in, when known (picks the right OSM extract).
+    country: str | None = None
 
 
 @dataclass

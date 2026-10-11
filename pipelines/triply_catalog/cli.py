@@ -15,6 +15,7 @@ triply-catalog merges undo <merge-id>           # put a merge back exactly as it
 triply-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # pairs to label by hand (same / different)
 triply-catalog merges evaluate pairs.csv        # precision / recall per threshold on the labelled pairs
 triply-catalog stats
+triply-catalog status --area cn                 # is a country ready? boundaries, places per source, last runs
 """
 
 from __future__ import annotations
@@ -81,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
     me = msub.add_parser("evaluate")
     me.add_argument("labels")
     sub.add_parser("stats", help="catalog counts")
+    st = sub.add_parser("status", help="one area: boundaries imported? places per source? last runs and their errors")
+    st.add_argument("--area", required=True)
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     cfg = load_settings()
@@ -112,6 +115,8 @@ def main(argv: list[str] | None = None) -> int:
             out = run_dedupe(cfg, args.area, args.bbox, args.dry_run)
         elif args.cmd == "merges":
             out = run_merges(cfg, args)
+        elif args.cmd == "status":
+            out = area_status(cfg, args.area)
         else:
             with db.connect(cfg.database_url) as conn:
                 out = conn.execute(
@@ -151,6 +156,54 @@ def run_dedupe(cfg: Any, area: str | None, bbox: str | None, dry_run: bool) -> d
                 totals[k] = totals.get(k, 0) + v
             conn.rollback() if dry_run else conn.commit()
     return totals
+
+
+def area_status(cfg: Any, area: str) -> dict[str, Any]:
+    """What's there for an area — the first thing to check when it doesn't show up in Explore."""
+    from .pipeline import resolve_scope
+
+    slug = area.strip().lower()
+    with db.connect(cfg.database_url) as conn:
+        g = conn.execute(
+            """SELECT g.id, g.level::text AS level, g.name, g.country_code,
+                      (SELECT count(*) FROM geo_areas c WHERE c.parent_id = g.id) AS regions,
+                      (SELECT count(*) FROM geo_areas c WHERE c.parent_id = g.id AND c.boundary IS NOT NULL) AS regions_with_boundary
+               FROM geo_areas g WHERE g.slug = %s""",
+            [slug],
+        ).fetchone()
+        out: dict[str, Any] = {"area": slug, "boundaries": dict(g) if g else None}
+        if g:
+            out["boundaries"].pop("id")
+        try:
+            parts, _ = resolve_scope(conn, cfg, slug, None)
+        except ScopeError as e:
+            out["problem"] = str(e)
+            return out
+        boxes = " OR ".join("(lng BETWEEN %s AND %s AND lat BETWEEN %s AND %s)" for _ in parts)
+        params = [v for p in parts for v in (p.bbox.min_lng, p.bbox.max_lng, p.bbox.min_lat, p.bbox.max_lat)]
+        out["source_records"] = {
+            r["provider"]: {"records": r["n"], "published": r["published"], "no_category": r["no_category"], "outside_boundaries": r["no_area"]}
+            for r in conn.execute(
+                f"""SELECT provider, count(*) AS n, count(place_id) AS published, count(*) FILTER (WHERE category_id IS NULL) AS no_category,
+                           count(*) FILTER (WHERE area_id IS NULL) AS no_area
+                    FROM place_sources WHERE {boxes} GROUP BY provider ORDER BY provider""",
+                params,
+            ).fetchall()
+        }
+        ids = [p.area_id for p in parts if p.area_id]
+        out["places_shown_in_explore"] = (
+            conn.execute("SELECT count(*) AS n FROM places WHERE status = 'ACTIVE' AND merged_into_id IS NULL AND area_id = ANY(%s::uuid[])", [ids]).fetchone()[
+                "n"
+            ]
+            if ids
+            else None
+        )
+        out["last_runs"] = conn.execute(
+            """SELECT id::text AS id, trigger, status, started_at, finished_at, error, stats->'publish' AS publish FROM sync_runs
+               WHERE lower(params->>'area') = %s ORDER BY started_at DESC LIMIT 5""",
+            [slug],
+        ).fetchall()
+    return out
 
 
 def run_merges(cfg: Any, args: Any) -> Any:

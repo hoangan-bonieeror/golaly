@@ -29,8 +29,11 @@ class Settings:
     hf_token: str | None = field(default_factory=lambda: _env("HF_TOKEN"))
     #: Foursquare listings nobody refreshed for longer than this are skipped (stale venues are common).
     fsq_max_age_years: float = field(default_factory=lambda: float(_env("FSQ_MAX_AGE_YEARS", "3")))  # type: ignore[arg-type]
-    #: Geofabrik extract for OpenStreetMap (a local path or an https URL that gets downloaded and cached).
-    osm_source: str = field(default_factory=lambda: _env("OSM_SOURCE", "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf"))  # type: ignore[arg-type]
+    #: OpenStreetMap extract: empty (default) = the Geofabrik extract of each partition's country, picked from the
+    #: Geofabrik index; or one fixed local .osm/.pbf path or https URL for every run.
+    osm_source: str = field(default_factory=lambda: _env("OSM_SOURCE", ""))  # type: ignore[arg-type]
+    #: Geofabrik's list of extracts (id, ISO codes, download URLs); cached in CATALOG_DATA_DIR/osm for a day.
+    geofabrik_index: str = field(default_factory=lambda: _env("GEOFABRIK_INDEX", "https://download.geofabrik.de/index-v1-nogeom.json"))  # type: ignore[arg-type]
     #: Working directory for downloads.
     data_dir: Path = field(default_factory=lambda: Path(_env("CATALOG_DATA_DIR", "./data")))  # type: ignore[arg-type]
     #: Rows per staging batch (one transaction each).

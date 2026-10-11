@@ -257,3 +257,18 @@ def test_area_slugs_ignore_case_and_explain_missing_countries(settings, database
     assert require_area and parts
     with pytest.raises(ScopeError, match=r"boundaries --country MX"):
         resolve_scope(db, settings, "MX", None)
+
+
+def test_area_status_explains_what_is_there(settings, database, monkeypatch, capsys):
+    import json
+
+    from triply_catalog import cli
+
+    monkeypatch.setenv("DATABASE_URL", settings.database_url)
+    assert cli.main(["status", "--area", "VN"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["boundaries"]["level"] == "COUNTRY" and out["boundaries"]["regions_with_boundary"] >= 1
+    assert out["source_records"]["overture"]["records"] > 0 and out["places_shown_in_explore"] > 0
+    assert cli.main(["status", "--area", "cn"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["boundaries"] is None and "boundaries --country CN" in out["problem"]

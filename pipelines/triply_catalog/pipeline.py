@@ -43,21 +43,27 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
     """
     if bbox:
         x0, y0, x1, y1 = (float(v) for v in bbox.split(","))
-        return [Partition("", "bbox", BBox(x0, y0, x1, y1))], False
+        return [Partition("", "bbox", BBox(x0, y0, x1, y1), country=country_at(conn, (y0 + y1) / 2, (x0 + x1) / 2))], False
     if not area:
         raise ScopeError("Give --area (geo area or destination slug) or --bbox.")
     area = area.strip().lower()  # slugs are lower-case: "MX" means "mx"
-    g = conn.execute("SELECT id::text AS id, level::text AS level, slug, min_lng, min_lat, max_lng, max_lat FROM geo_areas WHERE slug = %s", [area]).fetchone()
+    g = conn.execute(
+        "SELECT id::text AS id, level::text AS level, slug, country_code, min_lng, min_lat, max_lng, max_lat FROM geo_areas WHERE slug = %s", [area]
+    ).fetchone()
     if g:
         rows = [g]
         if g["level"] == "COUNTRY":
             children = conn.execute(
-                """SELECT id::text AS id, slug, min_lng, min_lat, max_lng, max_lat FROM geo_areas
+                """SELECT id::text AS id, slug, country_code, min_lng, min_lat, max_lng, max_lat FROM geo_areas
                    WHERE parent_id = %s AND boundary IS NOT NULL ORDER BY slug""",
                 [g["id"]],
             ).fetchall()
             rows = children or rows
-        parts = [Partition("", r["slug"], BBox(r["min_lng"], r["min_lat"], r["max_lng"], r["max_lat"]), r["id"]) for r in rows if r["min_lng"] is not None]
+        parts = [
+            Partition("", r["slug"], BBox(r["min_lng"], r["min_lat"], r["max_lng"], r["max_lat"]), r["id"], r["country_code"])
+            for r in rows
+            if r["min_lng"] is not None
+        ]
         if not parts:
             raise ScopeError(f"Geo area {area!r} has no bounding box — run `triply-catalog boundaries` first.")
         return parts, True
@@ -71,13 +77,24 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
     if d:
         r = settings.destination_radius_km
         dlat, dlng = r / 111.32, r / (111.32 * math.cos(math.radians(d["lat"])))
-        return [Partition("", d["slug"], BBox(d["lng"] - dlng, d["lat"] - dlat, d["lng"] + dlng, d["lat"] + dlat))], False
+        box = BBox(d["lng"] - dlng, d["lat"] - dlat, d["lng"] + dlng, d["lat"] + dlat)
+        return [Partition("", d["slug"], box, country=country_at(conn, d["lat"], d["lng"]))], False
     if len(area) == 2 and area.isalpha():
         raise ScopeError(
             f"Country {area.upper()!r} has no boundaries yet. Import them first: `triply-catalog boundaries --country {area.upper()}` "
             f'(or the catalog_bootstrap DAG with {{"country": "{area.upper()}"}}), then sync --area {area}.'
         )
     raise ScopeError(f"No geo area or destination with slug {area!r} (geo areas look like 'vn' or 'vn-da-nang', destinations like 'hoi-an').")
+
+
+def country_at(conn: psycopg.Connection, lat: float, lng: float) -> str | None:
+    """ISO code of the imported country containing the point (None when its boundaries aren't imported)."""
+    row = conn.execute(
+        """SELECT country_code FROM geo_areas WHERE boundary IS NOT NULL AND ST_Contains(boundary, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+           ORDER BY level LIMIT 1""",
+        [lng, lat],
+    ).fetchone()
+    return row["country_code"] if row else None
 
 
 def adopt_manual_places(conn: psycopg.Connection, run_id: str) -> int:
@@ -147,7 +164,7 @@ def plan(settings: Settings, run_id: str, area: str | None, bbox: str | None, pr
 
 
 def _partition(d: dict[str, Any]) -> Partition:
-    return Partition(d["provider"], d["key"], BBox(**d["bbox"]), d.get("area_id"))
+    return Partition(d["provider"], d["key"], BBox(**d["bbox"]), d.get("area_id"), d.get("country"))
 
 
 def extract_load(settings: Settings, run_id: str, part: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, int]:

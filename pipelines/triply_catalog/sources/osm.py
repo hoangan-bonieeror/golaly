@@ -1,4 +1,7 @@
-"""OpenStreetMap (Geofabrik country extract, ODbL), read with pyosmium.
+"""OpenStreetMap (Geofabrik country extracts, ODbL), read with pyosmium.
+
+Which extract: by default the one of each partition's country, looked up in Geofabrik's index (Vietnam →
+asia/vietnam-latest.osm.pbf, China → asia/china-latest.osm.pbf); OSM_SOURCE pins one file for every run instead.
 
 The extract is read once per run (one partition covering the whole scope); nodes and ways with a
 name and a mapped tag are kept. Ways become a point at the average of their nodes.
@@ -19,7 +22,7 @@ from ..config import Settings
 from ..models import BBox, NormalizedPlace, Partition
 from ..normalize import clean_text, lang_tag, normalize_phone, normalize_website
 from ..taxonomy import osm_keys
-from .base import Manifest
+from .base import Manifest, SourceConfigError
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ MANIFEST = Manifest(
     attribution="© OpenStreetMap contributors",
     storage="store",
     partitioning="extract",
-    coverage="global (one Geofabrik extract per run, OSM_SOURCE)",
+    coverage="global (the Geofabrik extract of each country, or a fixed OSM_SOURCE)",
     cost="free",
     homepage="https://www.openstreetmap.org",
 )
@@ -151,44 +154,96 @@ class OsmSource:
 
     def check(self) -> list[str]:
         src = self.settings.osm_source
+        if not src:
+            return []  # the Geofabrik extract of each partition's country
         if src.startswith(("http://", "https://")):
             return [] if src.endswith(".osm.pbf") else [f"OSM_SOURCE {src!r} should be a Geofabrik .osm.pbf extract URL"]
         return [] if Path(src).exists() else [f"OSM_SOURCE {src!r} does not exist (give a local .osm/.osm.pbf file or a Geofabrik URL)"]
 
     def partitions(self, scope: list[Partition]) -> list[Partition]:
-        # One pass over the extract for the whole scope (its bounding box); areas are assigned in SQL afterwards.
-        boxes = [p.bbox for p in scope]
-        union = BBox(min(b.min_lng for b in boxes), min(b.min_lat for b in boxes), max(b.max_lng for b in boxes), max(b.max_lat for b in boxes))
-        return [Partition(self.key, "+".join(p.key for p in scope)[:120], union, None)]
+        """One pass over an extract per country (its regions' bounding box); areas are assigned in SQL afterwards.
+        With a fixed OSM_SOURCE, one pass over that file for the whole scope."""
+        groups: dict[str | None, list[Partition]] = {}
+        for p in scope:
+            groups.setdefault(None if self.settings.osm_source else p.country, []).append(p)
+        out = []
+        for country, parts in groups.items():
+            boxes = [p.bbox for p in parts]
+            union = BBox(min(b.min_lng for b in boxes), min(b.min_lat for b in boxes), max(b.max_lng for b in boxes), max(b.max_lat for b in boxes))
+            out.append(Partition(self.key, "+".join(p.key for p in parts)[:120], union, None, country))
+        return out
 
-    def source_file(self) -> Path:
-        src = self.settings.osm_source
+    def source_url(self, partition: Partition) -> str:
+        if self.settings.osm_source:
+            return self.settings.osm_source
+        if not partition.country:
+            raise SourceConfigError(
+                f"Don't know which country {partition.key!r} is in, so which OpenStreetMap extract to use. Import the country's "
+                "boundaries first (triply-catalog boundaries --country XX), or set OSM_SOURCE to a Geofabrik .osm.pbf URL."
+            )
+        return geofabrik_url(self.settings, partition.country)
+
+    def source_file(self, partition: Partition | None = None) -> Path:
+        src = self.source_url(partition) if partition else self.settings.osm_source
         if not src.startswith(("http://", "https://")):
             return Path(src)
-        target = self.settings.data_dir / "osm" / Path(src).name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        req = urllib.request.Request(src)
-        if target.exists():  # Geofabrik updates daily; only re-download when it changed
-            req.add_header("If-Modified-Since", _http_date(target.stat().st_mtime))
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp, open(f"{target}.part", "wb") as f:
-                shutil.copyfileobj(resp, f, 1 << 20)
-            os.replace(f"{target}.part", target)
-            log.info("downloaded %s", src)
-        except urllib.error.HTTPError as e:
-            if e.code != 304:
-                raise
-            log.info("%s not modified", src)
-        return target
+        return _download(src, self.settings.data_dir / "osm" / Path(src).name)
 
     def fetch_places(self, partition: Partition) -> Iterator[list[NormalizedPlace]]:
         handler = _collector([partition.bbox], osm_keys())
-        handler.apply_file(str(self.source_file()), locations=True, idx="flex_mem")
+        handler.apply_file(str(self.source_file(partition)), locations=True, idx="flex_mem")
         items = handler.items
         for i in range(0, len(items), self.settings.batch_size):
             yield items[i : i + self.settings.batch_size]
 
     fetch = fetch_places  # the pre-`sources` name
+
+
+def _download(url: str, target: Path, max_age: float | None = None) -> Path:
+    """Download once and keep; afterwards only when the server has a newer copy (If-Modified-Since), or — with
+    `max_age` seconds — not at all while the cached copy is younger than that."""
+    import time
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if max_age is not None and target.exists() and time.time() - target.stat().st_mtime < max_age:
+        return target
+    req = urllib.request.Request(url)
+    if target.exists():  # Geofabrik updates daily; only re-download when it changed
+        req.add_header("If-Modified-Since", _http_date(target.stat().st_mtime))
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp, open(f"{target}.part", "wb") as f:
+            shutil.copyfileobj(resp, f, 1 << 20)
+        os.replace(f"{target}.part", target)
+        log.info("downloaded %s", url)
+    except urllib.error.HTTPError as e:
+        if e.code != 304:
+            raise
+        target.touch()
+        log.info("%s not modified", url)
+    return target
+
+
+def pick_extract(index: dict[str, Any], country: str) -> str:
+    """The Geofabrik extract for one country: among the extracts that list it, the one covering the fewest
+    countries (Malaysia → "malaysia-singapore-brunei"; a country never gets its continent)."""
+    cc = country.upper()
+    found = [
+        f["properties"]
+        for f in index.get("features", [])
+        if cc in (f["properties"].get("iso3166-1:alpha2") or []) and f["properties"].get("urls", {}).get("pbf")
+    ]
+    if not found:
+        raise SourceConfigError(f"Geofabrik has no extract for country {cc!r}; set OSM_SOURCE to an .osm.pbf that covers it.")
+    best = min(found, key=lambda p: (len(p.get("iso3166-1:alpha2") or []), len(p["urls"]["pbf"])))
+    return best["urls"]["pbf"]
+
+
+def geofabrik_url(settings: Settings, country: str) -> str:
+    import json
+
+    src = settings.geofabrik_index
+    path = Path(src) if not src.startswith(("http://", "https://")) else _download(src, settings.data_dir / "osm" / "geofabrik-index.json", max_age=86400)
+    return pick_extract(json.loads(path.read_text("utf-8")), country)
 
 
 def _http_date(ts: float) -> str:
