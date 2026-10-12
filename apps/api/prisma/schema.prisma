@@ -349,6 +349,7 @@ model Place {
   @@index([lat, lng])
   @@index([name])
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+  @@index([updatedAt(sort: Desc), id]) // admin place list: newest first, without sorting the whole catalog
   @@map("places")
 }
 
