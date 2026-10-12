@@ -79,6 +79,21 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     return { ok: true };
   }
 
+  /** Catalog admin screens: live sync-run updates. Role is re-checked against the database. */
+  @SubscribeMessage("admin.join")
+  async joinAdmin(@ConnectedSocket() socket: Socket) {
+    const userId = socket.data.userId as string | undefined;
+    if (!userId) return { ok: false };
+    const ok = await this.prisma.user.count({ where: { id: userId, role: "ADMIN", deletedAt: null } });
+    if (!ok) return { ok: false };
+    await socket.join("admin");
+    return { ok: true };
+  }
+
+  emitToAdmins(event: string, payload: unknown) {
+    this.server?.to("admin").emit(event, payload);
+  }
+
   emitToTrip(event: TripEvent) {
     this.server?.to(`trip:${event.tripId}`).emit("trip.event", event);
   }
@@ -137,6 +152,10 @@ export class RealtimeService {
 
   disconnectSessions(opts: { sessionIds?: string[]; userId?: string; exceptSessionId?: string }) {
     return this.gateway.disconnectSessions(opts);
+  }
+
+  admins(event: string, payload: unknown) {
+    this.gateway.emitToAdmins(event, payload);
   }
 }
 

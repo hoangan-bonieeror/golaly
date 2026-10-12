@@ -41,6 +41,16 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional().transform((v) => v || undefined),
   /** Defaults to `${WEB_ORIGIN}/api/v1/auth/google/callback` — register exactly this URL in Google Cloud Console. */
   GOOGLE_REDIRECT_URI: z.string().url().optional().or(z.literal("").transform(() => undefined)),
+  /**
+   * Airflow's REST API, used by the catalog admin screens to start runs (catalog_sync, catalog_dry_run).
+   * With docker compose's local setup (simple auth manager, everyone admin) no credentials are needed;
+   * otherwise set AIRFLOW_USERNAME / AIRFLOW_PASSWORD.
+   */
+  AIRFLOW_API_URL: z.string().url().default("http://localhost:8080"),
+  AIRFLOW_USERNAME: z.string().optional().transform((v) => v || undefined),
+  AIRFLOW_PASSWORD: z.string().optional().transform((v) => v || undefined),
+  /** "off" disables LISTEN sync_run (live run progress on the admin screens). */
+  CATALOG_REALTIME: z.enum(["on", "off"]).default("on"),
   /** Requests per minute per IP for the general limiter. Auth routes use a stricter limit. */
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(300),
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().default(10),

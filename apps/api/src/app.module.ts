@@ -6,6 +6,7 @@ import { AuthGuard, Public } from "./common/auth";
 import { AllExceptionsFilter } from "./common/http";
 import { env } from "./config/env";
 import { PrismaModule, PrismaService } from "./prisma/prisma.service";
+import { AdminModule } from "./modules/admin/admin.module";
 import { AuditModule } from "./modules/audit/audit";
 import { AuthModule } from "./modules/auth/auth.module";
 import { ItineraryModule } from "./modules/itinerary/itinerary.controller";
@@ -52,6 +53,7 @@ class HealthController {
     PlacesModule,
     SocialModule,
     MediaModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

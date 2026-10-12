@@ -19,14 +19,23 @@ export type AuditAction =
   | "session.reuse_detected"
   | "place_photo.approved"
   | "place_photo.hidden"
-  | "place_photo.removed";
+  | "place_photo.removed"
+  | "catalog.job.created"
+  | "catalog.job.updated"
+  | "catalog.job.deleted"
+  | "catalog.run.started"
+  | "catalog.run.cancelled"
+  | "catalog.merge.decided"
+  | "catalog.merge.undone"
+  | "catalog.place.edited"
+  | "catalog.category_map.changed";
 
 /** Append-only log of sensitive permission changes (spec §42). Never stores tokens or passwords. */
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  log(actorId: string | null, action: AuditAction, entityType: "trip" | "user" | "invitation" | "place_photo", entityId: string, meta: Record<string, unknown> = {}, tx: Tx = this.prisma) {
+  log(actorId: string | null, action: AuditAction, entityType: "trip" | "user" | "invitation" | "place_photo" | "sync_job" | "sync_run" | "merge" | "place" | "category_map", entityId: string, meta: Record<string, unknown> = {}, tx: Tx = this.prisma) {
     return tx.auditLog.create({ data: { actorId, action, entityType, entityId, meta: meta as object } });
   }
 }
