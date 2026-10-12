@@ -194,7 +194,54 @@ curl -X POST http://localhost:8080/api/v2/dags/catalog_sync/dagRuns \
 ```
 
 Each province is a separate mapped task (retried on its own); progress and results are also written to the
-`sync_runs` table, which the admin screen reads.
+`sync_runs` table, which the admin screens read (below).
+
+### Admin console, sync jobs and the scheduler
+
+Everything above can be driven from the app: sign in as an admin and open **Admin** (sidebar, or Settings → *Admin*).
+
+| Screen | What it does |
+|---|---|
+| **Areas** (`/admin`) | Countries, then their provinces: published places, last run, **Sync now** / **Dry run** for that area |
+| **Sync jobs** | Saved syncs — area, sources, optional categories, cron schedule (UTC), photos on/off. **Run now**, **Dry run**, pause, edit, delete |
+| **Runs** | Every run (scheduled, admin, CLI) with live progress over Socket.IO; a run page shows what it did, quality warnings, record-level errors and **Cancel** |
+| **Duplicates** | Pairs scored 0.6–0.85, side by side with the fields that differ; *merge* / *different places*, undo |
+| **Places** | Any place (hidden and closed too): edit name, address, phone, website, hours, category, position, visibility. Every edited field is **locked** against imports until you unlock it; history and merges (with undo) on the same page |
+| **Categories** | Source categories with no mapping (their records aren't published), existing mappings, TRIPLY's categories with counts. A new mapping applies on the area's next sync |
+
+How a run gets started:
+
+```
+admin "Run now"  ─┐                                   ┌→ catalog_sync / catalog_dry_run (Airflow)
+catalog_scheduler ┼→ sync_runs row (queued, job_id) ──┤        │ progress, errors, status → sync_runs
+CLI `jobs run`   ─┘                                   │        └→ NOTIFY sync_run → API → Socket.IO room "admin"
+```
+
+- The API creates the `sync_runs` row, then calls Airflow's REST API (`POST /api/v2/dags/{dag}/dagRuns`). If Airflow
+  can't be reached the run is marked failed and the screen says why. API settings: `AIRFLOW_API_URL`
+  (default `http://localhost:8080`, the docker compose port), and `AIRFLOW_USERNAME` / `AIRFLOW_PASSWORD` when
+  Airflow isn't in "everyone is admin" mode (docker compose is). `CATALOG_REALTIME=off` turns the live updates off.
+- **`catalog_scheduler`** (every 10 minutes, **unpause it in the Airflow UI**) starts jobs whose time has come,
+  never two runs of one job at once, and fails runs Airflow never picked up after 6 hours (a run still `running`
+  after 48 hours is closed as interrupted when the next sync starts). It also republishes places an admin merged,
+  so their fields are recomputed.
+- **Cancel**: a queued run ends at once; a running one stops after its current batch — what it loaded is published,
+  nothing counts as missing, the run ends as `cancelled`.
+- **Dry run** (`catalog_dry_run`): the whole run inside a transaction that is rolled back; the counts land in
+  `sync_runs.stats`.
+- **Quality checks** after every sync: places at (0, 0), outside every boundary, leftover same-name pairs under
+  20 m, completeness per category group. Warnings are shown on the run page and, with `CATALOG_ALERT_WEBHOOK` (a
+  Slack-compatible incoming webhook), posted along with failed and `needs_review` runs.
+
+The same from the CLI:
+
+```bash
+uv run triply-catalog jobs add "vn weekly" --area vn --schedule "0 3 * * mon"   # cron, UTC; omit --schedule for by-hand only
+uv run triply-catalog jobs add "hoi an food" --area hoi-an --categories food,drink --no-photos
+uv run triply-catalog jobs list
+uv run triply-catalog jobs run "vn weekly" --dry-run
+uv run triply-catalog jobs disable "vn weekly"     # enable / delete
+```
 
 ## Adding a source
 
@@ -243,6 +290,7 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `CATALOG_MERGE_AUTO` / `CATALOG_MERGE_REVIEW` | `0.85` / `0.6` | duplicate score that merges automatically / goes to review |
 | `CATALOG_MERGE_RADIUS_M` / `_LANDMARK_M` / `CATALOG_MERGE_SURE_M` | `75` / `100` / `150` | candidate radius; for sights/culture/nature; for same phone/website/external id |
 | `CATALOG_PHOTO_RECHECK_DAYS` | `30` | incremental photo runs re-check a place after this many days |
+| `CATALOG_ALERT_WEBHOOK` | — | Slack-compatible webhook for failed / `needs_review` runs and quality warnings |
 
 Category mapping lives in `triply_catalog/data/taxonomy.json` (TRIPLY's categories, vi/en labels) and
 `category_maps.json` (Overture category / OSM tag → TRIPLY category). Unmapped records are stored but not published;

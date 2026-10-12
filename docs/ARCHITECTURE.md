@@ -84,7 +84,11 @@ places (id kept forever; status ACTIVE/CLOSED/HIDDEN; location geography; catego
    ▲ place_id (nullable until published)
 place_sources (provider, external_id unique; raw, normalized, content_hash; missing_runs; last/changed_run_id)
 categories (key, labelVi/labelEn, item_type) ──< category_maps (provider, external_category)
-sync_runs (trigger, params, status running/succeeded/needs_review/partial/failed, stats)
+sync_jobs (name, area|bbox, providers, category_keys, cron schedule, enabled, photos, next_run_at)
+   └──< sync_runs (trigger, params, status queued/running/succeeded/needs_review/partial/failed/cancelled/dry_run,
+                   progress, stats, cancel_requested, requested_by) ──< sync_run_errors (provider, external_id, stage)
+merge_candidates (place_a < place_b, score, signals, PENDING/MERGED/REJECTED) · place_merges (winner, loser, moved rows, undone_at)
+place_edits (place, field, old, new, actor) — every admin edit; the field joins places.locked_fields
 place_photos (place, source user|wikimedia, source_id, media? | remote_url, credits: title/author/licence/page,
               status PENDING/APPROVED/HIDDEN, score, uploaded_by?, post?, report_count, ingest attempts/back-off)
   └─> media (owner_id is null for imported images)
@@ -109,6 +113,7 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` |
 | Invitations | `GET /invitations/:token` · `POST /invitations/:token/accept\|reject` · `GET /invitations/id/:id` · `POST /invitations/id/:id/accept\|reject` |
 | Discovery | `GET /explore` · `GET /search?q&type` · `GET /destinations` · `GET /destinations/:slug` |
+| Catalog admin (ADMIN only, audit-logged) | `GET /admin/areas?parent=` · `GET/POST /admin/sync-jobs` · `PATCH/DELETE /admin/sync-jobs/:id` · `POST /admin/sync-jobs/:id/run {dryRun}` · `POST /admin/sync-runs {area, providers, dryRun}` · `GET /admin/sync-runs?status=&jobId=&area=` · `GET /admin/sync-runs/:id` (+ `/errors`) · `POST /admin/sync-runs/:id/cancel` · `GET /admin/merge-candidates?status=&area=` · `POST /admin/merge-candidates/:id/decide {merge\|reject}` · `POST /admin/place-merges/:id/undo` · `GET /admin/places?q=&area=&status=&category=` · `GET/PATCH /admin/places/:id` (edits lock fields; `unlock: [...]`) · `GET /admin/categories` · `GET /admin/category-maps?provider=&unmapped=true` · `PUT /admin/category-maps` · socket `admin.join` → `sync_run` events |
 | Place photos | `POST /places/:id/photos {mediaId, caption?, postId?}` · `DELETE /place-photos/:id` (uploader or moderator) · `PATCH /place-photos/:id {status}` (moderator) · `GET /admin/place-photos?filter=pending\|reported\|hidden` · reports with `target: "PLACE_PHOTO"` |
 | Places | `GET /places/categories` · `GET /places/browse?destination\|near=lat,lng&radius&group&category&q&sort&cursor` · `GET /places/search?q&tripId` · `GET /places/saved` · `GET /places/:id` (detail: hours, contact, other-language names, nearby, public trips using it, data credits) · `GET /places/:id/trip-targets` (trips the viewer can edit, with days) · `POST/DELETE /places/:id/save` |
 | Social | `GET /feed?mode&cursor` · `POST /posts` · `GET /posts/saved` · `GET/PATCH/DELETE /posts/:id` · `POST/DELETE /posts/:id/like` · `POST/DELETE /posts/:id/save` · `GET/POST /posts/:id/comments` · `DELETE /comments/:id` · `POST /reports` |
@@ -155,6 +160,17 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
 - **Text**: `normalize_search` in Python mirrors `normalizeSearch` in TypeScript; both test suites read
   `packages/shared/fixtures/normalize-cases.json`.
 
+**Admin control plane (phase 3).** The API never runs the pipeline itself: it writes a queued `sync_runs` row and
+asks Airflow (`POST /api/v2/dags/catalog_sync|catalog_dry_run/dagRuns`, JWT from `/auth/token`) to run it with
+`sync_run_id` in the config; if Airflow can't be reached the row is failed with the reason. The `catalog_scheduler` DAG
+(every 10 min) does the same for due `sync_jobs`. The pipeline writes progress, errors and the outcome back to
+`sync_runs`; a trigger sends `NOTIFY sync_run`, which `SyncRunListener` (a dedicated `pg` connection with reconnect)
+forwards to the Socket.IO room `admin` (joining re-checks the role). Cancelling sets `cancel_requested`; the pipeline
+checks it between batches. Merges from the admin screens and the pipeline go through the same SQL functions
+(`catalog_pick_winner`, `catalog_merge_places`, `catalog_unmerge`), and set `places.needs_publish` so the scheduler
+recomputes the winner's fields. An admin edit writes `place_edits` and adds the field to `locked_fields`, which
+survivorship never overwrites; unlocking hands the field back to the sources on the next publish.
+
 ## Place photos
 
 Photos come in layers and share one table, one ordering (`score`: approved traveler photos 2, a Wikidata item's main
@@ -178,8 +194,10 @@ the queue on demand.
 
 ## Known trade-offs
 
-- **Catalog matching is deliberately conservative** (same normalised name within 50 m). Different spellings stay as
-  two places until a later phase adds fuzzy matching with an admin review queue; a wrong merge is worse than a duplicate.
+- **Catalog matching is conservative.** Publishing attaches a record to a place only on an exact normalised name
+  within 50 m; fuzzy matches (trigram names in any language, distance, category, address) merge automatically only at
+  a score ≥ 0.85 and otherwise wait for an admin, because a wrong merge is worse than a duplicate — and every merge can
+  be undone exactly.
 
 - **Search** uses `pg_trgm`. Each searchable row keeps a denormalised, lower-cased, accent-free `search_text` (title, description, destinations, …) with a GIN trigram index; it's rewritten whenever the source fields change and back-filled at boot. A query matches when **every word** is a substring of `search_text` or has `word_similarity ≥ 0.4`; exact phrase matches rank first. Good up to hundreds of thousands of rows; past that, or for relevance tuning/facets, swap in a search engine behind `SearchProvider`.
 - **Map routes** are straight lines between stops in visit order, not real road/transit paths.

@@ -128,6 +128,22 @@ The "Continue with Google" button only appears when Google credentials are confi
 
 Google accounts are matched by Google's account id, then by **verified** email (so an existing email/password user gets Google linked to the same account). Google-only users can add a password later in **Settings**.
 
+### Optional: catalog admin
+
+The demo account **an@triply.dev** is an admin; it sees **Admin** in the sidebar (and in Settings). To make another
+account an admin: `UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';` then sign in again.
+
+The admin screens read the database directly; starting a sync goes through Airflow, so run the pipeline profile
+(`docker compose --profile pipelines up -d --build`, see [pipelines/README.md](pipelines/README.md)) and unpause the
+`catalog_scheduler` DAG for scheduled jobs. API settings (`apps/api/.env`):
+
+```bash
+AIRFLOW_API_URL=http://localhost:8080   # default; where Airflow's API server listens
+AIRFLOW_USERNAME=                       # only when Airflow isn't in "everyone is admin" mode (docker compose is)
+AIRFLOW_PASSWORD=
+CATALOG_REALTIME=on                     # live run progress on the admin screens (LISTEN sync_run)
+```
+
 ### Map tiles
 
 Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](https://openfreemap.org) style, so they need internet access. Set `NEXT_PUBLIC_MAP_STYLE_URL` in `apps/web/.env.local` to use another style (MapTiler, Stadia, your own), or `off` to always use the offline SVG map. If tiles fail to load (offline, no WebGL), the app falls back to the SVG map automatically.
@@ -170,9 +186,10 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 | **Security** | argon2id; HTTP-only SameSite=Lax cookies; CSRF header check; typed JWTs (an OAuth state token can't pass as an access token); CORS locked to the web origin; Helmet on the API and anti-clickjacking headers on the web app; per-IP rate limits that can't be dodged by forging `X-Forwarded-For` behind the edge proxy; validated env (refuses insecure cookies in production); friendly error filter (no stack traces or SQL leak); no passwords, tokens or bodies in logs. |
 | **Accessibility** | WCAG AA colour contrast, focus-trapped dialogs that return focus, ARIA tabs and menus with arrow-key support, labelled and described form errors, skip link, one `<title>` per page, logical headings, 44px touch targets. An axe-core gate in the E2E run fails the build on any serious/critical issue (desktop and mobile). |
 
-| **Place catalog** | Admin-driven import of places for a whole country, a province or one destination from **open data** (Overture Maps + OpenStreetMap), Python + Airflow. Records from every source are kept, matched across sources (names in any language, within 50 m) and merged field by field with recorded provenance; existing place ids and itineraries never change; re-runs are idempotent; closures need 3 missed runs and a safety brake stops mass closures. PostGIS boundaries for Vietnam's provinces; names per language for locale-aware display. See **[pipelines/README.md](pipelines/README.md)**. |
+| **Place catalog** | Admin-driven import of places for a whole country, a province or one destination from **open data** (Overture Maps + OpenStreetMap), Python + Airflow. Records from every source are kept, matched across sources (names in any language, within 50 m) and merged field by field with recorded provenance; existing place ids and itineraries never change; re-runs are idempotent; closures need 3 missed runs and a safety brake stops mass closures. PostGIS boundaries per country (Vietnam's 34 provinces, or any country Overture covers); names per language for locale-aware display; duplicates scored across sources (auto-merge ≥ 0.85, review queue below that, exact undo). See **[pipelines/README.md](pipelines/README.md)**. |
+| **Catalog admin** | `/admin` for ADMIN accounts: **areas** with place counts and *Sync now* / *Dry run*; **sync jobs** on a cron schedule (an Airflow `catalog_scheduler` DAG starts the due ones; never two runs of a job at once); **runs** with live progress over Socket.IO (Postgres `NOTIFY` → API → admin room), quality warnings, record-level errors and cancel; **duplicate review** side by side with merge / reject / undo; a **place editor** whose edits lock fields against imports (with history and unlock); **category mapping** for source categories that aren't published yet. Every action is checked against the database role and audit-logged. |
 
-Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking, moderation dashboard.
+Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking.
 
 API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
@@ -182,13 +199,13 @@ API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](d
 
 - **Unit** (`src/**/*.spec.ts`): the permission matrix and `TripAccessService`, itinerary ordering logic, crypto, dates and the shared Zod schemas.
 - **Integration** (`test/*.int.ts`): boots the real Nest app against `triply_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads. `hardening.int.ts` covers the security/concurrency fixes: immediate logout, lockout, email confirmation, Google takeover of a squatted account, refresh-token theft detection, concurrent comment deletes / likes / reorders, socket handshake and eviction, pagination and input validation.
-- **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept → explores food around Tokyo, opens a place and adds it to Day 2 of the trip → another traveler adds a photo to that place, plus a privacy check, an **axe-core accessibility gate** (11 screens incl. Explore places, a destination and a place page, at desktop and mobile widths; also fails on sideways scrolling) and cleanup of the trips it created.
+- **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept → explores food around Tokyo, opens a place and adds it to Day 2 of the trip → another traveler adds a photo to that place → an admin creates, pauses and deletes a sync job and every admin screen passes axe, plus a privacy check, an **axe-core accessibility gate** (11 screens incl. Explore places, a destination and a place page, at desktop and mobile widths; also fails on sideways scrolling) and cleanup of the trips it created.
 
 Also `npm run lint` (ESLint 9 with typescript-eslint, React Hooks and Next rules) runs in CI.
 
 - **Pipeline** (`pipelines/tests`, pytest): normalisation (checked against the same cases as the TypeScript `normalizeSearch`), provider adapters, and end-to-end runs on synthetic Overture/OSM fixtures against a real PostGIS database: idempotent re-runs, itineraries untouched, locked fields, closures and the safety brake. The Airflow DAGs were executed with `dag.test()` on Airflow 3.1.
 
-Current status: **128/128** API tests (`photos.int.ts` covers trust and review, sharing from posts, reports, moderation, the importer's host allow-list and back-off; `places.int.ts` covers the taxonomy, browsing by area/radius/kind/text, paging, input validation, closed/merged/hidden places, privacy of trips shown on a place, and who may add to which trip), **49** pipeline tests (+ a DAG parse test that runs where Airflow is installed), lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
+Current status: **144/144** API tests (`admin.int.ts` covers the catalog admin API: admin-only access, job validation and lifecycle, runs started through a mocked Airflow, Airflow being down, cancel, merge / reject / undo, place edits that lock and unlock fields, category mapping, and the NOTIFY → socket hand-over; `photos.int.ts` covers trust and review, sharing from posts, reports, moderation, the importer's host allow-list and back-off; `places.int.ts` covers the taxonomy, browsing by area/radius/kind/text, paging, input validation, closed/merged/hidden places, privacy of trips shown on a place, and who may add to which trip), **118** pipeline tests (+ DAG tests that run where Airflow is installed), lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
 
 ---
 
@@ -222,8 +239,9 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 - **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
 - **Show the data platform:** `pipelines/` is a small, real ETL: Overture GeoParquet read straight from S3 with DuckDB, OSM streamed with pyosmium, PostGIS, idempotent upserts by content hash, cross-source entity matching, field-level survivorship with provenance, and an Airflow DAG with one mapped task per province.
+- **Show the operator side:** the admin console turns the pipeline into a product: schedule a country, watch its run progress live, review duplicates side by side, fix a place by hand and see the field stay locked through the next import.
 - **Show Explore as a product loop:** *"near me" → coffee → open a café → Add to trip → Day 2* in 15 seconds, then the same place appearing on the trip map. The category facets and PostGIS radius query sit behind it.
 - **Show the photo strategy:** no app "collects every photo". TRIPLY layers traveler uploads (with trust, review and reports), open Commons photos (licence-filtered, credited, matched through Wikidata/OSM) and, later, a paid provider shown live; one `place_photos` table, one ranking, one credit line.
-- **Point to the tests:** 128 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
+- **Point to the tests:** 144 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
 - **Tell the hardening story:** an honest self-review found a rate-limit bypass, Google account pre-hijacking and two race conditions; each fix landed with a test that reproduces the problem (`apps/api/test/hardening.int.ts`). Interviewers love this.
 - **Suggested headline:** *"TRIPLY: collaborative trip planning with GitHub-style fork/remix for itineraries. Next.js 16 · NestJS · Prisma · PostgreSQL · Socket.IO."*
