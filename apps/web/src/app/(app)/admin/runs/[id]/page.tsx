@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { SyncRunDetail, SyncRunErrorView } from "@triply/shared";
-import { ChevronLeft, CircleStop } from "lucide-react";
+import { ChevronLeft, CircleStop, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";
 import { LiveDot, RunProgress, RunStatus, isActive, runWhen, useLiveRuns } from "@/components/admin/runs";
@@ -44,6 +44,10 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
   const live = useLiveRuns();
   const q = useQuery({ queryKey: ["admin", "run", id], queryFn: () => api.get<SyncRunDetail>(`/admin/sync-runs/${id}`), retry: false });
   const errors = useQuery({ queryKey: ["admin", "run", id, "errors"], queryFn: () => api.get<SyncRunErrorView[]>(`/admin/sync-runs/${id}/errors`), enabled: !!q.data });
+  const resume = useAction(() => api.post<SyncRunDetail>(`/admin/sync-runs/${id}/resume`), {
+    invalidate: [["admin", "run", id], ["admin", "runs"]],
+    success: "Resuming — finished parts are skipped",
+  });
   const cancel = useAction(() => api.post<SyncRunDetail>(`/admin/sync-runs/${id}/cancel`), {
     invalidate: [["admin", "run", id], ["admin", "runs"]],
     success: (r) => (r.status === "cancelled" ? "Run cancelled" : "Asked the run to stop after its current batch"),
@@ -75,6 +79,11 @@ export default function RunPage({ params }: { params: Promise<{ id: string }> })
         </div>
         <div className="flex items-center gap-4">
           <LiveDot live={live} />
+          {r.resumable && (
+            <Button onClick={() => resume.run(undefined)} disabled={resume.isPending}>
+              <RotateCw className="size-4" aria-hidden /> Resume run
+            </Button>
+          )}
           {isActive(r.status) && (
             <Button variant="secondary" onClick={() => cancel.run(undefined)} disabled={cancel.isPending || r.cancelRequested}>
               <CircleStop className="size-4" aria-hidden /> {r.cancelRequested ? "Stopping…" : "Cancel run"}

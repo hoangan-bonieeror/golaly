@@ -233,6 +233,12 @@ CLI `jobs run`   ─┘                                   │        └→ NOTI
   20 m, completeness per category group. Warnings are shown on the run page and, with `CATALOG_ALERT_WEBHOOK` (a
   Slack-compatible incoming webhook), posted along with failed and `needs_review` runs.
 
+- **Resume**: every batch commits together with its partition's cursor (`sync_run_cursors`). If a worker dies,
+  Airflow restarts or a task is cleared, the retry skips finished partitions and already-loaded batches and ends
+  with the same numbers as an uninterrupted run (Overture and Foursquare are read in id order so batches line up;
+  if the order ever differs, the partition is simply loaded again). A failed / partial / cancelled run can be
+  continued as the same run: **Resume** on its admin page, or `triply-catalog resume <run-id>`.
+
 The same from the CLI:
 
 ```bash
@@ -242,6 +248,20 @@ uv run triply-catalog jobs list
 uv run triply-catalog jobs run "vn weekly" --dry-run
 uv run triply-catalog jobs disable "vn weekly"     # enable / delete
 ```
+
+### Whole country — the phase 3 check
+
+```bash
+uv run triply-catalog sync --area vn          # or Admin → Areas → Việt Nam → Sync now (34 provinces × sources)
+uv run triply-catalog verify --area vn        # exit code 0 = done criteria met
+```
+
+`verify` checks the area's last real run: finished as `succeeded` (otherwise it prints the `resume` command), every
+partition loaded, no quality warnings, every province has places. It also lists the **duplicate review queue per
+province**, busiest first (`likely_same` = score ≥ 0.75) — review those in Admin → Duplicates with the province slug
+as the filter, starting with the tourist provinces. To check resume on real data, stop Airflow (or kill the
+`catalog sync` process) halfway, start it again (or `resume <run-id>`), and compare `verify` / the run page with an
+uninterrupted run.
 
 ## Adding a source
 

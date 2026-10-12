@@ -123,6 +123,33 @@ describe("runs", () => {
     expect((await an.get(`/admin/sync-runs/${res.body.id}`)).body.errorCount).toBe(1);
   });
 
+  it("resumes a failed run as the same sync_runs row; finished runs can't be resumed", async () => {
+    await t.prisma.syncRun.create({ data: { trigger: "schedule", status: "running", params: { area: "zz" } } });
+    const blocked = await t.prisma.syncRun.create({ data: { trigger: "admin", status: "failed", params: { area: "zz", providers: ["osm"] } } });
+    expect((await an.post(`/admin/sync-runs/${blocked.id}/resume`)).status).toBe(409); // another run of the area is going
+    await t.prisma.syncRun.updateMany({ where: { status: { in: ["queued", "running"] } }, data: { status: "cancelled" } });
+    const failed = await t.prisma.syncRun.create({
+      data: { trigger: "admin", status: "failed", error: "worker lost", finishedAt: new Date(), params: { area: "zz", providers: ["osm"], category_keys: [], photos: false } },
+    });
+    expect((await an.get(`/admin/sync-runs/${failed.id}`)).body.resumable).toBe(true);
+    const res = await an.post(`/admin/sync-runs/${failed.id}/resume`);
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ id: failed.id, status: "queued", error: null, resumable: false });
+    const trigger = calls.find((c) => c.url.includes("/dagRuns"))!;
+    expect(trigger.url).toContain("/dags/catalog_sync/");
+    expect(trigger.body).toMatchObject({ conf: { area: "zz", providers: ["osm"], photos: false, sync_run_id: failed.id } });
+    expect((await an.post(`/admin/sync-runs/${failed.id}/resume`)).status).toBe(409); // queued now
+
+    // Airflow down: the run goes back to how it was.
+    const partial = await t.prisma.syncRun.create({ data: { trigger: "schedule", status: "partial", finishedAt: new Date(), params: { area: "zz", providers: ["osm"] } } });
+    await t.prisma.syncRun.update({ where: { id: failed.id }, data: { status: "succeeded" } });
+    airflowDown = true;
+    expect((await an.post(`/admin/sync-runs/${partial.id}/resume`)).status).toBe(502);
+    expect(await t.prisma.syncRun.findUniqueOrThrow({ where: { id: partial.id } })).toMatchObject({ status: "partial" });
+    expect((await an.post(`/admin/sync-runs/${failed.id}/resume`)).status).toBe(409); // succeeded
+    expect((await minh.post(`/admin/sync-runs/${partial.id}/resume`)).status).toBe(403);
+  });
+
   it("when Airflow is down the run is marked failed with a helpful message", async () => {
     airflowDown = true;
     const res = await an.post("/admin/sync-runs", { area: "zz", providers: ["osm"] });

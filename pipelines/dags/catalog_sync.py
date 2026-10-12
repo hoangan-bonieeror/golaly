@@ -95,12 +95,12 @@ def catalog_sync():
         if not p.get("area") and not p.get("bbox"):
             raise ValueError("set either 'area' or 'bbox'")
         if p.get("sync_run_id"):
+            # A run queued by the admin API / scheduler, or one being resumed (its finished partitions are skipped).
             from triply_catalog.taxonomy import sync_taxonomy
 
             with db.connect(_settings().database_url) as conn:
                 sync_taxonomy(conn)
-                conn.execute("UPDATE sync_runs SET status = 'running', started_at = now() WHERE id = %s", [p["sync_run_id"]])
-                conn.commit()
+                pipeline.reopen_run(conn, p["sync_run_id"])
             return p["sync_run_id"]
         return pipeline.start(_settings(), {k: p.get(k) for k in ("area", "bbox", "providers", "category_keys")}, "airflow")
 

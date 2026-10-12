@@ -25,6 +25,7 @@ export type AuditAction =
   | "catalog.job.deleted"
   | "catalog.run.started"
   | "catalog.run.cancelled"
+  | "catalog.run.resumed"
   | "catalog.merge.decided"
   | "catalog.merge.undone"
   | "catalog.place.edited"

@@ -16,7 +16,9 @@ triply-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # pairs to 
 triply-catalog merges evaluate pairs.csv        # precision / recall per threshold on the labelled pairs
 triply-catalog jobs add "vn weekly" --area vn --schedule "0 3 * * mon"   # a scheduled sync (cron, UTC)
 triply-catalog jobs list | run <job> [--dry-run] | enable <job> | disable <job> | delete <job>
+triply-catalog resume <run-id>                  # continue an interrupted / failed run: finished partitions and batches are skipped
 triply-catalog stats
+triply-catalog verify --area vn                 # done criteria after a big sync + the duplicate review queue per province
 triply-catalog status --area cn                 # is a country ready? boundaries, places per source, last runs
 """
 
@@ -33,7 +35,7 @@ from . import db
 from .boundaries import import_boundaries
 from .config import settings as load_settings
 from .photos import sync_photos
-from .pipeline import ScopeError, adopt_manual_places, run_sync
+from .pipeline import ScopeError, adopt_manual_places, resume_params, run_sync
 from .publish import publish
 from .sources import SourceConfigError, SourceRefused, check_keys, check_ready, keys
 from .sources import status as source_status
@@ -53,6 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--providers", default=",".join(keys("places", default_only=True)), help="place sources (see `triply-catalog sources`; fsq is opt-in)")
     s.add_argument("--dry-run", action="store_true")
     s.add_argument("--photos", action="store_true", help="afterwards, look for photos of places that are new, renamed, moved or due")
+    vf = sub.add_parser("verify", help="after a big sync: did it meet the done criteria, and where do duplicates wait for review?")
+    vf.add_argument("--area", required=True)
+    rs = sub.add_parser("resume", help="continue a failed, partial, cancelled or interrupted run where it stopped")
+    rs.add_argument("run_id")
+    rs.add_argument("--photos", action="store_true", help="afterwards, look for photos (like `sync --photos`)")
     ph = sub.add_parser("photos", help="queue openly licensed photos (Wikimedia Commons) for places in an area")
     ph.add_argument("--area", help="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)")
     ph.add_argument("--bbox", help="minLng,minLat,maxLng,maxLat")
@@ -125,6 +132,16 @@ def main(argv: list[str] | None = None) -> int:
             scope = out.pop("photo_scope", None)
             if args.photos and not args.dry_run:
                 out["photos"] = sync_photos(cfg, bbox=scope["bbox"], areas=scope["areas"], only_due=True, after_sync=out["run_id"]) if scope else None
+        elif args.cmd == "verify":
+            from .verify import verify_area
+
+            out = verify_area(cfg, args.area)
+        elif args.cmd == "resume":
+            p = resume_params(cfg, args.run_id)
+            out = run_sync(cfg, p["area"], p["bbox"], p["providers"], category_keys=p["category_keys"], sync_run_id=args.run_id)
+            scope = out.pop("photo_scope", None)
+            if args.photos:
+                out["photos"] = sync_photos(cfg, bbox=scope["bbox"], areas=scope["areas"], only_due=True, after_sync=out["run_id"]) if scope else None
         elif args.cmd == "photos":
             out = sync_photos(cfg, args.area, args.bbox, dry_run=args.dry_run, source=args.source, only_due=args.only_due)
         elif args.cmd == "sources":
@@ -154,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 2
     print(json.dumps(out, ensure_ascii=False, indent=2, default=str))
-    return 0
+    return 1 if args.cmd == "verify" and not out["ok"] else 0
 
 
 def _scope_ids(conn: Any, cfg: Any, area: str | None, bbox: str | None) -> list[str]:

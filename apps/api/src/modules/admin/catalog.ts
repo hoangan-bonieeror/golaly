@@ -299,12 +299,51 @@ export class CatalogAdminService {
   async run(id: string): Promise<SyncRunDetail> {
     const r = await this.prisma.syncRun.findUnique({ where: { id }, include: runInclude });
     if (!r) throw Errors.notFound("That run");
-    return { ...toRunSummary(r), params: r.params as Record<string, unknown>, stats: r.stats as Record<string, unknown>, error: r.error, cancelRequested: r.cancelRequested };
+    const params = (r.params ?? {}) as Record<string, unknown>;
+    const resumable = ["failed", "partial", "cancelled"].includes(r.status) && r.trigger !== "dry_run" && !params.dry_run;
+    return { ...toRunSummary(r), params, stats: r.stats as Record<string, unknown>, error: r.error, cancelRequested: r.cancelRequested, resumable };
   }
 
   async runErrors(id: string): Promise<SyncRunErrorView[]> {
     const rows = await this.prisma.syncRunError.findMany({ where: { runId: id }, orderBy: { createdAt: "asc" }, take: 500 });
     return rows.map((e) => ({ id: e.id, provider: e.provider, externalId: e.externalId, stage: e.stage, message: e.message, createdAt: e.createdAt.toISOString() }));
+  }
+
+  /**
+   * Continue a failed, partial or cancelled run where it stopped: the same sync_runs row goes back to Airflow,
+   * whose partitions skip what their cursors (sync_run_cursors) say is already loaded.
+   */
+  async resumeRun(adminId: string, id: string): Promise<SyncRunDetail> {
+    const r = await this.prisma.syncRun.findUnique({ where: { id } });
+    if (!r) throw Errors.notFound("That run");
+    const params = (r.params ?? {}) as Record<string, unknown>;
+    if (!["failed", "partial", "cancelled"].includes(r.status) || r.trigger === "dry_run" || params.dry_run) {
+      throw Errors.conflict("Only failed, partial or cancelled syncs can be resumed.");
+    }
+    const area = (params.area as string | null) ?? null;
+    const bbox = (params.bbox as string | null) ?? null;
+    const busy = await this.prisma.syncRun.count({
+      where: { id: { not: id }, status: { in: ["queued", "running"] }, OR: [...(r.jobId ? [{ jobId: r.jobId }] : []), ...(area ? [{ params: { path: ["area"], equals: area } }] : [])] },
+    });
+    if (busy) throw Errors.conflict("Another run for this area is in progress.");
+    await this.prisma.syncRun.update({ where: { id }, data: { status: "queued", error: null, finishedAt: null, cancelRequested: false } });
+    const conf = {
+      area,
+      bbox,
+      providers: Array.isArray(params.providers) ? params.providers : ["overture", "osm"],
+      category_keys: Array.isArray(params.category_keys) ? params.category_keys : [],
+      photos: params.photos !== false,
+      sync_run_id: id,
+    };
+    try {
+      await this.airflow.trigger("catalog_sync", conf);
+    } catch (e) {
+      const msg = e instanceof AirflowError ? e.message : "Couldn't resume the run.";
+      await this.prisma.syncRun.update({ where: { id }, data: { status: r.status, error: msg, finishedAt: r.finishedAt ?? new Date() } });
+      throw new AppError(502, msg);
+    }
+    await this.audit.log(adminId, "catalog.run.resumed", "sync_run", id, {});
+    return this.run(id);
   }
 
   async cancelRun(adminId: string, id: string): Promise<SyncRunDetail> {
@@ -727,6 +766,11 @@ export class CatalogAdminController {
   @Get("sync-runs/:id/errors")
   async runErrors(@Param("id", uuid) id: string) {
     return this.svc.runErrors(id);
+  }
+
+  @Post("sync-runs/:id/resume")
+  async resume(@ViewerId() me: string, @Param("id", uuid) id: string) {
+    return this.svc.resumeRun(me, id);
   }
 
   @Post("sync-runs/:id/cancel")

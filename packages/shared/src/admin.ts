@@ -170,6 +170,8 @@ export interface SyncRunDetail extends SyncRunSummary {
   stats: Record<string, unknown>;
   error: string | null;
   cancelRequested: boolean;
+  /** Failed, partial or cancelled real sync: "Resume" continues it where it stopped. */
+  resumable: boolean;
 }
 
 export interface SyncRunErrorView {

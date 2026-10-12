@@ -138,7 +138,8 @@ class FoursquareSource:
             else "longitude BETWEEN ? AND ? AND latitude BETWEEN ? AND ?"
         )
         params = [b.min_lng, b.max_lng, b.min_lat, b.max_lat]
-        cur = con.execute(f"SELECT {', '.join(cols)} FROM read_parquet('{self.path}') WHERE {where}", params)
+        # A stable order lets a retried partition skip the batches it already loaded.
+        cur = con.execute(f"SELECT {', '.join(cols)} FROM read_parquet('{self.path}') WHERE {where} ORDER BY fsq_place_id", params)
         today = date.today()
         while rows := cur.fetchmany(self.settings.batch_size):
             batch = [p for p in (to_place(dict(zip(cols, r, strict=False)), today=today, max_age_years=self.settings.fsq_max_age_years) for r in rows) if p]

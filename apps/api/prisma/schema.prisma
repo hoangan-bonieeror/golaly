@@ -837,6 +837,7 @@ model SyncRun {
   job         SyncJob?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
   requestedBy User?          @relation(fields: [requestedById], references: [id], onDelete: SetNull)
   errors      SyncRunError[]
+  cursors     SyncRunCursor[]
 
   @@index([startedAt])
   @@index([jobId, startedAt])
@@ -871,6 +872,28 @@ model SyncJob {
 
   @@index([enabled, nextRunAt])
   @@map("sync_jobs")
+}
+
+/// How far each partition of a run got (resume after a crash). Written with the batch it describes.
+model SyncRunCursor {
+  runId        String   @map("run_id") @db.Uuid
+  provider     String
+  partitionKey String   @map("partition_key")
+  /// Batches committed so far.
+  batches      Int      @default(0)
+  /// The last record id of the last committed batch — checked when skipping on resume.
+  lastKey      String?  @map("last_key")
+  done         Boolean  @default(false)
+  /// The partition failed at least once (its failure is counted in progress until a retry succeeds).
+  failed       Boolean  @default(false)
+  /// fetched / inserted / changed so far.
+  totals       Json     @default("{}")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  run SyncRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@id([runId, provider, partitionKey])
+  @@map("sync_run_cursors")
 }
 
 /// A record or a whole partition that failed in a run (the rest of the run went on).

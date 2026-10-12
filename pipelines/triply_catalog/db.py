@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import Any
 
 import psycopg
@@ -49,14 +50,55 @@ def set_progress(conn: psycopg.Connection, run_id: str, **fields: Any) -> None:
     conn.commit()
 
 
-def bump_progress(conn: psycopg.Connection, run_id: str, key: str, current: str | None = None) -> None:
+def bump_progress(conn: psycopg.Connection, run_id: str, key: str, current: str | None = None, by: int = 1) -> None:
     conn.execute(
-        """UPDATE sync_runs SET progress = progress || jsonb_build_object(%(k)s::text, coalesce((progress->>%(k)s::text)::int, 0) + 1)
+        """UPDATE sync_runs SET progress = progress
+                  || jsonb_build_object(%(k)s::text, greatest(coalesce((progress->>%(k)s::text)::int, 0) + %(by)s::int, 0))
                   || CASE WHEN %(c)s::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('current', %(c)s::text) END
            WHERE id = %(id)s::uuid""",
-        {"k": key, "c": current, "id": run_id},
+        {"k": key, "c": current, "id": run_id, "by": by},
     )
     conn.commit()
+
+
+# ── resume ───────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class Cursor:
+    """How far one partition of a run got. `batches` were committed; `totals` are their counts."""
+
+    batches: int = 0
+    last_key: str | None = None
+    done: bool = False
+    failed: bool = False
+    totals: dict[str, int] = field(default_factory=dict)
+
+
+def get_cursor(conn: psycopg.Connection, run_id: str, provider: str, key: str) -> Cursor:
+    row = conn.execute(
+        "SELECT batches, last_key, done, failed, totals FROM sync_run_cursors WHERE run_id = %s::uuid AND provider = %s AND partition_key = %s",
+        [run_id, provider, key],
+    ).fetchone()
+    conn.commit()
+    return Cursor(row["batches"], row["last_key"], row["done"], row["failed"], dict(row["totals"])) if row else Cursor()
+
+
+def save_cursor(conn: psycopg.Connection, run_id: str, provider: str, key: str, c: Cursor) -> None:
+    """Upsert, inside the caller's transaction: commit it together with the batch it describes."""
+    conn.execute(
+        """INSERT INTO sync_run_cursors (run_id, provider, partition_key, batches, last_key, done, failed, totals, updated_at)
+           VALUES (%s::uuid, %s, %s, %s, %s, %s, %s, %s, now())
+           ON CONFLICT (run_id, provider, partition_key) DO UPDATE SET batches = EXCLUDED.batches, last_key = EXCLUDED.last_key,
+             done = EXCLUDED.done, failed = EXCLUDED.failed, totals = EXCLUDED.totals, updated_at = now()""",
+        [run_id, provider, key, c.batches, c.last_key, c.done, c.failed, jsonb(c.totals)],
+    )
+
+
+def done_partitions(conn: psycopg.Connection, run_id: str) -> int:
+    row = conn.execute("SELECT count(*) AS n FROM sync_run_cursors WHERE run_id = %s::uuid AND done", [run_id]).fetchone()
+    conn.commit()
+    return int(row["n"]) if row else 0
 
 
 def add_error(conn: psycopg.Connection, run_id: str | None, stage: str, message: str, provider: str | None = None, external_id: str | None = None) -> None:

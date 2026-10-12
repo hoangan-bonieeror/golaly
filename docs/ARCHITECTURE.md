@@ -166,7 +166,7 @@ asks Airflow (`POST /api/v2/dags/catalog_sync|catalog_dry_run/dagRuns`, JWT from
 (every 10 min) does the same for due `sync_jobs`. The pipeline writes progress, errors and the outcome back to
 `sync_runs`; a trigger sends `NOTIFY sync_run`, which `SyncRunListener` (a dedicated `pg` connection with reconnect)
 forwards to the Socket.IO room `admin` (joining re-checks the role). Cancelling sets `cancel_requested`; the pipeline
-checks it between batches. Merges from the admin screens and the pipeline go through the same SQL functions
+checks it between batches. Each committed batch also commits its partition's cursor (`sync_run_cursors`), so a retried or resumed run skips finished partitions and loaded batches. Merges from the admin screens and the pipeline go through the same SQL functions
 (`catalog_pick_winner`, `catalog_merge_places`, `catalog_unmerge`), and set `places.needs_publish` so the scheduler
 recomputes the winner's fields. An admin edit writes `place_edits` and adds the field to `locked_fields`, which
 survivorship never overwrites; unlocking hands the field back to the sources on the next publish.

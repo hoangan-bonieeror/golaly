@@ -138,7 +138,8 @@ class OvertureSource:
             SELECT {", ".join(cols)} FROM read_parquet('{path}', hive_partitioning = 1)
             WHERE bbox.xmin >= ? AND bbox.xmax <= ? AND bbox.ymin >= ? AND bbox.ymax <= ?
               AND coalesce(confidence, 1) >= ?
-            """,
+            ORDER BY id
+            """,  # a stable order lets a retried partition skip the batches it already loaded
             [b.min_lng, b.max_lng, b.min_lat, b.max_lat, self.settings.overture_min_confidence],
         )
         while rows := cur.fetchmany(self.settings.batch_size):

@@ -142,6 +142,35 @@ def start(settings: Settings, params: dict[str, Any], trigger: str) -> str:
         return db.start_run(conn, trigger, params)
 
 
+def reopen_run(conn: psycopg.Connection, run_id: str) -> None:
+    """Mark an existing run (queued by the admin API / scheduler, or one being resumed) as running again."""
+    conn.execute(
+        """UPDATE sync_runs SET status = 'running', started_at = now(), finished_at = NULL, error = NULL, cancel_requested = false
+           WHERE id = %s::uuid""",
+        [run_id],
+    )
+    conn.commit()
+
+
+RESUMABLE = ("failed", "partial", "cancelled", "running")
+
+
+class ResumeError(LookupError):
+    """The run doesn't exist or can't be resumed (the CLI prints the message)."""
+
+
+def resume_params(settings: Settings, run_id: str) -> dict[str, Any]:
+    """The parameters to resume a run with; refuses runs that finished cleanly or were dry runs."""
+    with db.connect(settings.database_url) as conn:
+        row = conn.execute("SELECT status, params, trigger FROM sync_runs WHERE id = %s::uuid", [run_id]).fetchone()
+    if not row:
+        raise ResumeError(f"no sync run {run_id}")
+    if row["status"] not in RESUMABLE or row["trigger"] == "dry_run" or (row["params"] or {}).get("dry_run"):
+        raise ResumeError(f"run {run_id} is {row['status']}; only failed, partial, cancelled or interrupted runs can be resumed")
+    p = row["params"] or {}
+    return {"area": p.get("area"), "bbox": p.get("bbox"), "providers": p.get("providers") or [], "category_keys": p.get("category_keys") or []}
+
+
 def close_stale_runs(conn: psycopg.Connection) -> int:
     n = conn.execute(
         """UPDATE sync_runs SET status = 'failed', finished_at = now(), error = coalesce(error, 'interrupted (no result after %s h)')
@@ -179,7 +208,9 @@ def plan(
         adopted = adopt_manual_places(conn, run_id)
         conn.commit()
         out = partition_dicts(settings, scope, require_area, providers, category_keys)
-        db.set_progress(conn, run_id, total=len(out), done=0, failed=0)
+        # A resumed run keeps the partitions it already finished (their cursors say done).
+        failed = conn.execute("SELECT count(*) AS n FROM sync_run_cursors WHERE run_id = %s::uuid AND failed AND NOT done", [run_id]).fetchone()["n"]  # type: ignore[index]
+        db.set_progress(conn, run_id, total=len(out), done=db.done_partitions(conn, run_id), failed=int(failed))
     log.info("run %s: %d partition(s), adopted %d manual place(s)", run_id, len(out), adopted)
     return out
 
@@ -191,39 +222,80 @@ def _partition(d: dict[str, Any]) -> Partition:
 def extract_load(settings: Settings, run_id: str, part: dict[str, Any], conn: psycopg.Connection | None = None) -> dict[str, int]:
     """One partition: fetch from the provider and upsert into place_sources, a batch per transaction.
 
-    A real run (own connection) reports progress, stops between batches when an admin cancels, and records a
-    failure in sync_run_errors before re-raising. A dry run (caller's connection) does none of that."""
+    A real run (own connection) reports progress, stops between batches when an admin cancels, records a failure in
+    sync_run_errors before re-raising, and **resumes**: each batch commits together with the partition's cursor
+    (`sync_run_cursors`), so a retried task (worker died, Airflow restarted, task cleared) skips the partition if it
+    finished, or the batches already loaded, and ends with the same totals as an uninterrupted run. Skipping relies on
+    the source yielding records in a stable order; the last id of the last loaded batch is checked, and on a mismatch
+    the partition is loaded again from the start (upserts are idempotent; only its counters may then differ).
+    A dry run (caller's connection) does none of that."""
     partition = _partition(part)
     source = get_source(partition.provider, settings)
     m = source.manifest
     own = conn is None
     conn = conn or db.connect(settings.database_url)
-    totals = {"fetched": 0, "inserted": 0, "changed": 0}
-    t0 = time.monotonic()
     label = f"{partition.provider}/{partition.key}"
+    cur = db.get_cursor(conn, run_id, partition.provider, partition.key) if own else db.Cursor()
+    if cur.done:
+        log.info("%s: already loaded in this run (%s), skipped", label, cur.totals)
+        if own:
+            conn.close()
+        return {k: int(cur.totals.get(k, 0)) for k in ("fetched", "inserted", "changed")}
+    resume_from = cur.batches
+    totals = {k: int(cur.totals.get(k, 0)) for k in ("fetched", "inserted", "changed")}
+    if resume_from:
+        log.info("%s: resuming after batch %d (%s)", label, resume_from, totals)
+    t0 = time.monotonic()
     try:
-        for batch in source.fetch_places(partition):
+        for i, batch in enumerate(source.fetch_places(partition)):
+            if i < resume_from:
+                if i == resume_from - 1 and batch and batch[-1].external_id != cur.last_key:
+                    log.warning("%s: source order changed since the interrupted attempt; loading the partition again", label)
+                    db.add_error(conn, run_id, "resume", "source order changed; partition loaded again from the start", partition.provider, partition.key)
+                    return _reload(settings, run_id, part, conn if own else None, own, cur)
+                continue
             if own:
                 db.check_cancel(conn, run_id)
             stats = load_batch(conn, run_id, batch, m.license, m.attribution, m.storage)
             for k in totals:
                 totals[k] += stats[k]
             if own:
+                cur.batches, cur.last_key, cur.totals = i + 1, batch[-1].external_id if batch else cur.last_key, dict(totals)
+                db.save_cursor(conn, run_id, partition.provider, partition.key, cur)
                 conn.commit()
         if own:
+            was_failed = cur.failed
+            cur.done, cur.failed, cur.totals = True, False, dict(totals)
+            db.save_cursor(conn, run_id, partition.provider, partition.key, cur)
+            conn.commit()
             db.bump_progress(conn, run_id, "done", label)
+            if was_failed:  # an earlier attempt counted it as failed; this one succeeded
+                db.bump_progress(conn, run_id, "failed", by=-1)
     except Exception as e:
         if own:
             conn.rollback()
             if not isinstance(e, db.Cancelled):
                 db.add_error(conn, run_id, "extract", f"{type(e).__name__}: {e}", partition.provider, partition.key)
-                db.bump_progress(conn, run_id, "failed", label)
+                if not cur.failed:  # retries of the same partition count once
+                    cur.failed = True
+                    db.save_cursor(conn, run_id, partition.provider, partition.key, cur)
+                    conn.commit()
+                    db.bump_progress(conn, run_id, "failed", label)
         raise
     finally:
-        if own:
+        if own and not conn.closed:
             conn.close()
-    log.info("%s/%s: %s in %.1fs", partition.provider, partition.key, totals, time.monotonic() - t0)
+    log.info("%s: %s in %.1fs", label, totals, time.monotonic() - t0)
     return totals
+
+
+def _reload(settings: Settings, run_id: str, part: dict[str, Any], conn: psycopg.Connection | None, own: bool, cur: db.Cursor) -> dict[str, int]:
+    """Start the partition over (keeping its `failed` flag), after a resume found a different record order."""
+    if own and conn is not None:
+        db.save_cursor(conn, run_id, part["provider"], part["key"], db.Cursor(failed=cur.failed))
+        conn.commit()
+        conn.close()
+    return extract_load(settings, run_id, part)
 
 
 def finalize(
@@ -339,8 +411,7 @@ def run_sync(
     if sync_run_id:
         with db.connect(settings.database_url) as conn:
             sync_taxonomy(conn)
-            conn.execute("UPDATE sync_runs SET status = 'running', started_at = now() WHERE id = %s::uuid", [sync_run_id])
-            conn.commit()
+            reopen_run(conn, sync_run_id)
         run_id = sync_run_id
     else:
         with db.connect(settings.database_url) as conn:
