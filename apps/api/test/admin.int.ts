@@ -227,6 +227,8 @@ describe("categories", () => {
     expect(res.body.records).toBe(1);
     const maps = (await an.get("/admin/category-maps?provider=osm")).body as { externalCategory: string; categoryKey: string }[];
     expect(maps.find((m) => m.externalCategory === "amenity=zz_test")?.categoryKey).toBe(key);
+    const after = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as { externalCategory: string }[];
+    expect(after.map((u) => u.externalCategory)).not.toContain("amenity=zz_test");
     expect((await put(an, "/admin/category-maps", { provider: "osm", externalCategory: "amenity=zz_test", categoryKey: null })).status).toBe(200);
     expect((await put(an, "/admin/category-maps", { provider: "osm", externalCategory: "x", categoryKey: "nope" })).status).toBe(422);
   });

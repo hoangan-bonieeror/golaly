@@ -1,13 +1,14 @@
 "use client";
 
 import type { ModerationPhoto } from "@triply/shared";
-import { Check, EyeOff, Flag, ImageOff, ShieldAlert, Trash2 } from "lucide-react";
+import { Check, EyeOff, Flag, ImageOff, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Photo, PhotoCredit } from "@/components/place/PlacePhotos";
 import { Badge, Button, EmptyState, ErrorState, LoadMore, PageLoader, Tabs, TabPanel } from "@/components/ui";
 import { api } from "@/lib/api/client";
-import { useAction, useMe, usePagedList } from "@/lib/api/queries";
+import { useAction, usePagedList } from "@/lib/api/queries";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 const FILTERS = [
   { value: "pending", label: "Waiting for review" },
@@ -18,11 +19,8 @@ type Filter = (typeof FILTERS)[number]["value"];
 
 /** Moderation queue for place photos: new uploaders' photos, loose import matches, reported and hidden ones. */
 export default function ModerationPage() {
-  const me = useMe();
   const [filter, setFilter] = useState<Filter>("pending");
-  if (me.isLoading) return <PageLoader />;
-  if (!me.data?.isAdmin)
-    return <EmptyState level="h1" icon={<ShieldAlert className="size-7" />} title="Moderators only" body="This page is for TRIPLY moderators." />;
+  useDocumentTitle("Place photos · Admin");
   return (
     <div className="space-y-6">
       <header>

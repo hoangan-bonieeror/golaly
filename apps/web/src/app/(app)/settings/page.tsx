@@ -98,8 +98,8 @@ function Settings({ me }: { me: Me }) {
 
       <section className="space-y-2">
         {me.isAdmin && (
-          <Button variant="secondary" className="w-full justify-start" href="/admin/photos">
-            <ShieldCheck className="size-4" /> Moderation: place photos
+          <Button variant="secondary" className="w-full justify-start" href="/admin">
+            <ShieldCheck className="size-4" /> Admin: catalog and moderation
           </Button>
         )}
         <Button

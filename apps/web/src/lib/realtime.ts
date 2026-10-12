@@ -6,7 +6,7 @@
  */
 import { useQueryClient } from "@tanstack/react-query";
 import type { NotificationView, TripEvent } from "@triply/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { refreshSession } from "./api/client";
 import { keys } from "./api/queries";
@@ -93,4 +93,40 @@ export function useNotificationStream(userId: string | null | undefined) {
       s.off("notification.new", onNew);
     };
   }, [userId, qc]);
+}
+
+export interface SyncRunEvent {
+  id: string;
+  jobId: string | null;
+  status: string;
+  progress: { total?: number; done?: number; failed?: number; current?: string };
+}
+
+/**
+ * Catalog admin screens: joins the `admin` room and calls `onRun` for every sync-run change
+ * (status or progress) the pipeline writes. Returns whether live updates are on.
+ */
+export function useAdminRealtime(userId: string | null | undefined, onRun: (e: SyncRunEvent) => void) {
+  const [live, setLive] = useState(false);
+  const handler = useRef(onRun);
+  useEffect(() => {
+    handler.current = onRun;
+  });
+  useEffect(() => {
+    const s = getSocket(userId ?? null);
+    if (!s) return;
+    const join = () => s.emit("admin.join", {}, (r: { ok: boolean }) => setLive(!!r?.ok));
+    const onEvent = (e: SyncRunEvent) => handler.current(e);
+    const onDisconnect = () => setLive(false);
+    if (s.connected) join();
+    s.on("connect", join);
+    s.on("disconnect", onDisconnect);
+    s.on("sync_run", onEvent);
+    return () => {
+      s.off("connect", join);
+      s.off("disconnect", onDisconnect);
+      s.off("sync_run", onEvent);
+    };
+  }, [userId]);
+  return live;
 }

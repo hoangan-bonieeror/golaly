@@ -622,6 +622,8 @@ export class CatalogAdminService {
       FROM place_sources
       WHERE category_id IS NULL AND jsonb_array_length(coalesce(normalized->'category_candidates', '[]')) > 0
         ${provider ? Prisma.sql`AND provider = ${provider}` : Prisma.empty}
+        -- Mapped since the last sync: those records get their category on the area's next run.
+        AND NOT EXISTS (SELECT 1 FROM category_maps m WHERE m.provider = place_sources.provider AND m.external_category = normalized->'category_candidates'->>0)
       GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 200`;
     return rows.map((r) => ({ provider: r.provider, externalCategory: r.ext, records: Number(r.n) }));
   }

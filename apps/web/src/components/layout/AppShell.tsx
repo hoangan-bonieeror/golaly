@@ -12,8 +12,8 @@ import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
-const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new", "/admin/photos"];
-const PROTECTED_PREFIX = ["/invitations/", "/trips/new"];
+const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
+const PROTECTED_PREFIX = ["/invitations/", "/trips/new", "/admin"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/notifications", label: "Notifications", icon: Bell, badge: unread },
     { href: profileHref, label: "Profile", icon: UserRound },
     { href: "/settings", label: "Settings", icon: Settings },
-    ...(me?.isAdmin ? [{ href: "/admin/photos", label: "Moderation", icon: ShieldCheck }] : []),
+    ...(me?.isAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
   ];
 
   return (

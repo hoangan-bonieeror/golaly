@@ -37,7 +37,7 @@ export async function refreshSession(): Promise<boolean> {
   return refreshing;
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
@@ -69,7 +69,9 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
     } catch {
       /* non-JSON error page (e.g. API down behind the proxy) */
     }
-    const message = typeof data.message === "string" && res.status < 500 ? data.message : res.status >= 500 ? "Something went wrong. Please try again." : FALLBACK[res.status] ?? "Something went wrong. Please try again.";
+    // 5xx messages are hidden (they may be internals), except the API's deliberate "upstream unavailable" answers.
+    const shown = res.status < 500 || res.status === 502 || res.status === 503;
+    const message = typeof data.message === "string" && shown ? data.message : res.status >= 500 ? "Something went wrong. Please try again." : FALLBACK[res.status] ?? "Something went wrong. Please try again.";
     throw new ApiError(res.status, message, data.fields);
   }
   if (res.status === 204) return undefined as T;
@@ -80,6 +82,7 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body ?? {}),
+  put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body ?? {}),
   delete: <T>(path: string, body?: unknown) => request<T>("DELETE", path, body),
   upload: <T>(path: string, file: File) => {
     const fd = new FormData();

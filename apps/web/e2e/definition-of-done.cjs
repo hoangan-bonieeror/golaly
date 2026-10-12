@@ -259,6 +259,50 @@ fs.mkdirSync(shots, { recursive: true });
     if (problems.length) throw new Error(problems.join("; "));
   });
 
+  // Catalog admin (phase 3): an admin manages a sync job and checks every admin screen (axe + no sideways scroll).
+  await step("19. an admin manages sync jobs and reviews the catalog screens", async () => {
+    const ADM = await newUser("admin");
+    await login(ADM, "an@triply.dev");
+    await ADM.goto(`${BASE}/admin/jobs`);
+    await ADM.getByRole("heading", { name: "Sync jobs" }).waitFor();
+    await ADM.getByRole("button", { name: "New job" }).first().click();
+    const d = ADM.getByRole("dialog");
+    const name = `E2E job ${stamp}`;
+    await d.getByLabel("Name").fill(name);
+    await d.getByLabel("Area").fill("hoi-an");
+    await d.getByLabel("Schedule (cron, UTC)").fill("61 * * * *");
+    await d.getByRole("button", { name: "Create job" }).click();
+    await d.getByRole("alert").first().waitFor(); // invalid cron is caught before saving
+    await d.getByRole("button", { name: /Weekly/ }).click();
+    await d.getByRole("button", { name: "Create job" }).click();
+    const card = ADM.locator("li", { has: ADM.getByRole("heading", { name }) });
+    await card.getByText("Scheduled").waitFor();
+    await card.getByRole("button", { name: "Pause" }).click();
+    await card.getByText("Paused").waitFor();
+    await card.getByRole("button", { name: `Delete ${name}` }).click();
+    await card.getByRole("button", { name: "Confirm delete" }).click();
+    await ADM.getByRole("heading", { name }).waitFor({ state: "detached" });
+
+    const axeSource = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+    const problems = [];
+    for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
+      await ADM.setViewportSize(vp);
+      for (const r of ["/admin", "/admin/jobs", "/admin/runs", "/admin/duplicates", "/admin/places", "/admin/categories", "/admin/photos"]) {
+        await ADM.goto(`${BASE}${r}`);
+        await ADM.waitForLoadState("networkidle");
+        await ADM.addScriptTag({ content: axeSource });
+        const res = await ADM.evaluate(() => window.axe.run(document, { resultTypes: ["violations"] }));
+        for (const v of res.violations.filter((v) => v.impact === "serious" || v.impact === "critical")) problems.push(`${vp.width}px ${r}: ${v.id} (${v.nodes.length})`);
+        const overflow = await ADM.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        if (overflow > 1) problems.push(`${vp.width}px ${r}: page is ${overflow}px wider than the screen`);
+      }
+    }
+    if (problems.length) throw new Error(problems.join("; "));
+    // Non-admins see a polite refusal, not the tools.
+    await C.goto(`${BASE}/admin/jobs`);
+    await C.getByRole("heading", { name: "Admins only" }).waitFor();
+  });
+
   // Leave the shared dev database as we found it: test trips must not linger in public Explore.
   await step("cleanup: delete the trips this run created", async () => {
     const del = (p, url) => p.evaluate((id) => fetch(`/api/v1/trips/${id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status), url.split("/trips/")[1].split(/[?#]/)[0]);
