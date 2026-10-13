@@ -12,7 +12,7 @@ import { useToast } from "@/lib/toast";
 import { useFormat, useI18n, useT } from "@/i18n/client";
 import { cx } from "../ui";
 import type { DayFilter } from "../trip/DayBar";
-import { ItemTypeIcon } from "./ItemTypeIcon";
+import { ItemTypeIcon, TYPE_META } from "./ItemTypeIcon";
 import { useFlip, useItineraryDrag, type DragState } from "./useItineraryDrag";
 
 /** The trip with one item moved — what the server will answer, applied right away. */
@@ -179,6 +179,9 @@ export function Itinerary({
                 const leg = legs.get(it.id);
                 const editor = it.updatedBy && it.updatedBy.id !== me?.id ? it.updatedBy : null;
                 const selected = selectedId === it.id;
+                // Flights and transfers look like tickets: a notched perforation and a stub with the time.
+                const ticket = it.type === "FLIGHT" || it.type === "TRANSPORTATION";
+                const TicketIcon = TYPE_META[it.type].icon;
                 const meta = [place ? place.categoryLabel || t.labels.itemType[it.type] : it.type === "NOTE" ? ti.note : ti.custom(t.labels.itemType[it.type]), place && place.name !== it.title ? place.name : null, it.endTime ? ti.until(it.endTime) : null].filter(Boolean).join(" · ");
                 return (
                   <li
@@ -212,11 +215,14 @@ export function Itinerary({
                         onClick={() => onSelect?.(it)}
                         className={cx(
                           "min-w-0 flex-1 cursor-pointer rounded-[14px] border p-3 transition-[border-color,background-color,box-shadow,transform] duration-200",
+                          ticket && "ticket flex gap-3",
+                          ticket && (selected ? "[--ticket-line:var(--color-primary)]" : "[--ticket-line:var(--color-line)]"),
                           selected ? "border-primary bg-primary-50 ring-1 ring-primary" : hoveredId === it.id ? "border-ink-2/50 bg-surface" : "border-line bg-surface hover:border-ink-2/40",
                           pulseId === it.id && "animate-select-pulse",
                           dragging?.id === it.id && "scale-[1.02] shadow-pop",
                         )}
                       >
+                        <div className={ticket ? "min-w-0 flex-1" : "contents"}>
                         <div className="flex items-center gap-3">
                           {n !== null ? (
                             <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: color }}>
@@ -275,6 +281,17 @@ export function Itinerary({
                           <p className="mt-1.5 text-[11px] text-muted">
                             {ti.editedBy(editor.displayName, f.timeAgo(it.updatedAt))}
                           </p>
+                        )}
+                        </div>
+                        {ticket && (
+                          <>
+                            <span aria-hidden className="ticket-notch is-top" style={{ right: 61 }} />
+                            <span aria-hidden className="ticket-notch is-bottom" style={{ right: 61 }} />
+                            <div aria-hidden className="ticket-stub -my-3 -mr-3 flex w-[68px] shrink-0 flex-col items-center justify-center gap-1 border-l-2 border-dashed border-[var(--ticket-line)] px-2 text-ink-2">
+                              <TicketIcon className="size-[18px]" />
+                              <span className="max-w-full truncate font-mono text-[11px] font-semibold uppercase tracking-wide text-ink">{it.endTime ? `→ ${it.endTime}` : t.labels.itemType[it.type]}</span>
+                            </div>
+                          </>
                         )}
                       </div>
                     </div>

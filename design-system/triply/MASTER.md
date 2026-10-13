@@ -157,7 +157,41 @@ UI 150–300ms; map moves 600–900ms; only `transform` / `opacity` are animated
   (React `<ViewTransition>`, class `trip-morph`, 380ms). Only one card per trip may carry `morph` on a page.
 - `rise` (350ms) for sheets and menus; toasts slide in.
 
-Every animation is disabled under `prefers-reduced-motion` (state changes apply instantly).
+### 2D motion graphics
+
+Hand-drawn SVG + CSS keyframes (no animation library), theme tokens only, so every piece works in
+Atlas Night. Each plays at one meaningful moment and animates `transform` / `opacity` /
+`stroke-dashoffset` only. Styles live in the "2D motion graphics" block of `globals.css`.
+
+- **Living logo** (`LogoMark`): on first paint the dashed route draws itself through a mask and the
+  three stops pop in order; hovering the logo link makes them hop.
+- **Route loader** (`RouteLoader`, used by `PageLoader`): a vermilion comet runs the logo route and
+  each stop swells as it passes. Replaces the spinner.
+- **Atlas hero** (`components/art/AtlasHero.tsx`, auth pages): a paper map inks itself in —
+  coastline and contours, then a vermilion route at a steady pace with each city popping as the
+  line arrives, a compass needle that spins and settles, then a slow sway. The journey (Vietnam,
+  Japan, Italy, Thailand) is picked on the server per request, so there's no hydration mismatch.
+- **Sky by local time** (`RouteThumb sky`, planner header): the thumbnail is tinted for dawn / day /
+  dusk / night *at the trip's first stop* (sun altitude from its coordinates, `lib/sky.ts`; no time
+  zone needed), with the sun or moon on a small arc. It rises in on first paint and drifts each minute.
+  The label ("Kyoto right now: dusk") is the thumbnail's accessible name and tooltip.
+- **Passport stamps** (`PassportStamps`, profile): a stamp per destination; shape, ink (vermilion,
+  jade, gold) and tilt come from the place id. Pressed on the first time the section scrolls into
+  view (overshoot + a ring of ink spreading), 110ms apart. Mono type here is printed matter, i.e. data.
+- **Ticket stubs** (itinerary): flights and transfers get a notched, perforated stub with the
+  arrival time; on hover the stub starts to tear (3° tilt).
+- **Route rider**: while a route draws, a vehicle rides its tip — walker (≤ 5 km leg), train
+  (≤ 500 km), or a plane that climbs and lands over its ground shadow (longer). Per leg on the tile
+  map, per day route on the offline SVG map; it fades out at the end (`components/map/rider.ts`).
+- **Empty states** (`components/art/EmptyArt.tsx`, via `EmptyState art`): no trips — a suitcase lid
+  swings open and a folded map pops out; no results — binoculars sweep the horizon twice;
+  offline — a compass needle spins and settles; 404 — a traveller walks to the torn edge of the map
+  and leans over it.
+- **Folded-map loading** (`FoldedMap`): card and map placeholders open panel by panel like a paper
+  map, then a slow sheen while waiting.
+
+Every animation is disabled under `prefers-reduced-motion` (state changes apply instantly; the
+illustrations show their final frame).
 
 ## Avoid
 

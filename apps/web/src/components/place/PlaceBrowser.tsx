@@ -1,7 +1,8 @@
 "use client";
 
 import type { CategoryView } from "@triply/shared";
-import { List, LocateFixed, Map as MapIcon, MapPinned, SearchX } from "lucide-react";
+import { List, LocateFixed, Map as MapIcon, MapPinned } from "lucide-react";
+import { BinocularsArt } from "../art/EmptyArt";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
 import { PlacesMap } from "@/components/map/PlacesMap";
@@ -219,7 +220,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
       {browse.isLoading && <Skeleton className="h-72" />}
       {meta && items.length === 0 && (
         <EmptyState
-          icon={<SearchX className="size-7" />}
+          art={<BinocularsArt />}
           level="h3"
           title={b.noMatchTitle}
           body={hasPoint ? b.noMatchBodyPoint : b.noMatchBody}

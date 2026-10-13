@@ -100,6 +100,12 @@ export const social = {
     openSaved: "Open Saved",
     noFollowers: "No followers yet.",
     noFollowing: "Not following anyone yet.",
+    passport: {
+      title: "Passport",
+      count: (n: number) => `${n} ${n === 1 ? "stamp" : "stamps"}`,
+      arrived: "Arrived",
+      stamp: (city: string, country: string, year: number | null) => `Stamp: ${city}, ${country}${year ? `, ${year}` : ""}`,
+    },
   },
   saved: {
     title: "Saved",

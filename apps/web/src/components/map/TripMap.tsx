@@ -5,10 +5,11 @@ import { Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n, useT } from "@/i18n/client";
-import { drawDuration, measurePolyline } from "@/lib/motion";
+import { drawDuration, easeInOut, measurePolyline, prefersReducedMotion } from "@/lib/motion";
 import { useTheme } from "@/lib/theme";
-import { DAY_COLORS, dayColor, dayStats, formatKm } from "@/lib/trip-geo";
+import { DAY_COLORS, dayColor, dayStats, formatKm, haversineKm } from "@/lib/trip-geo";
 import { defaultMode, DirectionsPanel, useDirections, useGeolocation, type LatLng } from "./Directions";
+import { placeRider, vehicleFor } from "./rider";
 import { mapStyleFor } from "./TileMap";
 import type { DayFilter } from "../trip/DayBar";
 import { cx } from "../ui";
@@ -270,11 +271,45 @@ function MapCanvas({
     const out = new Map<string, number>();
     if (!proj) return out;
     for (const list of byDay.values()) {
-      const at = list.length > 1 ? measurePolyline(list.map((s) => [...proj(s.place.lat, s.place.lng)] as [number, number])).at : [0];
+      const at = list.length > 1 ? measurePolyline(list.map((s) => [...proj(s.place.lat, s.place.lng)] as [number, number]), { planar: true }).at : [0];
       list.forEach((s, i) => out.set(s.item.id, at[i] ?? 0));
     }
     return out;
   }, [byDay, proj]);
+
+  // A vehicle rides each day's line while it draws — same clock as .route-draw (150 ms delay, ease-in-out cubic).
+  const riderEls = useRef(new Map<number, SVGGElement>());
+  const drawing = useRef({ byDay, proj, duration });
+  useEffect(() => {
+    drawing.current = { byDay, proj, duration };
+  });
+  const ready = !!proj;
+  useEffect(() => {
+    const { byDay, proj, duration } = drawing.current;
+    if (!proj || prefersReducedMotion()) return;
+    const routes = [...byDay.entries()]
+      .filter(([, list]) => list.length > 1)
+      .map(([day, list]) => {
+        const pts = list.map((s) => [...proj(s.place.lat, s.place.lng)] as [number, number]);
+        return { day, list, pts, line: measurePolyline(pts, { planar: true }), g: riderEls.current.get(day) };
+      });
+    const start = performance.now() + 150;
+    let raf = 0;
+    const frame = (now: number) => {
+      const p = easeInOut(Math.min(1, Math.max(0, (now - start) / duration)));
+      for (const r of routes) {
+        if (!r.g) continue;
+        const { point, leg, legT } = r.line.tip(p);
+        const [a, b] = [r.pts[leg - 1], r.pts[leg]];
+        r.g.setAttribute("transform", `translate(${point[0].toFixed(1)} ${point[1].toFixed(1)})`);
+        placeRider(r.g, vehicleFor(haversineKm(r.list[leg - 1].place, r.list[leg].place)), dayColor(r.day), (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI, legT);
+        r.g.classList.toggle("is-done", p >= 1);
+      }
+      if (p < 1) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [revealKey, ready]);
 
   return (
     <div ref={box} className="absolute inset-0">
@@ -349,6 +384,19 @@ function MapCanvas({
                 </g>
               );
             })}
+            {[...byDay.entries()]
+              .filter(([, list]) => list.length > 1)
+              .map(([day]) => (
+                <g
+                  key={`rider-${day}`}
+                  aria-hidden
+                  className="triply-rider"
+                  ref={(el) => {
+                    if (el) riderEls.current.set(day, el);
+                    else riderEls.current.delete(day);
+                  }}
+                />
+              ))}
           </g>
         )}
       </svg>

@@ -1,12 +1,14 @@
 "use client";
 
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
-import { Bookmark, Flag, Luggage, MapPin, PenLine, Settings } from "lucide-react";
+import { Bookmark, Flag, MapPin, PenLine, Settings } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
+import { PassportStamps } from "@/components/social/PassportStamps";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { TripCard } from "@/components/trip/TripCard";
+import { FoldedMap, SuitcaseArt } from "@/components/art/EmptyArt";
 import Link from "next/link";
 import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, TabPanel, Tabs } from "@/components/ui";
 import { useFormat, useT } from "@/i18n/client";
@@ -92,6 +94,8 @@ export default function ProfilePage() {
         </div>
       </header>
 
+      {trips.data && <PassportStamps trips={trips.data} />}
+
       <Tabs
         id="profile-tabs"
         label={t.social.profile.content}
@@ -107,7 +111,7 @@ export default function ProfilePage() {
       <TabPanel tabsId="profile-tabs" value={tab}>
       {tab === "trips" &&
         (trips.isLoading ? (
-          <Skeleton className="aspect-[5/4] max-w-sm" />
+          <FoldedMap className="aspect-[5/4] max-w-sm" />
         ) : trips.data?.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {trips.data.map((trip) => (
@@ -116,7 +120,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <EmptyState
-            icon={<Luggage className="size-7" />}
+            art={<SuitcaseArt />}
             title={p.isMe ? t.social.profile.emptyTripsMe : t.social.profile.emptyTrips}
             action={p.isMe ? <Button href="/trips/new">{t.social.profile.createTrip}</Button> : undefined}
           />

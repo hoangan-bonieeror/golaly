@@ -15,6 +15,7 @@ import { ForkSheet } from "@/components/trip/ForkSheet";
 import { InviteSheet } from "@/components/trip/InviteSheet";
 import { MembersPanel } from "@/components/trip/MembersPanel";
 import { RouteThumb } from "@/components/trip/RouteThumb";
+import { FoldedMap } from "@/components/art/EmptyArt";
 import { Morph } from "@/components/trip/TripCard";
 import { Cover } from "@/components/trip/Cover";
 import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, cx } from "@/components/ui";
@@ -163,7 +164,7 @@ function TripPlanner() {
           </IconButton>
           <Morph name={`trip-cover-${trip.id}`}>
             <div className="hidden shrink-0 sm:block">
-              <RouteThumb trip={trip} />
+              <RouteThumb trip={trip} sky />
             </div>
           </Morph>
           <div className="min-w-0 flex-1">
@@ -413,7 +414,9 @@ function PlannerPreview({ trip }: { trip: TripSummary }) {
             <Skeleton key={i} className="h-20 rounded-[14px]" />
           ))}
         </div>
-        <div className="hidden flex-1 bg-map lg:block" />
+        <div className="hidden flex-1 p-4 lg:flex">
+          <FoldedMap panels={6} caption={false} className="flex-1 rounded-2xl" />
+        </div>
       </div>
     </div>
   );

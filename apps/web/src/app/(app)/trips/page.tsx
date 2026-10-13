@@ -1,9 +1,10 @@
 "use client";
 
-import { Luggage, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { FoldedMap, SuitcaseArt } from "@/components/art/EmptyArt";
 import { useState } from "react";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, Chip, EmptyState, ErrorState, LoadMore, Skeleton } from "@/components/ui";
+import { Button, Chip, EmptyState, ErrorState, LoadMore } from "@/components/ui";
 import { useT } from "@/i18n/client";
 import { useMyTrips } from "@/lib/api/queries";
 
@@ -38,14 +39,14 @@ export default function TripsPage() {
       {trips.isLoading ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="aspect-[5/4]" />
+            <FoldedMap key={i} className="aspect-[5/4]" />
           ))}
         </div>
       ) : trips.isError ? (
         <ErrorState error={trips.error} onRetry={() => trips.refetch()} />
       ) : !trips.items?.length ? (
         <EmptyState
-          icon={<Luggage className="size-7" />}
+          art={<SuitcaseArt />}
           title={l.emptyTitle}
           body={filter === "all" ? l.emptyBody : l.emptyFiltered}
           action={

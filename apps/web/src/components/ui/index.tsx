@@ -1,10 +1,12 @@
 "use client";
 
-import { AlertTriangle, Compass, Lock, X } from "lucide-react";
+import { AlertTriangle, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { cloneElement, isValidElement, useEffect, useId, useRef } from "react";
 import { useT } from "@/i18n/client";
 import { cx } from "@/lib/utils";
+import { CompassArt, EdgeOfMapArt } from "../art/EmptyArt";
+import { RouteLoader } from "../layout/Logo";
 
 export { cx, formatCount, formatDateRange, timeAgo } from "@/lib/utils";
 
@@ -230,11 +232,12 @@ export const inputCls =
   "w-full h-11 rounded-xl border border-line bg-surface px-3.5 text-[15px] text-ink placeholder:text-muted/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 // ── Empty state ──────────────────────────────────────────────────────────
-export function EmptyState({ icon, title, body, action, level = "h2" }: { icon: React.ReactNode; title: string; body?: string; action?: React.ReactNode; level?: "h1" | "h2" | "h3" }) {
+/** `art` (an illustration from components/art) replaces the icon tile where the moment deserves one. */
+export function EmptyState({ icon, art, title, body, action, level = "h2" }: { icon?: React.ReactNode; art?: React.ReactNode; title: string; body?: string; action?: React.ReactNode; level?: "h1" | "h2" | "h3" }) {
   const H = level;
   return (
     <div className="flex flex-col items-center rounded-[var(--radius-card)] border border-dashed border-line bg-surface/60 px-6 py-12 text-center">
-      <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-50 text-primary">{icon}</div>
+      {art ? <div className="mb-3">{art}</div> : <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-50 text-primary">{icon}</div>}
       <H className="font-display text-xl font-semibold">{title}</H>
       {body && <p className="mt-1 max-w-xs text-sm text-muted">{body}</p>}
       {action && <div className="mt-5">{action}</div>}
@@ -344,7 +347,7 @@ export function PageLoader({ label }: { label?: string }) {
   const t = useT();
   return (
     <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label={label ?? t.common.loading}>
-      <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-primary" />
+      <RouteLoader />
     </div>
   );
 }
@@ -359,7 +362,8 @@ export function ErrorState({ error, onRetry, page }: { error: unknown; onRetry?:
   return (
     <EmptyState
       level={page ? "h1" : "h2"}
-      icon={status === 403 ? <Lock className="size-7" /> : status === 404 ? <Compass className="size-7" /> : <AlertTriangle className="size-7" />}
+      icon={status === 403 ? <Lock className="size-7" /> : <AlertTriangle className="size-7" />}
+      art={status === 404 ? <EdgeOfMapArt /> : status === 0 ? <CompassArt /> : undefined}
       title={status === 404 ? t.notFound : status === 403 ? message : status === 0 ? t.offlineTitle : t.loadFailed}
       body={status === 403 ? undefined : status === 404 ? t.notFoundBodyLink : status === 0 ? message : message === t.generic || !message ? t.serverHiccup : message}
       action={onRetry && status !== 403 && status !== 404 ? <Button onClick={onRetry}>{common.retry}</Button> : <Button href="/home">{t.goHome}</Button>}

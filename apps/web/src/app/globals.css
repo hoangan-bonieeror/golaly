@@ -353,3 +353,386 @@ body {
     animation: none !important;
   }
 }
+
+/* ───────────────────────── 2D motion graphics (Atlas) ─────────────────────────
+   SVG + CSS only. Every piece plays at a meaningful moment (first paint, loading, an empty
+   result, a stamp scrolled into view), animates transform/opacity/stroke-dashoffset only,
+   and is switched off by the reduced-motion block at the end. */
+
+/* 1 · Living logo: the dashed route draws itself (through a mask), then the stops pop. */
+.logo-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: route-draw 700ms cubic-bezier(0.65, 0, 0.35, 1) 120ms forwards;
+}
+.logo-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pin-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d, 0ms) both;
+}
+a:hover .logo-dot,
+a:focus-visible .logo-dot {
+  animation: logo-hop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) calc(var(--d, 0ms) / 3) both;
+}
+@keyframes logo-hop {
+  40% {
+    transform: translateY(-2.5px) scale(1.12);
+  }
+}
+
+/* Route loader: a comet travels the logo route and each stop swells as it passes. */
+.loader-comet {
+  stroke-dasharray: 0.24 1;
+  animation: loader-comet 1.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes loader-comet {
+  from {
+    stroke-dashoffset: 0.24;
+  }
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+.loader-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: loader-dot 1.5s ease-in-out var(--d, 0ms) infinite;
+}
+@keyframes loader-dot {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+  18% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+}
+
+/* 2 · Atlas hero: contours ink in, the route draws at a constant pace, cities pop as it passes. */
+.hero-ink {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: route-draw 1.6s cubic-bezier(0.33, 0, 0.2, 1) var(--d, 0ms) forwards;
+}
+.hero-route {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: route-draw var(--draw, 2400ms) linear var(--d, 0ms) forwards;
+}
+.hero-fade {
+  animation: hero-fade 0.6s ease-out var(--d, 0ms) both;
+}
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.hero-compass {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: compass-sway 9s ease-in-out 2.4s infinite alternate;
+}
+@keyframes compass-sway {
+  from {
+    transform: rotate(-7deg);
+  }
+  to {
+    transform: rotate(7deg);
+  }
+}
+.compass-settle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: compass-settle 2.2s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms) both;
+}
+@keyframes compass-settle {
+  0% {
+    transform: rotate(-200deg);
+  }
+  55% {
+    transform: rotate(420deg);
+  }
+  72% {
+    transform: rotate(345deg);
+  }
+  86% {
+    transform: rotate(368deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 3 · Sky by local time: the sun (or moon) rises into place, then drifts with the clock. */
+.sky-body {
+  transition: transform 1.2s cubic-bezier(0.2, 0, 0, 1);
+}
+.sky-in {
+  animation: sky-in 1s cubic-bezier(0.2, 0, 0, 1) 200ms both;
+}
+@keyframes sky-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.sky-tint {
+  transition: opacity 1s ease;
+}
+
+/* 5 · Passport stamps: pressed down (overshoot), with a ring of ink spreading out. */
+.stamp {
+  opacity: 0;
+  transform: rotate(var(--r, 0deg));
+}
+.stamp.is-stamped {
+  animation: stamp-in 0.5s cubic-bezier(0.3, 0, 0.2, 1) var(--d, 0ms) both;
+}
+.stamp.is-stamped .stamp-ink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: stamp-ink 0.7s ease-out calc(var(--d, 0ms) + 260ms) both;
+}
+.stamp-ink {
+  opacity: 0;
+}
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: rotate(calc(var(--r, 0deg) - 10deg)) scale(1.9);
+  }
+  55% {
+    opacity: 1;
+    transform: rotate(var(--r, 0deg)) scale(0.93);
+  }
+  78% {
+    transform: rotate(var(--r, 0deg)) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(var(--r, 0deg)) scale(1);
+  }
+}
+@keyframes stamp-ink {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.18);
+  }
+}
+
+/* 7 · Ticket stubs (flights, transport): notched perforation; on hover the stub starts to tear. */
+.ticket {
+  position: relative;
+}
+.ticket-stub {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ticket:hover .ticket-stub {
+  transform: translateX(3px) rotate(3deg);
+}
+.ticket-notch {
+  position: absolute;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  border: 1px solid var(--ticket-line, var(--color-line));
+  background: var(--color-surface); /* the planner list sits on surface */
+}
+.ticket-notch.is-top {
+  top: -8px;
+  clip-path: inset(50% 0 0 0);
+}
+.ticket-notch.is-bottom {
+  bottom: -8px;
+  clip-path: inset(0 0 50% 0);
+}
+
+/* 8 · A vehicle rides the tip of the route while it draws (walker, train, or plane with a shadow). */
+.triply-rider {
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.triply-rider.is-done {
+  opacity: 0;
+}
+
+/* 11 · Empty-state illustrations. */
+.art-part {
+  transform-box: fill-box;
+}
+.art-lid {
+  /* The lid swings open behind the case: in a front view, a strip that grows into the open lid. */
+  transform-origin: 50% 100%;
+  animation: art-lid 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) 300ms both;
+}
+@keyframes art-lid {
+  from {
+    transform: scaleY(0.3);
+  }
+}
+.art-pop {
+  transform-origin: 50% 100%;
+  animation: art-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d, 750ms) both;
+}
+@keyframes art-pop {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.6) rotate(6deg);
+  }
+}
+.art-sweep {
+  transform-origin: 50% 100%;
+  animation: art-sweep 2.4s ease-in-out 250ms 2 both;
+}
+@keyframes art-sweep {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-16deg);
+  }
+  75% {
+    transform: rotate(16deg);
+  }
+}
+.art-glint {
+  animation: art-glint 2.4s ease-in-out 250ms 2 both;
+}
+@keyframes art-glint {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.art-walk {
+  animation: art-walk 2.6s cubic-bezier(0.3, 0, 0.6, 1) 300ms both;
+}
+@keyframes art-walk {
+  from {
+    transform: translateX(-74px);
+  }
+}
+.art-leg {
+  transform-origin: 50% 0%;
+  animation: art-leg 0.36s ease-in-out 300ms 7 alternate both;
+}
+.art-leg.is-back {
+  animation-direction: alternate-reverse;
+}
+@keyframes art-leg {
+  from {
+    transform: rotate(-24deg);
+  }
+  to {
+    transform: rotate(24deg);
+  }
+}
+.art-peek {
+  transform-origin: 50% 100%;
+  animation: art-peek 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 2.9s both;
+}
+@keyframes art-peek {
+  to {
+    transform: rotate(14deg);
+  }
+}
+
+/* 12 · Loading as a folded map unfolding (panels open like an accordion, then a slow sheen). */
+.fold-panel {
+  transform-origin: 0 50%;
+  animation: fold-open 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) var(--d, 0ms) both;
+}
+.fold-panel.is-odd {
+  transform-origin: 100% 50%;
+  animation-name: fold-open-odd;
+}
+@keyframes fold-open {
+  from {
+    opacity: 0.4;
+    transform: perspective(700px) rotateY(-80deg);
+  }
+}
+@keyframes fold-open-odd {
+  from {
+    opacity: 0.4;
+    transform: perspective(700px) rotateY(80deg);
+  }
+}
+.fold-sheen {
+  animation: fold-sheen 1.8s ease-in-out 0.7s infinite;
+}
+@keyframes fold-sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-draw,
+  .hero-ink,
+  .hero-route {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .loader-comet {
+    animation: none;
+    stroke-dasharray: none;
+  }
+  .logo-dot,
+  .loader-dot,
+  .hero-fade,
+  .hero-compass,
+  .compass-settle,
+  .sky-in,
+  .art-lid,
+  .art-pop,
+  .art-sweep,
+  .art-walk,
+  .art-leg,
+  .art-peek,
+  .fold-panel,
+  .fold-sheen,
+  a:hover .logo-dot,
+  a:focus-visible .logo-dot {
+    animation: none;
+  }
+  .art-glint {
+    animation: none;
+    opacity: 0;
+  }
+  .stamp,
+  .stamp.is-stamped {
+    animation: none;
+    opacity: 1;
+  }
+  .stamp.is-stamped .stamp-ink {
+    animation: none;
+  }
+  .sky-body,
+  .ticket-stub {
+    transition: none;
+  }
+  .ticket:hover .ticket-stub {
+    transform: none;
+  }
+}

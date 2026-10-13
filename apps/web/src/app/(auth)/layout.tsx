@@ -1,28 +1,29 @@
 import Link from "next/link";
-import { Cover } from "@/components/trip/Cover";
+import { AtlasHero, pickJourney } from "@/components/art/AtlasHero";
 import { Logo } from "@/components/layout/Logo";
 import { LanguageSwitch, ThemeSwitch } from "@/components/layout/Preferences";
-import { getMessages } from "@/i18n/server";
+import { getLocale, getMessages } from "@/i18n/server";
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  const t = await getMessages();
+  const [t, locale] = await Promise.all([getMessages(), getLocale()]);
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
-      <aside className="relative hidden lg:block">
-        <Cover palette={["#3b2214", "#c8742f"]} seed="auth-hero" rounded={false} className="absolute inset-0">
-          <div className="flex h-full flex-col justify-between p-12 text-white">
-            <Link href="/">
-              <Logo light />
-            </Link>
-            <div className="max-w-md">
-              <p className="font-display text-4xl font-semibold leading-tight">{t.auth.layout.heroTitle}</p>
-              <p className="mt-4 text-white/85">{t.auth.layout.heroBody}</p>
-            </div>
+      {/* A hand-drawn map inks in a different journey on each visit. */}
+      <aside className="relative hidden overflow-hidden border-r border-line bg-map lg:block">
+        <AtlasHero journey={pickJourney()} locale={locale} />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-[42%] bg-gradient-to-t from-sand via-sand/85 to-transparent" />
+        <div className="relative flex h-full flex-col justify-between p-12">
+          <Link href="/" className="self-start">
+            <Logo />
+          </Link>
+          <div className="max-w-md">
+            <p className="font-display text-4xl font-semibold leading-tight text-ink">{t.auth.layout.heroTitle}</p>
+            <p className="mt-4 text-ink-2">{t.auth.layout.heroBody}</p>
           </div>
-        </Cover>
+        </div>
       </aside>
       <main className="flex flex-col px-6 py-8 md:px-12">
-        <Link href="/" className="mb-10 lg:hidden">
+        <Link href="/" className="mb-10 self-start lg:hidden">
           <Logo />
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">{children}</div>

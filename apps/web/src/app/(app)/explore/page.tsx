@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, SearchX } from "lucide-react";
+import { Search } from "lucide-react";
+import { BinocularsArt } from "@/components/art/EmptyArt";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -110,7 +111,7 @@ function Explore() {
 
       {!browsing && res.isLoading && <Skeleton className="h-64" />}
       {!browsing && res.isError && <ErrorState error={res.error} onRetry={() => res.refetch()} />}
-      {!browsing && r && total === 0 && <EmptyState icon={<SearchX className="size-7" />} title={s.noResultsTitle(dq)} body={s.noResultsBody} />}
+      {!browsing && r && total === 0 && <EmptyState art={<BinocularsArt />} title={s.noResultsTitle(dq)} body={s.noResultsBody} />}
 
       {!browsing && r && show("destinations") && r.destinations.length > 0 && (
         <section>

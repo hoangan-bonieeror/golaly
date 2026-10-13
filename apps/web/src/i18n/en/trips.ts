@@ -1,6 +1,11 @@
 /** Trips: list, new trip, planner, itinerary items, map, members, invites, remix, settings. */
 export const trips = {
   day: (n: number) => `Day ${n}`,
+  /** The planner thumbnail's sky, as it is now at the trip's first stop. */
+  sky: {
+    now: (place: string, phase: string) => `${place} right now: ${phase}`,
+    phase: { dawn: "dawn", day: "daytime", dusk: "dusk", night: "night" },
+  },
   destinationTbd: "Destination TBD",
   useThisTrip: "Use this trip",
   /** Save / unsave someone else's trip (planner header and trip cards). */

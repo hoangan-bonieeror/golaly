@@ -13,6 +13,8 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n/client";
 import type { Messages } from "@/i18n/catalog";
 import { drawDuration, easeInOut, measurePolyline, prefersReducedMotion } from "@/lib/motion";
+import { haversineKm } from "@/lib/trip-geo";
+import { placeRider, riderElement, vehicleFor } from "./rider";
 import type { MapDirections, MapStop } from "./TripMap";
 
 /** A literal colour for MapLibre paint (CSS variables don't reach WebGL); read once per map (it's keyed by theme). */
@@ -50,9 +52,10 @@ function routeFeatures(stops: MapStop[], colors: string[]): RouteFeature[] {
 
 /**
  * Day change choreography: the camera moves to the day, then each day's route draws from its first
- * stop to its last while the numbered pins pop in as the line reaches them. Returns a cancel function.
+ * stop to its last while the numbered pins pop in as the line reaches them, a vehicle riding the tip
+ * (walker, train or plane by the length of each leg). Returns a cancel function.
  */
-function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors: string[]): () => void {
+function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors: string[], lib: typeof import("maplibre-gl") | null): () => void {
   const source = m.getSource("route") as GeoJSONSource | undefined;
   const features = routeFeatures(stops, colors);
   if (!source || prefersReducedMotion() || !stops.length) return () => undefined;
@@ -72,6 +75,17 @@ function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors:
   });
   source.setData({ type: "FeatureCollection", features: features.map((f) => ({ ...f, geometry: { ...f.geometry, coordinates: f.geometry.coordinates.slice(0, 1) } })) });
 
+  // One rider per drawn route (same order as routeFeatures: days with two or more stops).
+  const lists = [...byDay.values()].filter((l) => l.length > 1);
+  const riders = lib
+    ? lists.map((list, i) => {
+        const { el, g } = riderElement();
+        const marker = new lib.Marker({ element: el }).setLngLat(features[i].geometry.coordinates[0]).addTo(m);
+        return { marker, el, g, list, color: features[i].properties.color };
+      })
+    : [];
+  let riderTimer: ReturnType<typeof setTimeout> | undefined;
+
   const longest = Math.max(1, ...[...byDay.values()].map((l) => l.length));
   const duration = drawDuration(longest);
   const delay = 280; // let the camera start moving first
@@ -87,11 +101,29 @@ function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors:
         n.classList.add("is-in");
       }
     });
-    if (p < 1) raf = requestAnimationFrame(frame);
+    // setData is applied off the main thread, so the drawn line trails by a frame or so; the rider
+    // trails it slightly too, to ride the tip rather than run ahead of it.
+    const pr = easeInOut(Math.min(1, Math.max(0, (now - start - 50) / duration)));
+    riders.forEach((r, i) => {
+      const { point, leg, legT } = paths[i].tip(pr);
+      r.marker.setLngLat(point);
+      const a = r.list[leg - 1].place;
+      const b = r.list[leg].place;
+      const pa = m.project([a.lng, a.lat]);
+      const pb = m.project([b.lng, b.lat]);
+      placeRider(r.g, vehicleFor(haversineKm(a, b)), r.color, (Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180) / Math.PI, legT);
+    });
+    if (pr < 1) raf = requestAnimationFrame(frame);
+    else {
+      riders.forEach((r) => r.el.classList.add("is-done"));
+      riderTimer = setTimeout(() => riders.forEach((r) => r.marker.remove()), 350);
+    }
   };
   raf = requestAnimationFrame(frame);
   return () => {
     cancelAnimationFrame(raf);
+    clearTimeout(riderTimer);
+    riders.forEach((r) => r.marker.remove());
     markers.forEach(({ node }) => node.classList.remove("is-pending"));
     source.setData({ type: "FeatureCollection", features });
   };
@@ -236,7 +268,7 @@ export function TileMap({
         m.addLayer({ id: "directions-line", type: "line", source: "directions", paint: { "line-color": cssColor("--color-primary", "#1f5e52"), "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
         libRef.current = maplibregl;
         void syncMap(m, markerMap, latest.current, true, maplibregl).then(() => {
-          cancelReveal.current = revealRoute(m, markerMap, latest.current.stops, latest.current.colors);
+          cancelReveal.current = revealRoute(m, markerMap, latest.current.stops, latest.current.colors, maplibregl);
           setLoaded(true);
         });
       });
@@ -264,7 +296,7 @@ export function TileMap({
     lastReveal.current = revealKey;
     if (replay) cancelReveal.current();
     void syncMap(m, markers.current, { ...latest.current, stops, colors }, replay).then(() => {
-      if (replay && m?.getSource("route")) cancelReveal.current = revealRoute(m, markers.current, stops, colors);
+      if (replay && m?.getSource("route")) cancelReveal.current = revealRoute(m, markers.current, stops, colors, libRef.current);
     });
     // stopsKey + revealKey capture every change to `stops` that matters for drawing.
     // eslint-disable-next-line react-hooks/exhaustive-deps

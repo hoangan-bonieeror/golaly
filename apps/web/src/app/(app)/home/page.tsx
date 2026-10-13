@@ -7,6 +7,7 @@ import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
+import { FoldedMap } from "@/components/art/EmptyArt";
 import { Button, EmptyState, ErrorState, SectionTitle, Skeleton, TabPanel, Tabs } from "@/components/ui";
 import { useFormat, useT } from "@/i18n/client";
 import { useExplore, useFeed, useMe, useMyTrips } from "@/lib/api/queries";
@@ -118,7 +119,7 @@ export default function HomePage() {
         <section>
           <SectionTitle>{t.home.recommendedTrips}</SectionTitle>
           <div className="space-y-5">
-            {explore.isLoading ? <Skeleton className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact morph />)}
+            {explore.isLoading ? <FoldedMap className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact morph />)}
           </div>
         </section>
         <section>

@@ -100,6 +100,12 @@ export const social: Messages["social"] = {
     openSaved: "Mở Đã lưu",
     noFollowers: "Chưa có người theo dõi.",
     noFollowing: "Chưa theo dõi ai.",
+    passport: {
+      title: "Hộ chiếu",
+      count: (n) => `${n} con dấu`,
+      arrived: "Đã đến",
+      stamp: (city, country, year) => `Con dấu: ${city}, ${country}${year ? `, ${year}` : ""}`,
+    },
   },
   saved: {
     title: "Đã lưu",

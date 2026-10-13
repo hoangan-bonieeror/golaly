@@ -2,6 +2,10 @@ import type { Messages } from "../types";
 
 export const trips: Messages["trips"] = {
   day: (n) => `Ngày ${n}`,
+  sky: {
+    now: (place, phase) => `${place} lúc này: ${phase}`,
+    phase: { dawn: "bình minh", day: "ban ngày", dusk: "hoàng hôn", night: "ban đêm" },
+  },
   destinationTbd: "Chưa chọn điểm đến",
   useThisTrip: "Dùng chuyến đi này",
   save: {

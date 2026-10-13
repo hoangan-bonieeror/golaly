@@ -1,11 +1,18 @@
+"use client";
+
 import type { TripDetail } from "@triply/shared";
+import { useT } from "@/i18n/client";
 import { dayColor } from "@/lib/trip-geo";
+import { SkyLayer, useSky } from "./Sky";
 
 /**
  * A tiny drawing of the whole trip — every stop projected into the box, joined in order by the
  * vermilion route and dotted in its day's colour. Replaces the decorative cover in the planner header.
+ * With `sky`, the paper is tinted for the time of day it is right now at the trip's first stop, with
+ * the sun or moon on a small arc (the label says so for screen readers and on hover).
  */
-export function RouteThumb({ trip, width = 88, height = 64, className }: { trip: Pick<TripDetail, "days">; width?: number; height?: number; className?: string }) {
+export function RouteThumb({ trip, width = 88, height = 64, className, sky: withSky }: { trip: Pick<TripDetail, "days" | "destinations">; width?: number; height?: number; className?: string; sky?: boolean }) {
+  const t = useT();
   const pts = trip.days.flatMap((d) => d.items.filter((i) => i.place).map((i) => ({ lat: i.place!.lat, lng: i.place!.lng, day: d.dayNumber })));
   const pad = 8;
   let path = "";
@@ -23,9 +30,14 @@ export function RouteThumb({ trip, width = 88, height = 64, className }: { trip:
     dots = pts.map((p) => ({ x: ox + (p.lng - minLng) * k * s, y: oy + (maxLat - p.lat) * s, day: p.day }));
     path = dots.map((d, i) => `${i ? "L" : "M"}${d.x.toFixed(1)} ${d.y.toFixed(1)}`).join(" ");
   }
+  const sky = useSky(withSky && pts.length ? pts[0] : null);
+  const place = trip.destinations[0]?.name;
+  const label = sky && place ? t.trips.sky.now(place, t.trips.sky.phase[sky.phase]) : undefined;
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className={className}>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden={!label} role={label ? "img" : undefined} aria-label={label} className={className}>
+      {label && <title>{label}</title>}
       <rect width={width} height={height} rx="12" fill="var(--color-sand-2)" />
+      {sky && <SkyLayer sky={sky} width={width} height={height} />}
       <path d={`M-4 ${height * 0.72} C ${width * 0.3} ${height * 0.55}, ${width * 0.55} ${height * 0.95}, ${width + 4} ${height * 0.7}`} fill="none" stroke="var(--color-contour)" strokeWidth="1.5" />
       <path d={`M-4 ${height * 0.25} C ${width * 0.35} ${height * 0.05}, ${width * 0.6} ${height * 0.4}, ${width + 4} ${height * 0.18}`} fill="none" stroke="var(--color-contour)" strokeWidth="1.5" />
       {dots.length > 1 && <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
