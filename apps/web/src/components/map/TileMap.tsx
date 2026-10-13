@@ -99,7 +99,9 @@ function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors:
 const latestRef: { current: Latest | null } = { current: null };
 
 async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, fit: boolean, lib?: typeof import("maplibre-gl")) {
-  if (!m || !m.isStyleLoaded()) return;
+  // Ready = our route source exists (added on "load"). Not isStyleLoaded(): that stays false while any
+  // source is still loading — including the route source we just added — so pins were never drawn.
+  if (!m || !m.getSource("route")) return;
   const maplibregl = lib ?? (await import("maplibre-gl"));
   const { stops, colors } = latest;
   const keep = new Set(stops.map((s) => s.item.id));
@@ -245,7 +247,7 @@ export function TileMap({
     lastReveal.current = revealKey;
     if (replay) cancelReveal.current();
     void syncMap(m, markers.current, { ...latest.current, stops, colors }, replay).then(() => {
-      if (replay && m?.isStyleLoaded()) cancelReveal.current = revealRoute(m, markers.current, stops, colors);
+      if (replay && m?.getSource("route")) cancelReveal.current = revealRoute(m, markers.current, stops, colors);
     });
     // stopsKey + revealKey capture every change to `stops` that matters for drawing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -266,7 +268,7 @@ export function TileMap({
     markers.current.forEach(({ node }, id) => node.classList.toggle("is-selected", id === selectedId));
     const s = latest.current.stops.find((x) => x.item.id === selectedId);
     const m = map.current;
-    if (s && m?.isStyleLoaded()) m.easeTo({ center: [s.place.lng, s.place.lat], zoom: Math.max(m.getZoom(), 13), duration: 500 });
+    if (s && m?.getSource("route")) m.easeTo({ center: [s.place.lng, s.place.lat], zoom: Math.max(m.getZoom(), 13), duration: 500 });
   }, [selectedId]);
 
   // MapLibre makes its container `position: relative`, so the container fills an absolute wrapper.
