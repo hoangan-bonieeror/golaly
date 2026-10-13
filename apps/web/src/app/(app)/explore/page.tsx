@@ -128,7 +128,7 @@ function Explore() {
           <SectionTitle>{dq ? s.trips : s.popularTrips}</SectionTitle>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {r.trips.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
+              <TripCard key={trip.id} trip={trip} morph />
             ))}
           </div>
         </section>

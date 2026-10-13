@@ -86,6 +86,15 @@ export const trips: Messages["trips"] = {
     duplicate: "Nhân bản",
     moveUp: "Chuyển lên",
     moveDown: "Chuyển xuống",
+    drag: {
+      handle: (title) => `Di chuyển ${title}`,
+      instructions: "Nhấn Space để nhấc lên. Phím mũi tên để di chuyển, Space để thả, Escape để huỷ.",
+      picked: (title, day, position, total) => `Đã nhấc ${title}: Ngày ${day}, vị trí ${position}/${total}.`,
+      moved: (day, position, total) => `Ngày ${day}, vị trí ${position}/${total}.`,
+      dropped: (title, day, position) => `Đã chuyển ${title} tới Ngày ${day}, vị trí ${position}.`,
+      cancelled: (title) => `Đã huỷ. ${title} vẫn ở chỗ cũ.`,
+      failed: "Không chuyển được mục này. Lịch trình đã được tải lại.",
+    },
   },
   item: {
     addedToDay: (day) => `Đã thêm vào Ngày ${day}`,

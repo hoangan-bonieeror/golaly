@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import type { ItemView, TripSummary } from "@triply/shared";
 import { ArrowLeft, Bookmark, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, UserPlus } from "lucide-react";
 import Link from "next/link";
@@ -14,8 +15,10 @@ import { ForkSheet } from "@/components/trip/ForkSheet";
 import { InviteSheet } from "@/components/trip/InviteSheet";
 import { MembersPanel } from "@/components/trip/MembersPanel";
 import { RouteThumb } from "@/components/trip/RouteThumb";
-import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, cx } from "@/components/ui";
-import { useFormat, useI18n } from "@/i18n/client";
+import { Morph } from "@/components/trip/TripCard";
+import { Cover } from "@/components/trip/Cover";
+import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, cx } from "@/components/ui";
+import { useFormat, useI18n, useT } from "@/i18n/client";
 import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe, useTrip } from "@/lib/api/queries";
 import { useMediaQuery } from "@/lib/hooks";
@@ -54,6 +57,11 @@ function TripPlanner() {
   const share = useShare();
   const wide = useMediaQuery("(min-width: 1024px)");
   const [selected, setSelected] = useState<ItemView | null>(null);
+  /** Stop under the pointer, in the list or on the map — lifts the pin and outlines the card. */
+  const [hovered, setHovered] = useState<string | null>(null);
+  // Set by the trip card that was clicked: the header renders from it at once (and the card morphs into it).
+  const qcPreview = useQueryClient();
+  const preview = qcPreview.getQueryData<TripSummary>(["trip-preview", id]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [forkOpen, setForkOpen] = useState(false);
   const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; item?: ItemView | null }>({ open: false });
@@ -82,7 +90,7 @@ function TripPlanner() {
     success: (r) => (r.savedByMe ? t.trips.save.added : t.trips.save.removed),
   });
 
-  if (q.isLoading) return <PageLoader />;
+  if (q.isLoading) return preview ? <PlannerPreview trip={preview} /> : <PageLoader />;
   if (q.isError || !trip) {
     if (q.error instanceof ApiError && q.error.status === 403)
       return (
@@ -153,9 +161,15 @@ function TripPlanner() {
           <IconButton label={t.common.back} onClick={() => router.back()} className="size-11 shrink-0 border border-line bg-surface text-ink">
             <ArrowLeft className="size-[18px]" />
           </IconButton>
-          <RouteThumb trip={trip} className="hidden shrink-0 sm:block" />
+          <Morph name={`trip-cover-${trip.id}`}>
+            <div className="hidden shrink-0 sm:block">
+              <RouteThumb trip={trip} />
+            </div>
+          </Morph>
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-2xl font-extrabold leading-tight md:text-[32px]">{trip.title}</h1>
+            <Morph name={`trip-title-${trip.id}`}>
+              <h1 className="font-display text-2xl font-extrabold leading-tight md:text-[32px]">{trip.title}</h1>
+            </Morph>
             <div className="mt-1 flex flex-wrap items-center gap-x-[18px] gap-y-1 text-sm text-ink-2">
               <span>{trip.route || t.trips.destinationTbd}</span>
               {(trip.startDate || trip.endDate) && <span className="font-mono text-[13px]">{f.dateRange(trip.startDate, trip.endDate)}</span>}
@@ -323,6 +337,8 @@ function TripPlanner() {
                 trip={trip}
                 day={dayFilter}
                 selectedId={selected?.id}
+                hoveredId={hovered}
+                onHover={setHovered}
                 onSelect={select}
                 onAdd={(dayId) => setSheet({ open: true, dayId })}
                 onEdit={(item) => setSheet({ open: true, item })}
@@ -331,13 +347,13 @@ function TripPlanner() {
           )}
           {!wide && view === "map" && (
             <div className="px-4 pb-4 pt-3 md:px-5">
-              <TripMap trip={trip} day={dayFilter} selectedId={selected?.id} onSelect={select} className="h-[calc(100dvh-19.5rem)] min-h-[360px] md:h-[calc(100dvh-13rem)]" />
+              <TripMap trip={trip} day={dayFilter} selectedId={selected?.id} hoveredId={hovered} onHover={setHovered} onSelect={select} className="h-[calc(100dvh-19.5rem)] min-h-[360px] md:h-[calc(100dvh-13rem)]" />
             </div>
           )}
         </section>
         {wide && (
           <div className="min-w-0 flex-1">
-            <TripMap trip={trip} day={dayFilter} selectedId={selected?.id} onSelect={select} flush className="h-full" />
+            <TripMap trip={trip} day={dayFilter} selectedId={selected?.id} hoveredId={hovered} onHover={setHovered} onSelect={select} flush className="h-full" />
           </div>
         )}
       </div>
@@ -361,6 +377,44 @@ function TripPlanner() {
       {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} item={sheet.item} />}
       {may("members.invite") && <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={trip.id} />}
       {may("trip.fork") && <ForkSheet open={forkOpen} onClose={() => setForkOpen(false)} trip={trip} />}
+    </div>
+  );
+}
+
+/**
+ * While the full trip loads after opening it from a card: the real header (title, route, dates, cover)
+ * from the card's data, so the card can morph into it, and a quiet skeleton for the plan.
+ */
+function PlannerPreview({ trip }: { trip: TripSummary }) {
+  const t = useT();
+  const f = useFormat();
+  return (
+    <div className="bg-surface lg:flex lg:h-[calc(100dvh-4rem)] lg:flex-col" aria-busy="true">
+      <header className="flex shrink-0 items-center gap-4 border-b border-line px-4 py-4 md:gap-5 md:px-7 md:py-5">
+        <span className="size-11 shrink-0 rounded-xl border border-line" aria-hidden />
+        <Morph name={`trip-cover-${trip.id}`}>
+          <div className="hidden shrink-0 sm:block">
+            <Cover palette={trip.cover} seed={trip.id} image={trip.coverImage} imageUrl={trip.coverUrl} sizes="88px" className="h-16 w-[88px] rounded-xl" />
+          </div>
+        </Morph>
+        <div className="min-w-0 flex-1">
+          <Morph name={`trip-title-${trip.id}`}>
+            <h1 className="font-display text-2xl font-extrabold leading-tight md:text-[32px]">{trip.title}</h1>
+          </Morph>
+          <div className="mt-1 flex flex-wrap gap-x-[18px] text-sm text-ink-2">
+            <span>{trip.route || t.trips.destinationTbd}</span>
+            {(trip.startDate || trip.endDate) && <span className="font-mono text-[13px]">{f.dateRange(trip.startDate, trip.endDate)}</span>}
+          </div>
+        </div>
+      </header>
+      <div className="lg:flex lg:min-h-0 lg:flex-1">
+        <div className="space-y-3 p-4 md:p-5 lg:w-[460px] lg:border-r lg:border-line xl:w-[560px]">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 rounded-[14px]" />
+          ))}
+        </div>
+        <div className="hidden flex-1 bg-map lg:block" />
+      </div>
     </div>
   );
 }

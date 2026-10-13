@@ -118,7 +118,7 @@ export default function HomePage() {
         <section>
           <SectionTitle>{t.home.recommendedTrips}</SectionTitle>
           <div className="space-y-5">
-            {explore.isLoading ? <Skeleton className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact />)}
+            {explore.isLoading ? <Skeleton className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact morph />)}
           </div>
         </section>
         <section>

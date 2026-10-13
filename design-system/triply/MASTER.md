@@ -142,8 +142,22 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
 
 ## Motion
 
-150–250ms colour/opacity transitions, `rise` (350ms) for sheets and menus, map pans 500ms.
-Every animation is disabled under `prefers-reduced-motion`.
+Motion explains what changed and where it went — it tells the story of the route, never decorates.
+UI 150–300ms; map moves 600–900ms; only `transform` / `opacity` are animated. Helpers: `lib/motion.ts`.
+
+- **Route reveal (planner):** choosing a day flies the camera to it, then the day's route draws from
+  the first stop to the last (`drawDuration`: 0.7–1.6s by stop count) and each numbered pin pops in
+  as the line reaches it. Tile map: progressive GeoJSON; offline SVG map: `pathLength` dash + per-pin delay.
+- **List ↔ map:** hovering a stop lifts its pin (`is-hover`, spring easing) and hovering a pin outlines
+  the card; picking a pin scrolls its card into view and pulses it once in jade (`animate-select-pulse`).
+- **Drag to reorder:** the grip lifts the stop (scale 1.02 + `shadow-pop`), the others slide aside,
+  across days too, with edge auto-scroll; keyboard: Space, arrows, Space/Escape, every step announced.
+  The move is optimistic; `useFlip` animates every stop to its new place (also for collaborators' edits).
+- **Card → planner:** the trip card's cover and title morph into the planner header
+  (React `<ViewTransition>`, class `trip-morph`, 380ms). Only one card per trip may carry `morph` on a page.
+- `rise` (350ms) for sheets and menus; toasts slide in.
+
+Every animation is disabled under `prefers-reduced-motion` (state changes apply instantly).
 
 ## Avoid
 

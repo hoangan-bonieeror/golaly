@@ -90,6 +90,15 @@ export const trips = {
     duplicate: "Duplicate",
     moveUp: "Move up",
     moveDown: "Move down",
+    drag: {
+      handle: (title: string) => `Move ${title}`,
+      instructions: "Press Space to pick up. Arrow keys move it, Space drops, Escape cancels.",
+      picked: (title: string, day: number, position: number, total: number) => `Picked up ${title}: Day ${day}, position ${position} of ${total}.`,
+      moved: (day: number, position: number, total: number) => `Day ${day}, position ${position} of ${total}.`,
+      dropped: (title: string, day: number, position: number) => `${title} moved to Day ${day}, position ${position}.`,
+      cancelled: (title: string) => `Move cancelled. ${title} is back where it was.`,
+      failed: "Couldn't move that item. The plan was refreshed.",
+    },
   },
   item: {
     addedToDay: (day: number) => `Added to Day ${day}`,

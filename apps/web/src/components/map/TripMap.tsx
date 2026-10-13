@@ -5,6 +5,7 @@ import { Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n, useT } from "@/i18n/client";
+import { drawDuration, measurePolyline } from "@/lib/motion";
 import { useTheme } from "@/lib/theme";
 import { DAY_COLORS, dayColor, dayStats, formatKm } from "@/lib/trip-geo";
 import { mapStyleFor } from "./TileMap";
@@ -38,14 +39,19 @@ export function TripMap({
   trip,
   day,
   selectedId,
+  hoveredId,
   onSelect,
+  onHover,
   className,
   flush,
 }: {
   trip: TripDetail;
   day: DayFilter;
   selectedId?: string | null;
+  /** The stop under the pointer in the itinerary (its pin lifts); `onHover` reports pins under the pointer. */
+  hoveredId?: string | null;
   onSelect?: (item: ItemView) => void;
+  onHover?: (itemId: string | null) => void;
   className?: string;
   /** Edge to edge (no border or rounded corners), for the full-height planner column. */
   flush?: boolean;
@@ -75,9 +81,20 @@ export function TripMap({
   return (
     <div className={cx("relative isolate overflow-hidden bg-map", !flush && "rounded-[var(--radius-card)] border border-line", className ?? "h-[440px]")}>
       {tiles ? (
-        <TileMap key={theme} styleUrl={mapStyleFor(theme)} stops={visible} colors={COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
+        <TileMap
+          key={theme}
+          styleUrl={mapStyleFor(theme)}
+          stops={visible}
+          colors={COLORS}
+          selectedId={selectedId}
+          hoveredId={hoveredId}
+          revealKey={String(day)}
+          onSelect={onSelect}
+          onHover={onHover}
+          onFail={() => setTiles(false)}
+        />
       ) : (
-        <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
+        <MapCanvas stops={visible} selectedId={selectedId} hoveredId={hoveredId} revealKey={String(day)} onSelect={onSelect} onHover={onHover} />
       )}
       <div className={cx("pointer-events-none absolute z-10 flex gap-2", flush ? "left-4 top-4" : "left-3 top-3")}>
         <span className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold">
@@ -136,7 +153,21 @@ export function TripMap({
   );
 }
 
-function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selectedId?: string | null; onSelect?: (i: ItemView) => void }) {
+function MapCanvas({
+  stops,
+  selectedId,
+  hoveredId,
+  revealKey,
+  onSelect,
+  onHover,
+}: {
+  stops: MapStop[];
+  selectedId?: string | null;
+  hoveredId?: string | null;
+  revealKey: string;
+  onSelect?: (i: ItemView) => void;
+  onHover?: (id: string | null) => void;
+}) {
   // Drawn at the box's real pixel size, so pins and labels stay the same size on a phone and a desktop.
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
@@ -180,6 +211,18 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
     return m;
   }, [stops]);
 
+  // When each pin pops in: the fraction of its day's (projected) route at which it sits.
+  const duration = drawDuration(Math.max(1, ...[...byDay.values()].map((l) => l.length)));
+  const appearAt = useMemo(() => {
+    const out = new Map<string, number>();
+    if (!proj) return out;
+    for (const list of byDay.values()) {
+      const at = list.length > 1 ? measurePolyline(list.map((s) => [...proj(s.place.lat, s.place.lng)] as [number, number])).at : [0];
+      list.forEach((s, i) => out.set(s.item.id, at[i] ?? 0));
+    }
+    return out;
+  }, [byDay, proj]);
+
   return (
     <div ref={box} className="absolute inset-0">
       <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img" aria-label={t.trips.map.simplified(stops.length)}>
@@ -194,42 +237,53 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
           <path d="M0 -10 L3.5 0 L0 10 L-3.5 0Z" fill="var(--color-muted)" />
         </g>
 
-        {proj &&
-          [...byDay.entries()].map(([day, list]) => (
-            <polyline
-              key={day}
-              points={list.map((s) => proj(s.place.lat, s.place.lng).join(",")).join(" ")}
-              fill="none"
-              stroke={dayColor(day)}
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.9"
-            />
-          ))}
-
-        {proj &&
-          stops.map((s) => {
-            const [x, y] = proj(s.place.lat, s.place.lng);
-            const color = dayColor(s.dayNumber);
-            const sel = s.item.id === selectedId;
-            return (
-              <g
-                key={s.item.id}
-                transform={`translate(${x}, ${y})`}
-                onClick={() => onSelect?.(s.item)}
-                className="cursor-pointer"
-                role="button"
-                aria-label={t.trips.map.pin(s.place.name, s.dayNumber)}
-              >
-                {sel && <circle r="21" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="4" />}
-                <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-pin-ring)"} strokeWidth="2" />
-                <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
-                  {s.order}
-                </text>
-              </g>
-            );
-          })}
+        {/* Keyed by the day filter: choosing a day replays the route drawing and the pins popping in. */}
+        {proj && (
+          <g key={revealKey}>
+            {[...byDay.entries()].map(([day, list]) => (
+              <polyline
+                key={day}
+                points={list.map((s) => proj(s.place.lat, s.place.lng).join(",")).join(" ")}
+                pathLength={1}
+                className="route-draw"
+                style={{ "--draw": `${duration}ms` } as React.CSSProperties}
+                fill="none"
+                stroke={dayColor(day)}
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity="0.9"
+              />
+            ))}
+            {stops.map((s) => {
+              const [x, y] = proj(s.place.lat, s.place.lng);
+              const color = dayColor(s.dayNumber);
+              const sel = s.item.id === selectedId;
+              return (
+                <g
+                  key={s.item.id}
+                  transform={`translate(${x}, ${y})`}
+                  onClick={() => onSelect?.(s.item)}
+                  onMouseEnter={() => onHover?.(s.item.id)}
+                  onMouseLeave={() => onHover?.(null)}
+                  className="cursor-pointer"
+                  role="button"
+                  aria-label={t.trips.map.pin(s.place.name, s.dayNumber)}
+                >
+                  <g className="svg-pin-in" style={{ "--delay": `${Math.round(150 + (appearAt.get(s.item.id) ?? 0) * duration)}ms` } as React.CSSProperties}>
+                    <g className={cx("svg-pin", hoveredId === s.item.id && "is-hover")}>
+                      {sel && <circle r="21" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="4" />}
+                      <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-pin-ring)"} strokeWidth="2" />
+                      <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
+                        {s.order}
+                      </text>
+                    </g>
+                  </g>
+                </g>
+              );
+            })}
+          </g>
+        )}
       </svg>
     </div>
   );

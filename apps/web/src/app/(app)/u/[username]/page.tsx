@@ -111,7 +111,7 @@ export default function ProfilePage() {
         ) : trips.data?.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {trips.data.map((trip) => (
-              <TripCard key={trip.id} trip={trip} level="h2" />
+              <TripCard key={trip.id} trip={trip} level="h2" morph />
             ))}
           </div>
         ) : (

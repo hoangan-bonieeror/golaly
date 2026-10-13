@@ -41,7 +41,7 @@ export default function SavedPage() {
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {trips.items.map((trip) => (
-              <TripCard key={trip.id} trip={trip} level="h2" />
+              <TripCard key={trip.id} trip={trip} level="h2" morph />
             ))}
           </div>
           <LoadMore hasMore={trips.hasNextPage} loading={trips.isFetchingNextPage} onClick={() => trips.fetchNextPage()} />

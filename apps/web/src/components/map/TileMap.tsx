@@ -9,9 +9,10 @@
 import type { ItemView } from "@triply/shared";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n/client";
 import type { Messages } from "@/i18n/catalog";
+import { drawDuration, easeInOut, measurePolyline, prefersReducedMotion } from "@/lib/motion";
 import type { MapStop } from "./TripMap";
 
 export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/positron";
@@ -25,11 +26,78 @@ interface Latest {
   stops: MapStop[];
   colors: string[];
   onSelect?: (i: ItemView) => void;
+  onHover?: (id: string | null) => void;
   onFail: () => void;
   t: Messages;
 }
 
+type RouteFeature = { type: "Feature"; properties: { color: string }; geometry: { type: "LineString"; coordinates: [number, number][] } };
+
+function routeFeatures(stops: MapStop[], colors: string[]): RouteFeature[] {
+  const byDay = new Map<number, MapStop[]>();
+  stops.forEach((s) => byDay.set(s.dayNumber, [...(byDay.get(s.dayNumber) ?? []), s]));
+  return [...byDay.entries()]
+    .filter(([, list]) => list.length > 1)
+    .map(([day, list]) => ({
+      type: "Feature",
+      properties: { color: colors[(day - 1) % colors.length] },
+      geometry: { type: "LineString", coordinates: list.map((s) => [s.place.lng, s.place.lat] as [number, number]) },
+    }));
+}
+
+/**
+ * Day change choreography: the camera moves to the day, then each day's route draws from its first
+ * stop to its last while the numbered pins pop in as the line reaches them. Returns a cancel function.
+ */
+function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors: string[]): () => void {
+  const source = m.getSource("route") as GeoJSONSource | undefined;
+  const features = routeFeatures(stops, colors);
+  if (!source || prefersReducedMotion() || !stops.length) return () => undefined;
+  const paths = features.map((f) => measurePolyline(f.geometry.coordinates));
+  // Per stop: the fraction of its day's route at which its pin appears.
+  const byDay = new Map<number, MapStop[]>();
+  stops.forEach((s) => byDay.set(s.dayNumber, [...(byDay.get(s.dayNumber) ?? []), s]));
+  const appearAt = new Map<string, number>();
+  for (const list of byDay.values()) {
+    const at = list.length > 1 ? measurePolyline(list.map((s) => [s.place.lng, s.place.lat])).at : [0];
+    list.forEach((s, i) => appearAt.set(s.item.id, at[i] ?? 0));
+  }
+  stops.forEach((s) => {
+    const n = markers.get(s.item.id)?.node;
+    n?.classList.remove("is-in");
+    n?.classList.add("is-pending");
+  });
+  source.setData({ type: "FeatureCollection", features: features.map((f) => ({ ...f, geometry: { ...f.geometry, coordinates: f.geometry.coordinates.slice(0, 1) } })) });
+
+  const longest = Math.max(1, ...[...byDay.values()].map((l) => l.length));
+  const duration = drawDuration(longest);
+  const delay = 280; // let the camera start moving first
+  let raf = 0;
+  const start = performance.now() + delay;
+  const frame = (now: number) => {
+    const p = easeInOut(Math.min(1, Math.max(0, (now - start) / duration)));
+    source.setData({ type: "FeatureCollection", features: features.map((f, i) => ({ ...f, geometry: { ...f.geometry, coordinates: paths[i].cut(p) } })) });
+    stops.forEach((s) => {
+      const n = markers.get(s.item.id)?.node;
+      if (n?.classList.contains("is-pending") && (appearAt.get(s.item.id) ?? 0) <= p + 0.001) {
+        n.classList.remove("is-pending");
+        n.classList.add("is-in");
+      }
+    });
+    if (p < 1) raf = requestAnimationFrame(frame);
+  };
+  raf = requestAnimationFrame(frame);
+  return () => {
+    cancelAnimationFrame(raf);
+    markers.forEach(({ node }) => node.classList.remove("is-pending"));
+    source.setData({ type: "FeatureCollection", features });
+  };
+}
+
 /** Draws markers + per-day route lines and fits the view to the visible stops. */
+/** Read by marker event listeners, which are created once per pin. */
+const latestRef: { current: Latest | null } = { current: null };
+
 async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, fit: boolean, lib?: typeof import("maplibre-gl")) {
   if (!m || !m.isStyleLoaded()) return;
   const maplibregl = lib ?? (await import("maplibre-gl"));
@@ -54,6 +122,11 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
         const cur = latest.stops.find((x) => x.item.id === s.item.id);
         if (cur) latest.onSelect?.(cur.item);
       });
+      // The latest handler is read at event time (markers outlive renders).
+      node.addEventListener("pointerenter", () => latestRef.current?.onHover?.(s.item.id));
+      node.addEventListener("pointerleave", () => latestRef.current?.onHover?.(null));
+      node.addEventListener("focus", () => latestRef.current?.onHover?.(s.item.id));
+      node.addEventListener("blur", () => latestRef.current?.onHover?.(null));
       const marker = new maplibregl.Marker({ element: node, anchor: "center" }).setLngLat([s.place.lng, s.place.lat]).addTo(m);
       entry = { marker, node };
       markers.set(s.item.id, entry);
@@ -64,22 +137,11 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
     entry.node.setAttribute("aria-label", latest.t.trips.map.numberedPin(s.order, s.place.name, s.dayNumber));
     entry.node.title = s.place.name;
   }
-  const byDay = new Map<number, MapStop[]>();
-  stops.forEach((s) => byDay.set(s.dayNumber, [...(byDay.get(s.dayNumber) ?? []), s]));
-  (m.getSource("route") as GeoJSONSource | undefined)?.setData({
-    type: "FeatureCollection",
-    features: [...byDay.entries()]
-      .filter(([, list]) => list.length > 1)
-      .map(([day, list]) => ({
-        type: "Feature",
-        properties: { color: colors[(day - 1) % colors.length] },
-        geometry: { type: "LineString", coordinates: list.map((s) => [s.place.lng, s.place.lat]) },
-      })),
-  });
+  (m.getSource("route") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: routeFeatures(stops, colors) });
   if (fit && stops.length) {
     const b = new maplibregl.LngLatBounds();
     stops.forEach((s) => b.extend([s.place.lng, s.place.lat]));
-    m.fitBounds(b, { padding: 56, maxZoom: 14, duration: 500 });
+    m.fitBounds(b, { padding: 64, maxZoom: 14, duration: prefersReducedMotion() ? 0 : 900, essential: false });
   }
 }
 
@@ -87,10 +149,18 @@ export function TileMap({
   stops,
   colors,
   selectedId,
+  hoveredId,
+  revealKey,
   onSelect,
+  onHover,
   onFail,
   styleUrl = MAP_STYLE_URL,
 }: {
+  /** Pin to lift (the stop under the pointer in the itinerary). */
+  hoveredId?: string | null;
+  /** Changing it (the day filter) replays the camera move + route drawing. */
+  revealKey?: string;
+  onHover?: (id: string | null) => void;
   /** Fixed for the map's lifetime; callers key the component by it to switch basemaps. */
   styleUrl?: string;
   stops: MapStop[];
@@ -103,10 +173,13 @@ export function TileMap({
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef<Markers>(new Map());
+  const cancelReveal = useRef<() => void>(() => undefined);
+  const [loaded, setLoaded] = useState(false);
   // Event handlers registered once read the latest props through this ref.
-  const latest = useRef<Latest>({ stops, colors, onSelect, onFail, t });
+  const latest = useRef<Latest>({ stops, colors, onSelect, onHover, onFail, t });
   useEffect(() => {
-    latest.current = { stops, colors, onSelect, onFail, t };
+    latest.current = { stops, colors, onSelect, onHover, onFail, t };
+    latestRef.current = latest.current;
   });
 
   // Create the map once.
@@ -145,11 +218,15 @@ export function TileMap({
           paint: { "line-color": ["get", "color"], "line-width": 4, "line-opacity": 0.9 },
           layout: { "line-cap": "round", "line-join": "round" },
         });
-        void syncMap(m, markerMap, latest.current, true, maplibregl);
+        void syncMap(m, markerMap, latest.current, true, maplibregl).then(() => {
+          cancelReveal.current = revealRoute(m, markerMap, latest.current.stops, latest.current.colors);
+          setLoaded(true);
+        });
       });
     })();
     return () => {
       cancelled = true;
+      cancelReveal.current();
       clearTimeout(failTimer);
       markerMap.forEach(({ marker }) => marker.remove());
       markerMap.clear();
@@ -159,12 +236,25 @@ export function TileMap({
   }, []);
 
   // Re-sync when the visible stops change (day filter / itinerary edits).
+  // A new day replays the reveal; an edit within the day (reorder, add) just redraws.
   const stopsKey = stops.map((s) => `${s.item.id}:${s.order}:${s.dayNumber}`).join("|");
+  const lastReveal = useRef(revealKey);
   useEffect(() => {
-    void syncMap(map.current, markers.current, { ...latest.current, stops, colors }, true);
-    // stopsKey captures every change to `stops` that matters for drawing.
+    const m = map.current;
+    const replay = lastReveal.current !== revealKey;
+    lastReveal.current = revealKey;
+    if (replay) cancelReveal.current();
+    void syncMap(m, markers.current, { ...latest.current, stops, colors }, replay).then(() => {
+      if (replay && m?.isStyleLoaded()) cancelReveal.current = revealRoute(m, markers.current, stops, colors);
+    });
+    // stopsKey + revealKey capture every change to `stops` that matters for drawing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stopsKey]);
+  }, [stopsKey, revealKey]);
+
+  // Lift the pin of the stop under the pointer in the itinerary.
+  useEffect(() => {
+    markers.current.forEach(({ node }, id) => node.classList.toggle("is-hover", id === hoveredId));
+  }, [hoveredId, loaded, stopsKey]);
 
   // Relabel the pins when the interface language changes (markers are plain DOM nodes).
   useEffect(() => {

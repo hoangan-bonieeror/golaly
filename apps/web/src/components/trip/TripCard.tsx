@@ -2,7 +2,9 @@
 
 import type { TripSummary } from "@triply/shared";
 import { Bookmark, GitFork, Link2, Lock, MapPin } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { ViewTransition } from "react";
 import { api } from "@/lib/api/client";
 import { useAction, useMe } from "@/lib/api/queries";
 import { useFormat, useT } from "@/i18n/client";
@@ -14,8 +16,13 @@ import { Cover } from "./Cover";
  * creator, places and cover are all visible without interaction.
  */
 /** `level`: the card title's heading level — h2 when the page has no section headings above the grid. */
-export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: TripSummary; compact?: boolean; showRole?: boolean; level?: "h2" | "h3" }) {
+/**
+ * `morph`: the cover and title morph into the planner header when opened (shared-element view transition).
+ * Only one card per trip may have it on a page — leave it off for copies hidden at some breakpoints.
+ */
+export function TripCard({ trip, compact, showRole, level = "h3", morph }: { trip: TripSummary; compact?: boolean; showRole?: boolean; level?: "h2" | "h3"; morph?: boolean }) {
   const H = level;
+  const qc = useQueryClient();
   const me = useMe().data;
   const t = useT();
   const f = useFormat();
@@ -28,7 +35,12 @@ export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: Trip
 
   return (
     <article className="group relative">
-      <Link href={`/trips/${trip.id}`} className="block" aria-label={t.trips.card.label(trip.title, s.days, trip.route || t.trips.card.destinationTbd)}>
+      <Link
+        href={`/trips/${trip.id}`}
+        // The planner renders its header from this while the full trip loads, so the morph has a target.
+        onClick={() => qc.setQueryData(["trip-preview", trip.id], trip)}
+        className="block" aria-label={t.trips.card.label(trip.title, s.days, trip.route || t.trips.card.destinationTbd)}>
+        <Morph name={morph ? `trip-cover-${trip.id}` : undefined}>
         <Cover palette={trip.cover} seed={trip.id} image={trip.coverImage} imageUrl={trip.coverUrl} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className={cx("w-full transition-transform duration-300 group-hover:scale-[1.01]", compact ? "aspect-[4/3]" : "aspect-[5/4]")}>
           <div className="flex h-full flex-col justify-between p-3.5">
             <div className="flex items-start justify-between gap-2">
@@ -43,13 +55,16 @@ export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: Trip
               )}
             </div>
             <div className="text-white">
-              <H className="font-display text-xl font-semibold leading-tight drop-shadow-sm">{trip.title}</H>
+              <Morph name={morph ? `trip-title-${trip.id}` : undefined}>
+                <H className="font-display text-xl font-semibold leading-tight drop-shadow-sm">{trip.title}</H>
+              </Morph>
               <p className="mt-0.5 flex items-center gap-1 text-[13px] text-white/90">
                 <MapPin className="size-3.5" /> {trip.route || t.trips.destinationTbd}
               </p>
             </div>
           </div>
         </Cover>
+        </Morph>
       </Link>
       {me && !trip.myRole && trip.visibility !== "PRIVATE" && (
         <button
@@ -77,5 +92,15 @@ export function TripCard({ trip, compact, showRole, level = "h3" }: { trip: Trip
         </span>
       </div>
     </article>
+  );
+}
+
+/** A named shared element for the card ↔ planner morph; a no-op without a name. */
+export function Morph({ name, children }: { name?: string; children: React.ReactElement }) {
+  if (!name) return children;
+  return (
+    <ViewTransition name={name} share="trip-morph" default="none">
+      {children}
+    </ViewTransition>
   );
 }

@@ -183,9 +183,17 @@ body {
   }
 }
 
-/* Map pins (MapLibre markers) — round, numbered, filled with the day colour. */
+/* Map pins (MapLibre markers). MapLibre positions the button with an inline transform, so all
+   visual state (size, hover lift, pop-in) lives on the inner span. */
 .triply-pin {
   --pin: var(--color-primary);
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.triply-pin > span {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -197,16 +205,121 @@ body {
   box-shadow: 0 1px 3px rgb(31 26 22 / 0.35);
   color: #fff;
   font: 600 12px/1 var(--font-mono);
-  cursor: pointer;
-  transition: transform 0.15s ease;
+  transition:
+    transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.2s ease;
+}
+.triply-pin.is-hover > span {
+  transform: translateY(-3px) scale(1.18);
+  box-shadow: 0 6px 14px -4px rgb(31 26 22 / 0.5);
 }
 .triply-pin.is-selected {
-  transform: scale(1.2);
   z-index: 2;
-  box-shadow: 0 0 0 3px var(--color-pin-ring), 0 0 0 6px var(--color-primary);
 }
+.triply-pin.is-selected > span {
+  transform: scale(1.2);
+  box-shadow:
+    0 0 0 3px var(--color-pin-ring),
+    0 0 0 6px var(--color-primary);
+}
+/* Route reveal: pins wait, then pop in as the line reaches them. */
+.triply-pin.is-pending > span {
+  opacity: 0;
+  transform: scale(0.3);
+  transition: none;
+}
+.triply-pin.is-in > span {
+  animation: pin-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes pin-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Offline SVG map: the same reveal with stroke dash + per-pin delay. */
+.route-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: route-draw var(--draw, 900ms) cubic-bezier(0.65, 0, 0.35, 1) 150ms forwards;
+}
+@keyframes route-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.svg-pin {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.svg-pin.is-hover {
+  transform: translateY(-3px) scale(1.18);
+}
+.svg-pin-in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pin-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) var(--delay, 0ms) both;
+}
+
+/* Itinerary: a stop selected on the map "breathes" once in jade when the list brings it into view. */
+@keyframes select-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-primary) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+.animate-select-pulse {
+  animation: select-pulse 0.7s ease-out 1;
+}
+
+/* Shared-element morph between a trip card and the planner header (React <ViewTransition>). */
+::view-transition-group(.trip-morph) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+::view-transition-image-pair(.trip-morph) {
+  animation-name: via-blur;
+}
+@keyframes via-blur {
+  30% {
+    filter: blur(2px);
+  }
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .triply-pin {
+  .triply-pin > span,
+  .svg-pin {
     transition: none;
+  }
+  .triply-pin.is-pending > span,
+  .triply-pin.is-in > span,
+  .svg-pin-in {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .route-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .animate-select-pulse {
+    animation: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

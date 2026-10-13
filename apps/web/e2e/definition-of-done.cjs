@@ -46,7 +46,7 @@ fs.mkdirSync(shots, { recursive: true });
     await p.getByRole("button", { name: "Log in", exact: true }).click();
     await p.waitForURL("**/home");
   };
-  const itemCount = (p) => p.locator("ol li[draggable]").count();
+  const itemCount = (p) => p.locator("ol li[data-item-id]").count();
 
   const A = await newUser("owner");
   const stamp = Date.now().toString(36);
@@ -88,7 +88,7 @@ fs.mkdirSync(shots, { recursive: true });
       await A.getByRole("button", { name: "Add to itinerary" }).click();
       await A.getByRole("dialog").waitFor({ state: "detached" });
     }
-    await A.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 3);
+    await A.waitForFunction(() => document.querySelectorAll("ol li[data-item-id]").length === 3);
   });
 
   let inviteLink;
@@ -158,17 +158,17 @@ fs.mkdirSync(shots, { recursive: true });
 
   await step("14. forked trip is independently editable", async () => {
     await C.getByText("You · Owner").waitFor();
-    await C.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 3);
+    await C.waitForFunction(() => document.querySelectorAll("ol li[data-item-id]").length === 3);
     await C.getByRole("button", { name: "Item actions", exact: true }).first().click();
     await C.getByRole("menuitem", { name: "Delete", exact: true }).click();
-    await C.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 2);
+    await C.waitForFunction(() => document.querySelectorAll("ol li[data-item-id]").length === 2);
     await C.goto(`${forkUrl}?tab=members`);
     await C.getByText("Trip members · 1").waitFor();
   });
 
   await step("15. original trip remains unchanged", async () => {
     await A.goto(tripUrl);
-    await A.waitForFunction(() => document.querySelectorAll("ol li[draggable]").length === 3);
+    await A.waitForFunction(() => document.querySelectorAll("ol li[data-item-id]").length === 3);
     await A.goto(`${tripUrl}?tab=members`);
     await A.getByText("Trip members · 2").waitFor();
   });

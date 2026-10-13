@@ -2,14 +2,32 @@
 
 import type { ItemView, TripDetail } from "@triply/shared";
 import { ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
+import { prefersReducedMotion } from "@/lib/motion";
+import { useToast } from "@/lib/toast";
 import { useFormat, useI18n, useT } from "@/i18n/client";
 import { cx } from "../ui";
 import type { DayFilter } from "../trip/DayBar";
 import { ItemTypeIcon } from "./ItemTypeIcon";
+import { useFlip, useItineraryDrag, type DragState } from "./useItineraryDrag";
+
+/** The trip with one item moved — what the server will answer, applied right away. */
+function moveItem(trip: TripDetail, id: string, toDayId: string, toIndex: number): TripDetail {
+  const item = trip.days.flatMap((d) => d.items).find((i) => i.id === id);
+  if (!item) return trip;
+  return {
+    ...trip,
+    days: trip.days.map((d) => {
+      const items = d.items.filter((i) => i.id !== id);
+      if (d.id === toDayId) items.splice(Math.min(toIndex, items.length), 0, { ...item, dayId: toDayId });
+      return { ...d, items };
+    }),
+  };
+}
 
 /**
  * The itinerary column of the planner (Atlas): one section per day, numbered stops in the day's
@@ -20,14 +38,19 @@ export function Itinerary({
   trip,
   day = "all",
   selectedId,
+  hoveredId,
   onSelect,
+  onHover,
   onAdd,
   onEdit,
 }: {
   trip: TripDetail;
   day?: DayFilter;
   selectedId?: string | null;
+  /** The stop whose pin is under the pointer on the map; `onHover` reports the stop under the pointer here. */
+  hoveredId?: string | null;
   onSelect?: (item: ItemView) => void;
+  onHover?: (itemId: string | null) => void;
   onAdd?: (dayId: string) => void;
   onEdit?: (item: ItemView) => void;
 }) {
@@ -39,23 +62,81 @@ export function Itinerary({
   const may = (a: string) => trip.permissions.includes(a as never);
   const canEdit = may("itinerary.edit");
   const canAdd = may("itinerary.add");
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [overKey, setOverKey] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const toast = useToast();
+  const root = useRef<HTMLDivElement>(null);
+  const instructionsId = useId();
+  const [liveMsg, setLiveMsg] = useState("");
 
   const invalidate = [keys.trip(trip.id), ["trips"]];
-  const reorder = useAction((a: { id: string; dayId: string; index: number }) => api.post(`/items/${a.id}/reorder`, { dayId: a.dayId, index: a.index }), { invalidate });
+  /** Optimistic move: the list (and the map, legs, totals) update at once; the server confirms. */
+  const move = async (id: string, dayId: string, index: number) => {
+    const key = keys.trip(trip.id);
+    await qc.cancelQueries({ queryKey: key });
+    const prev = qc.getQueryData<TripDetail>(key);
+    if (prev) qc.setQueryData(key, moveItem(prev, id, dayId, index));
+    try {
+      await api.post(`/items/${id}/reorder`, { dayId, index });
+    } catch {
+      toast(ti.drag.failed, "error");
+    } finally {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["trips"] });
+    }
+  };
   const duplicate = useAction((id: string) => api.post(`/items/${id}/duplicate`), { invalidate, success: ti.duplicated });
   const remove = useAction((id: string) => api.delete(`/items/${id}`), { invalidate, success: ti.removed });
   const addDay = useAction(() => api.post(`/trips/${trip.id}/days`), { invalidate, success: ti.dayAdded });
 
-  const drop = (dayId: string, index: number) => {
-    if (dragId) void reorder.run({ id: dragId, dayId, index });
-    setDragId(null);
-    setOverKey(null);
+  const titleOf = (id: string) => trip.days.flatMap((d) => d.items).find((i) => i.id === id)?.title ?? "";
+  const dayNo = (dayId: string) => trip.days.find((d) => d.id === dayId)?.dayNumber ?? 0;
+  const announce = (kind: "picked" | "moved" | "dropped" | "cancelled", st: DragState) => {
+    const total = (trip.days.find((d) => d.id === st.toDay)?.items.filter((i) => i.id !== st.id).length ?? 0) + 1;
+    const pos = st.toIndex + 1;
+    setLiveMsg(
+      kind === "picked"
+        ? ti.drag.picked(titleOf(st.id), dayNo(st.toDay), pos, total)
+        : kind === "moved"
+          ? ti.drag.moved(dayNo(st.toDay), pos, total)
+          : kind === "dropped"
+            ? ti.drag.dropped(titleOf(st.id), dayNo(st.toDay), pos)
+            : ti.drag.cancelled(titleOf(st.id)),
+    );
   };
+  const dnd = useItineraryDrag({
+    lists: days.map((d) => ({ id: d.id, dayNumber: d.dayNumber, itemIds: d.items.map((i) => i.id) })),
+    onDrop: (id, dayId, index) => void move(id, dayId, index),
+    announce,
+  });
+  const dragging = dnd.drag;
+
+  // Order/set changes animate (drops, menu moves, collaborators' edits).
+  useFlip(root, days.map((d) => `${d.id}:${d.items.map((i) => i.id).join(",")}`).join("|"));
+
+  // A stop picked on the map: bring its card into view and let it "breathe" once.
+  const [pulseId, setPulseId] = useState<string | null>(null);
+  /** The card under the pointer in this list (a hover from the map doesn't count). */
+  const listHover = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const el = root.current?.querySelector<HTMLElement>(`[data-item-id="${selectedId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    // Only when the selection came from the map (a card clicked here is already under the pointer).
+    if (listHover.current === selectedId) return;
+    setPulseId(selectedId);
+    const t = setTimeout(() => setPulseId(null), 800);
+    return () => clearTimeout(t);
+  }, [selectedId]);
 
   return (
-    <div className="space-y-8">
+    <div ref={root} className="space-y-8">
+      <p id={instructionsId} className="sr-only">
+        {ti.drag.instructions}
+      </p>
+      <p className="sr-only" role="status" aria-live="assertive">
+        {liveMsg}
+      </p>
       {days.map((d) => {
         const items = d.items;
         const color = dayColor(d.dayNumber);
@@ -81,18 +162,14 @@ export function Itinerary({
               )}
             </header>
 
-            <ol
-              className="relative"
-              onDragOver={(e) => {
-                if (dragId && items.length === 0) {
-                  e.preventDefault();
-                  setOverKey(`${d.id}:0`);
-                }
-              }}
-              onDrop={() => items.length === 0 && drop(d.id, 0)}
-            >
+            <ol ref={dnd.listRef(d.id)} className="relative">
               {items.length === 0 && (
-                <li className={cx("rounded-[14px] border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${d.id}:0` && "border-primary bg-primary-50")}>
+                <li
+                  className={cx(
+                    "rounded-[14px] border border-dashed border-line px-4 py-5 text-center text-sm text-muted transition-colors",
+                    dragging && dragging.toDay === d.id && "border-primary bg-primary-50 text-primary",
+                  )}
+                >
                   {ti.nothingPlanned}
                 </li>
               )}
@@ -106,34 +183,38 @@ export function Itinerary({
                 return (
                   <li
                     key={it.id}
-                    draggable={canEdit}
-                    onDragStart={() => setDragId(it.id)}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setOverKey(null);
+                    ref={dnd.itemRef(it.id)}
+                    data-item-id={it.id}
+                    data-flip-id={it.id}
+                    style={dnd.itemStyle(it.id, d.id)}
+                    onMouseEnter={() => {
+                      listHover.current = it.id;
+                      if (place && !dragging) onHover?.(it.id);
                     }}
-                    onDragOver={(e) => {
-                      if (!dragId) return;
-                      e.preventDefault();
-                      setOverKey(`${d.id}:${idx}`);
+                    onMouseLeave={() => {
+                      listHover.current = null;
+                      onHover?.(null);
                     }}
-                    onDrop={() => drop(d.id, idx)}
-                    className={cx("group relative", dragId === it.id && "opacity-40")}
+                    className="group relative"
                   >
                     {idx > 0 && (
-                      <div className="ml-[26px] border-l-2 border-dashed border-line py-1.5 pl-[14px] font-mono text-xs text-muted sm:ml-[62px]" title={leg ? ti.legHint : undefined}>
+                      <div
+                        className={cx("ml-[26px] border-l-2 border-dashed border-line py-1.5 pl-[14px] font-mono text-xs text-muted transition-opacity sm:ml-[62px]", dragging && "opacity-0")}
+                        title={leg ? ti.legHint : undefined}
+                      >
                         {leg ? legLabel(leg, t, locale) : <span aria-hidden>&nbsp;</span>}
                         {leg && <span className="sr-only"> {ti.estimate}</span>}
                       </div>
                     )}
-                    {overKey === `${d.id}:${idx}` && dragId !== it.id && <span className="absolute left-0 right-0 top-0 h-0.5 rounded bg-primary sm:left-[62px]" />}
                     <div className="flex items-start gap-3 sm:gap-3.5">
                       <div className="hidden w-12 shrink-0 pt-[15px] text-right font-mono text-[13px] text-ink sm:block">{it.startTime ?? ""}</div>
                       <div
                         onClick={() => onSelect?.(it)}
                         className={cx(
-                          "min-w-0 flex-1 cursor-pointer rounded-[14px] border p-3 transition-colors",
-                          selected ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line bg-surface hover:border-ink-2/40",
+                          "min-w-0 flex-1 cursor-pointer rounded-[14px] border p-3 transition-[border-color,background-color,box-shadow,transform] duration-200",
+                          selected ? "border-primary bg-primary-50 ring-1 ring-primary" : hoveredId === it.id ? "border-ink-2/50 bg-surface" : "border-line bg-surface hover:border-ink-2/40",
+                          pulseId === it.id && "animate-select-pulse",
+                          dragging?.id === it.id && "scale-[1.02] shadow-pop",
                         )}
                       >
                         <div className="flex items-center gap-3">
@@ -163,13 +244,27 @@ export function Itinerary({
                           {it.startTime && <span className="shrink-0 font-mono text-[13px] text-ink sm:hidden">{it.startTime}</span>}
                           {canEdit && (
                             <>
-                              <GripVertical className="hidden size-4 shrink-0 cursor-grab text-muted opacity-0 group-hover:opacity-100 md:block" aria-hidden />
+                              {/* Drag handle: pointer drag, or Space + arrow keys (announced). touch-action:none lets a finger drag it. */}
+                              <button
+                                type="button"
+                                {...dnd.handleProps(it.id, d.id, idx)}
+                                onClick={(e) => e.stopPropagation()}
+                                aria-label={ti.drag.handle(it.title)}
+                                aria-describedby={instructionsId}
+                                aria-pressed={dragging?.id === it.id}
+                                className={cx(
+                                  "-my-1 flex size-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted hover:bg-sand-2 hover:text-ink active:cursor-grabbing md:size-8 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100",
+                                  dragging?.id === it.id && "bg-sand-2 text-ink md:opacity-100",
+                                )}
+                              >
+                                <GripVertical className="size-4" aria-hidden />
+                              </button>
                               <ItemMenu
                                 first={idx === 0}
                                 last={idx === items.length - 1}
                                 onEdit={() => onEdit?.(it)}
                                 onDuplicate={() => duplicate.run(it.id)}
-                                onMove={(dir) => reorder.run({ id: it.id, dayId: d.id, index: idx + dir })}
+                                onMove={(dir) => void move(it.id, d.id, idx + dir)}
                                 onDelete={() => remove.run(it.id)}
                               />
                             </>
