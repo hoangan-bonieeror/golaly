@@ -6,7 +6,8 @@ import type { PrismaService } from "../../prisma/prisma.service";
  * Relevance ranking with pg_trgm over the normalised (accent-free) `search_text` columns.
  *
  * - Every word of the query must match the start of a word ("pho" finds "phở bò", not "Sapo"), or —
- *   for words of 4+ letters — be a close fuzzy match (word_similarity ≥ threshold, so "tokio" → "tokyo").
+ *   for words of 4+ letters — be a close fuzzy match (word_similarity ≥ 0.4, WORD_SIMILARITY_THRESHOLD in
+ *   prisma.service.ts, so "tokio" → "tokyo").
  * - Words typed WITH diacritics must match them too where the table keeps accented text ("phở" finds
  *   "Phở Thìn", not "Phố cổ"); names written without any accents ("Pho 24") still match.
  * - Ranking: name equals the query › name starts with it › name contains it › text contains it, then how
@@ -14,7 +15,6 @@ import type { PrismaService } from "../../prisma/prisma.service";
  *
  * All values are bound parameters — never string-concatenated into SQL.
  */
-const THRESHOLD = 0.4;
 const FUZZY_MIN = 4;
 const MAX_WORDS = 6;
 
@@ -60,10 +60,12 @@ export interface TextColumns {
 /** Word-start regex; words are [a-z0-9] or letters/digits only, so nothing needs escaping. */
 const wordStart = (w: string) => `\\m${w}`;
 
-function wordMatch(w: QueryWord, cols: TextColumns): Prisma.Sql {
+function wordMatch(w: QueryWord, cols: TextColumns, fuzzy: boolean): Prisma.Sql {
   const text = Prisma.raw(cols.text);
-  const plain = w.plain.length >= FUZZY_MIN
-    ? Prisma.sql`(${text} ~ ${wordStart(w.plain)} OR word_similarity(${w.plain}, ${text}) >= ${THRESHOLD})`
+  // `<%` is word_similarity(word, text) >= pg_trgm.word_similarity_threshold (WORD_SIMILARITY_THRESHOLD, set on every
+  // connection by PrismaService). Unlike the function call, the operator can use the trigram index.
+  const plain = fuzzy && w.plain.length >= FUZZY_MIN
+    ? Prisma.sql`(${text} ~ ${wordStart(w.plain)} OR ${w.plain} <% ${text})`
     : Prisma.sql`${text} ~ ${wordStart(w.plain)}`;
   if (!w.accented || !cols.accent) return plain;
   const accent = Prisma.raw(cols.accent);
@@ -75,11 +77,14 @@ function wordMatch(w: QueryWord, cols: TextColumns): Prisma.Sql {
   return Prisma.sql`(${plain} AND (${accent} ~ ${wordStart(w.accented)}${unaccentedName}))`;
 }
 
-/** "Every word matches" predicate, for filtering inside another query (e.g. Explore's place browser). */
-export function textMatch(q: string, cols: TextColumns): Prisma.Sql | null {
+/**
+ * "Every word matches" predicate, for filtering inside another query. `fuzzy` also lets words of 4+ letters match
+ * a close spelling ("tokio" → "tokyo"); without it each word must start a word of the text.
+ */
+export function textMatch(q: string, cols: TextColumns, fuzzy = true): Prisma.Sql | null {
   const words = queryWords(q);
   if (!words.length) return null;
-  return Prisma.join(words.map((w) => wordMatch(w, cols)), " AND ");
+  return Prisma.join(words.map((w) => wordMatch(w, cols, fuzzy)), " AND ");
 }
 
 /** Relevance score for ORDER BY … DESC (higher is better); null when the query has no usable words. */
@@ -103,6 +108,57 @@ export function relevance(q: string, cols: TextColumns): Prisma.Sql | null {
 /** Search columns of the places table, aliased `p`. */
 export const PLACE_COLUMNS: TextColumns = { text: "p.search_text", name: "p.name_norm", accent: "p.search_accent", rawName: "p.name" };
 
+/** At most this many text matches are ranked; a broader query ("pho" matches 7 % of a country) is ranked on a sample. */
+export const TEXT_CANDIDATES = 1500;
+/** …plus up to this many places whose name starts with the whole query, so exact names are never left out. */
+const PREFIX_CANDIDATES = 300;
+/** How far down the name index the prefix branch looks (bounds its work when the conditions are selective). */
+const PREFIX_SCAN = 2000;
+
+export interface Candidates {
+  ids: string[];
+  /** More places match than were taken: counts are lower bounds. */
+  capped: boolean;
+  /** Nothing matched exactly, so these are close spellings. */
+  fuzzy: boolean;
+}
+
+/**
+ * The places a text query can return, within `conds` (conditions on `places p`), with bounded work at any catalog
+ * size. Exact word-start matches come from the trigram index (stopping after TEXT_CANDIDATES), together with the
+ * places whose name starts with the query (places_name_c_idx). Only when nothing matches exactly are close
+ * spellings tried: fuzzy matching a short word against millions of rows is what made searches take seconds.
+ * The caller ranks the ids (relevance()) — cheap on a couple of thousand rows.
+ */
+export async function placeCandidates(prisma: PrismaService, q: string, conds: Prisma.Sql[]): Promise<Candidates | null> {
+  const words = queryWords(q);
+  if (!words.length) return null;
+  const where = (m: Prisma.Sql) => Prisma.join([...conds, m], " AND ");
+  const exact = textMatch(q, PLACE_COLUMNS, false)!;
+  const phrase = normalizeSearch(q);
+  // Names starting with the phrase: an ordered walk of places_name_c_idx, cut off after PREFIX_SCAN rows. The text
+  // conditions are applied outside the sub-select on purpose: inside it, the planner prefers combining with the
+  // trigram index and sorting tens of thousands of rows. Both levels are aliased `p`, so the caller's conditions
+  // and the text conditions read the same column names.
+  const byPrefix = phrase.length >= 3
+    ? Prisma.sql`UNION ALL
+      (SELECT p.id::text AS id, 2 AS src FROM (
+         SELECT p.* FROM places p WHERE ${where(Prisma.sql`p.name_norm COLLATE "C" LIKE ${likePattern(phrase).slice(1)}`)}
+         ORDER BY p.name_norm COLLATE "C" LIMIT ${PREFIX_SCAN}) p
+       WHERE ${exact} LIMIT ${PREFIX_CANDIDATES})`
+    : Prisma.empty;
+  const rows = await prisma.$queryRaw<{ id: string; src: number }[]>`
+    (SELECT p.id::text AS id, 1 AS src FROM places p WHERE ${where(exact)} LIMIT ${TEXT_CANDIDATES + 1})
+    ${byPrefix}`;
+  if (rows.length) {
+    return { ids: [...new Set(rows.map((r) => r.id))], capped: rows.filter((r) => r.src === 1).length > TEXT_CANDIDATES, fuzzy: false };
+  }
+  if (!words.some((w) => w.plain.length >= FUZZY_MIN)) return { ids: [], capped: false, fuzzy: false };
+  const near = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT p.id::text AS id FROM places p WHERE ${where(textMatch(q, PLACE_COLUMNS, true)!)} LIMIT ${TEXT_CANDIDATES + 1}`;
+  return { ids: near.map((r) => r.id), capped: near.length > TEXT_CANDIDATES, fuzzy: true };
+}
+
 export class TrigramRanker {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -122,8 +178,14 @@ export class TrigramRanker {
   trips(q: string, limit: number) {
     return this.run(`"trips"`, `"id"`, { text: "search_text" }, q, limit, Prisma.sql`AND visibility = 'PUBLIC' AND deleted_at IS NULL`);
   }
-  places(q: string, limit: number) {
-    return this.run(`"places" p`, "p.id", PLACE_COLUMNS, q, limit, Prisma.sql`AND p.status = 'ACTIVE' AND p.merged_into_id IS NULL`, Prisma.sql`, p.rating DESC NULLS LAST, p.quality_score DESC`);
+  async places(q: string, limit: number) {
+    const found = await placeCandidates(this.prisma, q, [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`]);
+    const score = relevance(q, PLACE_COLUMNS);
+    if (!found?.ids.length || !score) return [];
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT p.id::text AS id FROM places p WHERE p.id = ANY(${found.ids}::uuid[])
+      ORDER BY ${score} DESC, p.rating DESC NULLS LAST, p.quality_score DESC LIMIT ${limit}`;
+    return rows.map((r) => r.id);
   }
   destinations(q: string, limit: number) {
     // Curated names are often English ("Hanoi"), so accents only help ranking here, never filter.

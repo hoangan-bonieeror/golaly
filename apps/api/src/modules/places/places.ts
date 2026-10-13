@@ -21,11 +21,26 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { MediaModule } from "../media/media";
 import { DISCOVERABLE } from "../search/search";
 import { PhotoIngestService, PlacePhotosController, PlacePhotosService } from "./photos";
-import { PLACE_COLUMNS, TrigramRanker, byRank, relevance, textMatch } from "../search/ranker";
+import { PLACE_COLUMNS, TrigramRanker, byRank, placeCandidates, relevance } from "../search/ranker";
 
 /** Default search radius (km) around a destination / around the device. */
 const RADIUS = { destination: 10, near: 5 } as const;
 const NEARBY_METRES = 1500;
+/** Taxonomy, area trees and whole-area counts change only when the catalog pipeline runs. */
+const CACHE_MS = 5 * 60_000;
+const COUNT_CACHE_MAX = 500;
+
+interface CategoryRef {
+  id: string;
+  key: string;
+  /** The group it belongs to (its parent's key), or its own key for a group. */
+  groupKey: string;
+}
+
+/** `p.area_id` in a set of areas; a single id stays an equality so the (area_id, …) indexes are used in order. */
+export function areaIn(ids: string[]): Prisma.Sql {
+  return ids.length === 1 ? Prisma.sql`p.area_id = ${ids[0]}::uuid` : Prisma.sql`p.area_id = ANY(${ids}::uuid[])`;
+}
 const TRIP_NEARBY_KM = 50;
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -38,12 +53,37 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 export class PlacesService {
   private categoryCache: { at: number; tree: CategoryView[] } | null = null;
   private areaCache: { at: number; list: GeoAreaOption[] } | null = null;
+  private categoryIndexCache: { at: number; byKey: Map<string, CategoryRef>; byId: Map<string, CategoryRef> } | null = null;
+  private subtreeCache = new Map<string, { at: number; ids: string[] }>();
+  /** Per-category counts of a whole area (or everywhere): no text, no radius. These change only when a sync runs. */
+  private countCache = new Map<string, { at: number; counts: Map<string | null, number> }>();
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Category ids by key and the reverse, with each category's group (parent) key. Cached like the tree. */
+  private async categoryIndex() {
+    if (this.categoryIndexCache && Date.now() - this.categoryIndexCache.at < CACHE_MS) return this.categoryIndexCache;
+    const rows = await this.prisma.category.findMany({ select: { id: true, key: true, parent: { select: { key: true } } } });
+    const refs = rows.map((r): CategoryRef => ({ id: r.id, key: r.key, groupKey: r.parent?.key ?? r.key }));
+    this.categoryIndexCache = { at: Date.now(), byKey: new Map(refs.map((r) => [r.key, r])), byId: new Map(refs.map((r) => [r.id, r])) };
+    return this.categoryIndexCache;
+  }
+
+  /** An area and every area below it (a country's provinces, a province's districts). */
+  async subtree(areaId: string): Promise<string[]> {
+    const hit = this.subtreeCache.get(areaId);
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.ids;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+      WITH RECURSIVE t AS (SELECT id FROM geo_areas WHERE id = ${areaId}::uuid UNION ALL SELECT g.id FROM geo_areas g JOIN t ON g.parent_id = t.id)
+      SELECT id::text AS id FROM t`;
+    const ids = rows.map((r) => r.id);
+    this.subtreeCache.set(areaId, { at: Date.now(), ids });
+    return ids;
+  }
+
   /** The two-level taxonomy (groups → categories). Changes only when the catalog pipeline runs, so it's cached briefly. */
   async categories(): Promise<CategoryView[]> {
-    if (this.categoryCache && Date.now() - this.categoryCache.at < 5 * 60_000) return this.categoryCache.tree;
+    if (this.categoryCache && Date.now() - this.categoryCache.at < CACHE_MS) return this.categoryCache.tree;
     const rows = await this.prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { key: "asc" }] });
     const view = (c: (typeof rows)[number]): CategoryView => ({ key: c.key, label: c.labelEn, labelVi: c.labelVi, itemType: c.itemType });
     const tree = rows.filter((c) => !c.parentId).map((g) => ({ ...view(g), children: rows.filter((c) => c.parentId === g.id).map(view) }));
@@ -53,7 +93,7 @@ export class PlacesService {
 
   /** Countries, provinces and cities with their place counts (rolled up to parents). Cached briefly like categories. */
   async areas(): Promise<GeoAreaOption[]> {
-    if (this.areaCache && Date.now() - this.areaCache.at < 5 * 60_000) return this.areaCache.list;
+    if (this.areaCache && Date.now() - this.areaCache.at < CACHE_MS) return this.areaCache.list;
     const [rows, counts] = await Promise.all([
       this.prisma.geoArea.findMany({
         select: {
@@ -135,21 +175,28 @@ export class PlacesService {
     // An area's centre only places the map; distances are measured from destinations and the device.
     const point = center && !area ? Prisma.sql`ST_SetSRID(ST_MakePoint(${center.lng}, ${center.lat}), 4326)::geography` : null;
 
+    // Areas and categories are resolved to ids here (small, cached lookups), so the main query has no joins and
+    // can walk the partial (area_id, rating, …) / (rating, …) indexes in order instead of sorting a whole province.
     const scope: Prisma.Sql[] = [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`];
     if (point && radiusKm) scope.push(Prisma.sql`ST_DWithin(p.location, ${point}, ${radiusKm * 1000})`);
-    if (area) {
-      scope.push(Prisma.sql`p.area_id IN (
-        WITH RECURSIVE t AS (SELECT id FROM geo_areas WHERE id = ${area.id}::uuid
-                             UNION ALL SELECT g.id FROM geo_areas g JOIN t ON g.parent_id = t.id)
-        SELECT id FROM t)`);
-    }
-    const text = textMatch(q.q, PLACE_COLUMNS);
-    if (text) scope.push(text);
+    const areaIds = area ? await this.subtree((area as { id: string }).id) : null;
+    if (areaIds) scope.push(areaIn(areaIds));
+    const cats = await this.categoryIndex();
+    const wanted = q.category
+      ? [...cats.byKey.values()].filter((c) => c.key === q.category)
+      : q.group
+        ? [...cats.byKey.values()].filter((c) => c.groupKey === q.group)
+        : null;
     const filters = [...scope];
-    if (q.group) filters.push(Prisma.sql`(g.key = ${q.group} OR c.key = ${q.group})`);
-    if (q.category) filters.push(Prisma.sql`c.key = ${q.category}`);
+    if (wanted) filters.push(wanted.length ? Prisma.sql`p.category_id = ANY(${wanted.map((c) => c.id)}::uuid[])` : Prisma.sql`FALSE`);
+    // A text query narrows to a bounded set of candidates first (see placeCandidates), for the page and for the counts.
+    const found = await placeCandidates(this.prisma, q.q, filters);
+    const foundInScope = found && (wanted ? await placeCandidates(this.prisma, q.q, scope) : found);
+    if (found) {
+      filters.push(Prisma.sql`p.id = ANY(${found.ids}::uuid[])`);
+      scope.push(Prisma.sql`p.id = ANY(${foundInScope!.ids}::uuid[])`);
+    }
 
-    const from = Prisma.sql`FROM places p LEFT JOIN categories c ON c.id = p.category_id LEFT JOIN categories g ON g.id = c.parent_id`;
     const where = (parts: Prisma.Sql[]) => Prisma.sql`WHERE ${Prisma.join(parts, " AND ")}`;
     const dist = point ? Prisma.sql`ST_Distance(p.location, ${point})` : Prisma.sql`NULL::float8`;
     const sort = q.sort === "distance" && !point ? "recommended" : q.sort;
@@ -165,18 +212,25 @@ export class PlacesService {
           : point && radiusKm
             ? // Recommended around a point: rating (unrated ≈ average), data quality and closeness, blended.
               Prisma.sql`(coalesce(p.rating, 3.8) / 5.0 * 0.6 + p.quality_score * 0.15 + (1 - least(${dist} / ${radiusKm * 1000}, 1)) * 0.25) DESC, p.name ASC`
-            : Prisma.sql`p.rating DESC NULLS LAST, p.quality_score DESC, p.name ASC`;
+            : // Same keys as places_listable_rank_idx / places_area_rank_idx, so no sort is needed.
+              Prisma.sql`p.rating DESC NULLS LAST, p.quality_score DESC, p.name ASC`;
     const offset = q.cursor ? Number(q.cursor) : 0;
 
-    const [rows, facets, totals] = await Promise.all([
+    const [rows, counts] = await Promise.all([
       this.prisma.$queryRaw<{ id: string; dist: number | null }[]>`
-        SELECT p.id::text AS id, ${dist} AS dist ${from} ${where(filters)}
+        SELECT p.id::text AS id, ${dist} AS dist FROM places p ${where(filters)}
         ORDER BY ${order} LIMIT ${q.limit + 1} OFFSET ${offset}`,
-      this.prisma.$queryRaw<{ key: string; count: bigint }[]>`
-        SELECT coalesce(g.key, c.key) AS key, count(*) AS count ${from} ${where(scope)} AND c.id IS NOT NULL
-        GROUP BY 1`,
-      this.prisma.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n ${from} ${where(filters)}`,
+      this.counts(scope, !found && !point ? (areaIds?.join(",") ?? "*") : null),
     ]);
+    // Facets (per group) and the total come from one count per category.
+    const facetMap = new Map<string, number>();
+    let total = 0;
+    const want = wanted && new Set(wanted.map((c) => c.id));
+    for (const [id, n] of counts) {
+      const ref = id ? cats.byId.get(id) : undefined;
+      if (ref) facetMap.set(ref.groupKey, (facetMap.get(ref.groupKey) ?? 0) + n);
+      if (!want || (id && want.has(id))) total += n;
+    }
     const page = rows.slice(0, q.limit);
     const views = await this.prisma.place.findMany({ where: { id: { in: page.map((r) => r.id) } }, include: placeInclude(viewerId) });
     const dists = new Map(page.map((r) => [r.id, r.dist]));
@@ -190,9 +244,28 @@ export class PlacesService {
       center,
       area: area && { slug: area.slug, name: area.name },
       radiusKm,
-      facets: facets.map((f) => ({ key: f.key, count: Number(f.count) })),
-      total: Number(totals[0]?.n ?? 0),
+      facets: [...facetMap].map(([key, count]) => ({ key, count })),
+      total,
+      // A very broad text query was ranked on a sample: the counts are "at least".
+      totalIsEstimate: !!found?.capped || !!foundInScope?.capped,
     };
+  }
+
+  /**
+   * Places per category (null = uncategorised) in a scope. A whole area or everywhere (`cacheKey`) is counted once
+   * per CACHE_MS — an index-only scan of places_area_category_idx, still the slowest part of a country-wide browse.
+   */
+  private async counts(scope: Prisma.Sql[], cacheKey: string | null): Promise<Map<string | null, number>> {
+    const hit = cacheKey ? this.countCache.get(cacheKey) : undefined;
+    if (hit && Date.now() - hit.at < CACHE_MS) return hit.counts;
+    const rows = await this.prisma.$queryRaw<{ id: string | null; n: bigint }[]>`
+      SELECT p.category_id::text AS id, count(*) AS n FROM places p WHERE ${Prisma.join(scope, " AND ")} GROUP BY 1`;
+    const counts = new Map(rows.map((r) => [r.id, Number(r.n)]));
+    if (cacheKey) {
+      if (this.countCache.size >= COUNT_CACHE_MAX) this.countCache.delete(this.countCache.keys().next().value!);
+      this.countCache.set(cacheKey, { at: Date.now(), counts });
+    }
+    return counts;
   }
 
   /** Place search for the itinerary editor — boosts places in the trip's destinations. */

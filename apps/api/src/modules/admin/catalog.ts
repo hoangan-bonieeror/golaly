@@ -61,10 +61,13 @@ import { AirflowClient, AirflowError } from "./airflow";
 
 const PLACE_SOURCES = ["overture", "osm", "fsq"];
 
-type RunRow = Prisma.SyncRunGetPayload<{ include: { job: { select: { name: true } }; requestedBy: { select: { username: true } }; _count: { select: { errors: true } } } }>;
-const runInclude = { job: { select: { name: true } }, requestedBy: { select: { username: true } }, _count: { select: { errors: true } } } as const;
+// No `_count` includes here or on places: Prisma turns them into a GROUP BY over the WHOLE related table
+// (2M place_sources), so counts are fetched separately for the rows on the page.
+type RunRow = Prisma.SyncRunGetPayload<{ include: { job: { select: { name: true } }; requestedBy: { select: { username: true } } } }>;
+const runInclude = { job: { select: { name: true } }, requestedBy: { select: { username: true } } } as const;
+type Counts = Map<string, number>;
 
-function toRunSummary(r: RunRow): SyncRunSummary {
+function toRunSummary(r: RunRow, errors: Counts): SyncRunSummary {
   const params = (r.params ?? {}) as Record<string, unknown>;
   return {
     id: r.id,
@@ -75,7 +78,7 @@ function toRunSummary(r: RunRow): SyncRunSummary {
     area: (params.area as string | null | undefined) ?? (params.bbox as string | null | undefined) ?? (Array.isArray(params.areas) ? (params.areas as string[]).join(", ") : null),
     providers: Array.isArray(params.providers) ? (params.providers as string[]) : [],
     progress: (r.progress ?? {}) as SyncRunSummary["progress"],
-    errorCount: r._count.errors,
+    errorCount: errors.get(r.id) ?? 0,
     startedAt: r.startedAt.toISOString(),
     finishedAt: r.finishedAt?.toISOString() ?? null,
     requestedBy: r.requestedBy?.username ?? null,
@@ -89,6 +92,18 @@ export class CatalogAdminService {
     private readonly audit: AuditService,
     private readonly airflow: AirflowClient,
   ) {}
+
+  /** `SELECT key, count(*) … WHERE key = ANY(ids) GROUP BY key` for a page of rows. */
+  private async countBy(table: "sync_run_errors" | "place_sources" | "itinerary_items" | "saved_places" | "place_photos", column: "run_id" | "place_id", ids: string[]): Promise<Counts> {
+    if (!ids.length) return new Map();
+    const rows = await this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
+      SELECT ${Prisma.raw(column)}::text AS id, count(*) AS n FROM ${Prisma.raw(table)} WHERE ${Prisma.raw(column)} = ANY(${ids}::uuid[]) GROUP BY 1`;
+    return new Map(rows.map((r) => [r.id, Number(r.n)]));
+  }
+
+  private errorCounts(runIds: string[]) {
+    return this.countBy("sync_run_errors", "run_id", runIds);
+  }
 
   async requireAdmin(viewerId: string | null): Promise<string> {
     const id = requireUser(viewerId);
@@ -116,17 +131,15 @@ export class CatalogAdminService {
         max_lng: number | null;
         max_lat: number | null;
         regions: bigint;
-        places: bigint;
       }[]
     >`
       SELECT g.id::text AS id, g.slug, g.name, g.level::text AS level, g.country_code, p.slug AS parent_slug,
              g.boundary IS NOT NULL AS has_boundary, g.min_lng, g.min_lat, g.max_lng, g.max_lat,
-             (SELECT count(*) FROM geo_areas c WHERE c.parent_id = g.id) AS regions,
-             (SELECT count(*) FROM places pl WHERE pl.status = 'ACTIVE' AND pl.merged_into_id IS NULL
-                AND pl.area_id IN (SELECT id FROM geo_areas d WHERE d.id = g.id OR d.parent_id = g.id)) AS places
+             (SELECT count(*) FROM geo_areas c WHERE c.parent_id = g.id) AS regions
       FROM geo_areas g LEFT JOIN geo_areas p ON p.id = g.parent_id
       WHERE ${parent ? Prisma.sql`g.parent_id = ${parent.id}::uuid` : Prisma.sql`g.parent_id IS NULL`}
       ORDER BY g.name`;
+    const counts = await this.placesPerArea();
     const slugs = rows.map((r) => r.slug);
     const lastRuns = slugs.length
       ? await this.prisma.$queryRaw<{ id: string }[]>`
@@ -134,7 +147,8 @@ export class CatalogAdminService {
           WHERE lower(params->>'area') = ANY(${slugs}::text[]) ORDER BY lower(params->>'area'), started_at DESC`
       : [];
     const runs = await this.prisma.syncRun.findMany({ where: { id: { in: lastRuns.map((r) => r.id) } }, include: runInclude });
-    const bySlug = new Map(runs.map((r) => [String(((r.params ?? {}) as Record<string, unknown>).area ?? "").toLowerCase(), toRunSummary(r)]));
+    const errs = await this.errorCounts(runs.map((r) => r.id));
+    const bySlug = new Map(runs.map((r) => [String(((r.params ?? {}) as Record<string, unknown>).area ?? "").toLowerCase(), toRunSummary(r, errs)]));
     return rows.map((r) => ({
       slug: r.slug,
       name: r.name,
@@ -143,10 +157,33 @@ export class CatalogAdminService {
       parentSlug: r.parent_slug,
       hasBoundary: r.has_boundary,
       bbox: r.min_lng === null ? null : [r.min_lng, r.min_lat!, r.max_lng!, r.max_lat!],
-      places: Number(r.places),
+      places: counts.get(r.id) ?? 0,
       regions: Number(r.regions),
       lastRun: bySlug.get(r.slug) ?? null,
     }));
+  }
+
+  private areaCounts: { at: number; counts: Counts } | null = null;
+
+  /**
+   * Published places per area, each added to all its ancestors (a country = its own + its provinces' + …). One
+   * index-only pass over places_area_category_idx, cached for a minute — counting per row was ~1 s per province.
+   */
+  private async placesPerArea(): Promise<Counts> {
+    if (this.areaCounts && Date.now() - this.areaCounts.at < 60_000) return this.areaCounts.counts;
+    const [own, areas] = await Promise.all([
+      this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
+        SELECT area_id::text AS id, count(*) AS n FROM places
+        WHERE status = 'ACTIVE' AND merged_into_id IS NULL AND area_id IS NOT NULL GROUP BY 1`,
+      this.prisma.geoArea.findMany({ select: { id: true, parentId: true } }),
+    ]);
+    const parent = new Map(areas.map((a) => [a.id, a.parentId]));
+    const counts: Counts = new Map();
+    for (const r of own) {
+      for (let a: string | null | undefined = r.id, depth = 0; a && depth < 8; a = parent.get(a), depth++) counts.set(a, (counts.get(a) ?? 0) + Number(r.n));
+    }
+    this.areaCounts = { at: Date.now(), counts };
+    return counts;
   }
 
   // ── jobs ───────────────────────────────────────────────────────────────────
@@ -154,10 +191,10 @@ export class CatalogAdminService {
   private async jobView(id: string): Promise<SyncJobView> {
     const j = await this.prisma.syncJob.findUnique({ where: { id }, include: { runs: { orderBy: { startedAt: "desc" }, take: 1, include: runInclude } } });
     if (!j) throw Errors.notFound("That job");
-    return this.toJob(j);
+    return this.toJob(j, await this.errorCounts(j.runs.map((r) => r.id)));
   }
 
-  private toJob(j: Prisma.SyncJobGetPayload<{ include: { runs: { include: typeof runInclude } } }>): SyncJobView {
+  private toJob(j: Prisma.SyncJobGetPayload<{ include: { runs: { include: typeof runInclude } } }>, errors: Counts): SyncJobView {
     return {
       id: j.id,
       name: j.name,
@@ -169,7 +206,7 @@ export class CatalogAdminService {
       enabled: j.enabled,
       photos: j.photos,
       nextRunAt: j.nextRunAt?.toISOString() ?? null,
-      lastRun: j.runs[0] ? toRunSummary(j.runs[0]) : null,
+      lastRun: j.runs[0] ? toRunSummary(j.runs[0], errors) : null,
       createdAt: j.createdAt.toISOString(),
     };
   }
@@ -189,7 +226,8 @@ export class CatalogAdminService {
 
   async jobs(): Promise<SyncJobView[]> {
     const rows = await this.prisma.syncJob.findMany({ orderBy: { name: "asc" }, include: { runs: { orderBy: { startedAt: "desc" }, take: 1, include: runInclude } } });
-    return rows.map((j) => this.toJob(j));
+    const errs = await this.errorCounts(rows.flatMap((j) => j.runs.map((r) => r.id)));
+    return rows.map((j) => this.toJob(j, errs));
   }
 
   async createJob(adminId: string, input: SyncJobInput): Promise<SyncJobView> {
@@ -293,7 +331,8 @@ export class CatalogAdminService {
       include: runInclude,
     });
     const page = rows.slice(0, q.limit);
-    return { items: page.map(toRunSummary), nextCursor: rows.length > q.limit ? page[page.length - 1]!.id : null };
+    const errs = await this.errorCounts(page.map((r) => r.id));
+    return { items: page.map((r) => toRunSummary(r, errs)), nextCursor: rows.length > q.limit ? page[page.length - 1]!.id : null };
   }
 
   async run(id: string): Promise<SyncRunDetail> {
@@ -301,7 +340,7 @@ export class CatalogAdminService {
     if (!r) throw Errors.notFound("That run");
     const params = (r.params ?? {}) as Record<string, unknown>;
     const resumable = ["failed", "partial", "cancelled"].includes(r.status) && r.trigger !== "dry_run" && !params.dry_run;
-    return { ...toRunSummary(r), params, stats: r.stats as Record<string, unknown>, error: r.error, cancelRequested: r.cancelRequested, resumable };
+    return { ...toRunSummary(r, await this.errorCounts([r.id])), params, stats: r.stats as Record<string, unknown>, error: r.error, cancelRequested: r.cancelRequested, resumable };
   }
 
   async runErrors(id: string): Promise<SyncRunErrorView[]> {
@@ -377,9 +416,13 @@ export class CatalogAdminService {
         website: true,
         categoryRef: { select: { key: true } },
         sources: { select: { provider: true, externalId: true } },
-        _count: { select: { items: true, savedBy: true, photos: true } },
       },
     });
+    const [items, saves, photos] = await Promise.all([
+      this.countBy("itinerary_items", "place_id", ids),
+      this.countBy("saved_places", "place_id", ids),
+      this.countBy("place_photos", "place_id", ids),
+    ]);
     return new Map(
       rows.map((p) => [
         p.id,
@@ -393,7 +436,7 @@ export class CatalogAdminService {
           phone: p.phone,
           website: p.website,
           sources: p.sources,
-          links: p._count.items + p._count.savedBy + p._count.photos,
+          links: (items.get(p.id) ?? 0) + (saves.get(p.id) ?? 0) + (photos.get(p.id) ?? 0),
         },
       ]),
     );
@@ -490,7 +533,7 @@ export class CatalogAdminService {
       mergedIntoId: null,
       ...(status && ["ACTIVE", "CLOSED", "HIDDEN"].includes(status) ? { status: status as "ACTIVE" | "CLOSED" | "HIDDEN" } : {}),
       ...(areaIds ? { areaId: { in: areaIds } } : {}),
-      ...(q.category ? { OR: [{ categoryRef: { key: q.category } }, { categoryRef: { parent: { key: q.category } } }] } : {}),
+      ...(q.category ? { categoryId: { in: await this.categoryIds(q.category) } } : {}),
       ...(q.q ? { searchText: { contains: normalizeSearch(q.q) } } : {}),
     };
     const rows = await this.prisma.place.findMany({
@@ -498,9 +541,10 @@ export class CatalogAdminService {
       orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       take: q.limit + 1,
       ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
-      include: { categoryRef: { select: { key: true, labelEn: true } }, area: { select: { name: true } }, _count: { select: { sources: true } } },
+      include: { categoryRef: { select: { key: true, labelEn: true } }, area: { select: { name: true } } },
     });
     const page = rows.slice(0, q.limit);
+    const sources = await this.countBy("place_sources", "place_id", page.map((p) => p.id));
     return {
       items: page.map((p) => ({
         id: p.id,
@@ -512,12 +556,18 @@ export class CatalogAdminService {
         status: p.status,
         qualityScore: p.qualityScore,
         lockedFields: p.lockedFields,
-        sourceCount: p._count.sources,
+        sourceCount: sources.get(p.id) ?? 0,
         mergedIntoId: p.mergedIntoId,
         updatedAt: p.updatedAt.toISOString(),
       })),
       nextCursor: rows.length > q.limit ? page[page.length - 1]!.id : null,
     };
+  }
+
+  /** A category or a group with its children, as ids (filters on places.category_id, no join). */
+  private async categoryIds(key: string): Promise<string[]> {
+    const rows = await this.prisma.category.findMany({ where: { OR: [{ key }, { parent: { key } }] }, select: { id: true } });
+    return rows.map((r) => r.id);
   }
 
   async place(id: string): Promise<AdminPlaceDetail> {
@@ -637,9 +687,12 @@ export class CatalogAdminService {
   async categories(): Promise<AdminCategoryView[]> {
     const rows = await this.prisma.$queryRaw<{ key: string; label_en: string; label_vi: string; parent_key: string | null; places: bigint; maps: bigint }[]>`
       SELECT c.key, c.label_en, c.label_vi, p.key AS parent_key,
-             (SELECT count(*) FROM places pl WHERE pl.category_id = c.id AND pl.status = 'ACTIVE' AND pl.merged_into_id IS NULL) AS places,
+             coalesce(n.places, 0) AS places,
              (SELECT count(*) FROM category_maps m WHERE m.category_id = c.id) AS maps
       FROM categories c LEFT JOIN categories p ON p.id = c.parent_id
+      -- One pass over places (index-only, places_area_category_idx), not one count per category.
+      LEFT JOIN (SELECT category_id, count(*) AS places FROM places WHERE status = 'ACTIVE' AND merged_into_id IS NULL GROUP BY 1) n
+        ON n.category_id = c.id
       ORDER BY coalesce(p.sort_order, c.sort_order), p.key NULLS FIRST, c.sort_order`;
     return rows.map((r) => ({ key: r.key, labelEn: r.label_en, labelVi: r.label_vi, parentKey: r.parent_key, places: Number(r.places), maps: Number(r.maps) }));
   }

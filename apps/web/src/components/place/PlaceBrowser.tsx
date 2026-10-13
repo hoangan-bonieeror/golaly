@@ -105,7 +105,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     });
   };
   const summary = meta
-    ? `${meta.total.toLocaleString()} place${meta.total === 1 ? "" : "s"}${meta.area ? ` in ${meta.center?.label ?? meta.area.name}` : meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
+    ? `${meta.total.toLocaleString()}${meta.totalIsEstimate ? "+" : ""} place${meta.total === 1 ? "" : "s"}${meta.area ? ` in ${meta.center?.label ?? meta.area.name}` : meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
     : "";
 
   return (
@@ -162,7 +162,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
               <Chip key={g.key} active={group === g.key} onClick={() => set({ group: group === g.key ? undefined : g.key, cat: undefined })} className="shrink-0">
                 <Icon className="size-4" aria-hidden />
                 {g.label}
-                <span className={cx("text-xs font-medium", group === g.key ? "text-white/80" : "text-muted")}>{facet.get(g.key) ?? 0}</span>
+                <span className={cx("text-xs font-medium", group === g.key ? "text-white/80" : "text-muted")}>{facet.get(g.key) ?? 0}
+                  {meta?.totalIsEstimate ? "+" : ""}
+                </span>
               </Chip>
             );
           })}

@@ -264,3 +264,35 @@ describe("place names in the viewer's language", () => {
     expect((await get("und")).name).toBe(local.name); // Settings → "Local names"
   });
 });
+
+describe("text search at catalog scale", () => {
+  it("ranks a very broad query on a bounded sample (totals become 'at least'), keeps exact names, and falls back to close spellings", async () => {
+    const food = await t.prisma.category.findUniqueOrThrow({ where: { key: "food.street_food" } });
+    // 1,700 places sharing a word: more than one query ranks in full.
+    await t.prisma.$executeRaw`
+      INSERT INTO places (id, name, name_norm, category, category_id, lat, lng, address, search_text, search_accent, updated_at)
+      SELECT gen_random_uuid(), 'Zebrafruit Stall ' || n, 'zebrafruit stall ' || n, 'RESTAURANT', ${food.id}::uuid, 10.7 + n / 100000.0, 106.7, '',
+             'zebrafruit stall ' || n, 'zebrafruit stall ' || n, now()
+      FROM generate_series(1, 1700) n`;
+    const exact = await t.prisma.place.create({
+      data: { name: "Zebrafruit", nameNorm: "zebrafruit", category: "RESTAURANT", categoryId: food.id, lat: 10.69, lng: 106.7, searchText: "zebrafruit", searchAccent: "zebrafruit" },
+    });
+    try {
+      const wide = await browse("q=zebrafruit&limit=5");
+      expect(wide.totalIsEstimate).toBe(true);
+      expect(wide.total).toBeGreaterThan(1500);
+      expect(wide.items[0].id).toBe(exact.id); // the exact name comes first even though most matches weren't ranked
+
+      const narrow = await browse("q=zebrafruit%20stall%201234");
+      expect(narrow.totalIsEstimate).toBe(false);
+      expect(narrow.items[0].name).toBe("Zebrafruit Stall 1234");
+
+      // Nothing starts with "zebrafriut": close spellings are tried only then.
+      const typo = (await t.anon().get("/search?q=zebrafriut&type=places")).body as { places: PlaceView[] };
+      expect(typo.places.length).toBeGreaterThan(0);
+      expect(typo.places[0].name).toMatch(/^Zebrafruit/);
+    } finally {
+      await t.prisma.$executeRaw`DELETE FROM places WHERE name_norm LIKE 'zebrafruit%'`;
+    }
+  });
+});

@@ -156,6 +156,7 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 | `npm test` | API unit + integration tests (uses `TEST_DATABASE_URL`, rebuilt each run) |
 | `npm run test:unit` | Unit tests only (no database needed) |
 | `npm run e2e` | Playwright Definition-of-Done journey against a running stack |
+| `npm run perf -w @triply/api` | Times ~40 API calls against a running API with parameters from your own data; fails on a call over budget (300 ms, admin 800 ms) |
 | `npm run typecheck` | TypeScript, strict, all packages |
 | `npm run lint` | ESLint (typescript-eslint, React Hooks, Next.js rules) |
 | `npm run build` / `npm start` | Production build / serve |
@@ -195,6 +196,31 @@ API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](d
 
 ---
 
+## Performance at catalog scale
+
+Measured with `npm run perf` on a synthetic catalog the size of a real one (`apps/api/perf/synthetic.sql`: 1.8M places
+in 3 countries, 1.95M source records, Vietnamese names with diacritics, almost no ratings), PostgreSQL 16 with
+default settings. Median of 5 warm runs:
+
+| Call | Before | After |
+|---|---|---|
+| Explore home | 1,442 ms | 34 ms |
+| Browse a province / a country / everywhere | 1,195–2,335 ms | 22–38 ms |
+| Text search ("pho", 119k matches) | 3,499 ms | 108 ms |
+| Text search with a typo | 31,108 ms | 172 ms |
+| Itinerary place search | 2,055 ms | 132 ms |
+| Admin: provinces / places / categories | 18,793 / 7,079 / 13,667 ms | 13 / 14 / 190 ms |
+| **Within budget** | **13 / 38** | **38 / 38** |
+
+What made the difference: indexes that match each list's ORDER BY (so the first page is read in order instead of
+sorting a province), `status` as an index column because Prisma's enum casts defeat partial-index predicates, counts
+as one index-only `GROUP BY` (cached for whole areas) instead of a count per row, no Prisma `_count` on big relations
+(it aggregates the whole related table), fuzzy matching through the indexable `<%` operator and only when nothing
+matches exactly, and ranking a broad text query on a bounded set of candidates (plus every place whose name starts
+with the query) — the total then shows as "1,500+".
+
+---
+
 ## Testing
 
 - **Unit** (`src/**/*.spec.ts`): the permission matrix and `TripAccessService`, itinerary ordering logic, crypto, dates and the shared Zod schemas.
@@ -205,7 +231,7 @@ Also `npm run lint` (ESLint 9 with typescript-eslint, React Hooks and Next rules
 
 - **Pipeline** (`pipelines/tests`, pytest): normalisation (checked against the same cases as the TypeScript `normalizeSearch`), provider adapters, and end-to-end runs on synthetic Overture/OSM fixtures against a real PostGIS database: idempotent re-runs, itineraries untouched, locked fields, closures and the safety brake. The Airflow DAGs were executed with `dag.test()` on Airflow 3.1.
 
-Current status: **145/145** API tests (`admin.int.ts` covers the catalog admin API: admin-only access, job validation and lifecycle, runs started through a mocked Airflow, Airflow being down, cancel, merge / reject / undo, place edits that lock and unlock fields, category mapping, and the NOTIFY → socket hand-over; `photos.int.ts` covers trust and review, sharing from posts, reports, moderation, the importer's host allow-list and back-off; `places.int.ts` covers the taxonomy, browsing by area/radius/kind/text, paging, input validation, closed/merged/hidden places, privacy of trips shown on a place, and who may add to which trip), **122** pipeline tests (`test_resume.py` interrupts a sync mid-partition, resumes it and checks the result is identical to an uninterrupted run on a twin database) (+ DAG tests that run where Airflow is installed), lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
+Current status: **146/146** API tests (`admin.int.ts` covers the catalog admin API: admin-only access, job validation and lifecycle, runs started through a mocked Airflow, Airflow being down, cancel, merge / reject / undo, place edits that lock and unlock fields, category mapping, and the NOTIFY → socket hand-over; `photos.int.ts` covers trust and review, sharing from posts, reports, moderation, the importer's host allow-list and back-off; `places.int.ts` covers the taxonomy, browsing by area/radius/kind/text, paging, input validation, closed/merged/hidden places, privacy of trips shown on a place, and who may add to which trip), **122** pipeline tests (`test_resume.py` interrupts a sync mid-partition, resumes it and checks the result is identical to an uninterrupted run on a twin database) (+ DAG tests that run where Airflow is installed), lint clean, and **all Definition-of-Done steps + the accessibility gate** pass.
 
 ---
 
@@ -240,8 +266,9 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
 - **Show the data platform:** `pipelines/` is a small, real ETL: Overture GeoParquet read straight from S3 with DuckDB, OSM streamed with pyosmium, PostGIS, idempotent upserts by content hash, cross-source entity matching, field-level survivorship with provenance, and an Airflow DAG with one mapped task per province.
 - **Show the operator side:** the admin console turns the pipeline into a product: schedule a country, watch its run progress live, review duplicates side by side, fix a place by hand and see the field stay locked through the next import.
+- **Show the performance work:** the before/after table above, made reproducible by `perf/synthetic.sql` + `npm run perf`. It's a measured story: a 31-second typo search down to 170 ms, and why (EXPLAIN plans, Prisma's enum casts vs partial indexes, `_count` aggregating a 2M-row table).
 - **Show Explore as a product loop:** *"near me" → coffee → open a café → Add to trip → Day 2* in 15 seconds, then the same place appearing on the trip map. The category facets and PostGIS radius query sit behind it.
 - **Show the photo strategy:** no app "collects every photo". TRIPLY layers traveler uploads (with trust, review and reports), open Commons photos (licence-filtered, credited, matched through Wikidata/OSM) and, later, a paid provider shown live; one `place_photos` table, one ranking, one credit line.
-- **Point to the tests:** 145 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
+- **Point to the tests:** 146 API tests plus a Playwright script that proves the spec's Definition of Done and gates accessibility.
 - **Tell the hardening story:** an honest self-review found a rate-limit bypass, Google account pre-hijacking and two race conditions; each fix landed with a test that reproduces the problem (`apps/api/test/hardening.int.ts`). Interviewers love this.
 - **Suggested headline:** *"TRIPLY: collaborative trip planning with GitHub-style fork/remix for itineraries. Next.js 16 · NestJS · Prisma · PostgreSQL · Socket.IO."*

@@ -16,7 +16,8 @@
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit",
     "test:int": "jest --selectProjects integration --runInBand",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "perf": "node perf/bench.mjs"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.24",

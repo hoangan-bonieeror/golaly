@@ -154,6 +154,8 @@ export interface PlaceBrowse extends Paged<PlaceView> {
   /** Places per category group inside the same area + text filter (ignores the group filter), for the chips. */
   facets: { key: string; count: number }[];
   total: number;
+  /** True when a very broad text query was ranked on a sample: `total` and the facets are lower bounds ("1,500+"). */
+  totalIsEstimate?: boolean;
 }
 
 export interface PlaceDetail extends PlaceView {
