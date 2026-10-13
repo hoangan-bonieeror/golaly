@@ -43,7 +43,7 @@ function PostDetail({ post }: { post: PostView }) {
   const delComment = useAction((cid: string) => api.delete(`/comments/${cid}`), { invalidate, success: "Comment deleted" });
   const delPost = useAction(() => api.delete(`/posts/${post.id}`), { invalidate: [["feed"], ["profile"]], success: "Post deleted" });
   const requireLogin = (fn: () => void) => (me ? fn() : router.push(`/login?next=/posts/${post.id}`));
-  const current = post.photos[photo] ?? { palette: ["#6b3a1f", "#e0662d"] as [string, string], url: null, image: null };
+  const current = post.photos[photo] ?? { palette: ["#1f5e52", "#d9481c"] as [string, string], url: null, image: null };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

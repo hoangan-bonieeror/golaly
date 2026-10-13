@@ -6,9 +6,9 @@ import { cx } from "../ui";
  * the design system), each paired with a text colour that keeps ≥ 4.5:1 on its tint.
  */
 export const GROUP_META: Record<string, { icon: React.ElementType; bg: string; fg: string; pin: string }> = {
-  food: { icon: UtensilsCrossed, bg: "bg-accent-50", fg: "text-accent-700", pin: "#e0662d" },
+  food: { icon: UtensilsCrossed, bg: "bg-accent-50", fg: "text-accent-700", pin: "#d9481c" },
   drink: { icon: Coffee, bg: "bg-[#f1e4d8]", fg: "text-[#6b3a1f]", pin: "#6b3a1f" },
-  sights: { icon: Landmark, bg: "bg-primary-50", fg: "text-primary", pin: "#8a4a26" },
+  sights: { icon: Landmark, bg: "bg-primary-50", fg: "text-primary", pin: "#1f5e52" },
   culture: { icon: Sparkles, bg: "bg-[#efe6f5]", fg: "text-[#6a3d8f]", pin: "#6a3d8f" },
   nature: { icon: Mountain, bg: "bg-[#e3f0e1]", fg: "text-[#2f6b3a]", pin: "#3d8b5a" },
   activity: { icon: Flag, bg: "bg-gold-50", fg: "text-gold-700", pin: "#c28512" },
@@ -17,7 +17,7 @@ export const GROUP_META: Record<string, { icon: React.ElementType; bg: string; f
   shopping: { icon: ShoppingBag, bg: "bg-[#fbeedc]", fg: "text-[#8a4b0f]", pin: "#a4471f" },
   transport: { icon: Bus, bg: "bg-[#e3eef9]", fg: "text-[#2f6db5]", pin: "#2f6db5" },
 };
-const FALLBACK = { icon: MapPin, bg: "bg-sand-2", fg: "text-ink-2", pin: "#6b3a1f" };
+const FALLBACK = { icon: MapPin, bg: "bg-sand-2", fg: "text-ink-2", pin: "#4a423a" };
 
 export const groupOf = (categoryKey: string | null | undefined) => (categoryKey ? categoryKey.split(".")[0] : "");
 export const groupMeta = (group: string) => GROUP_META[group] ?? FALLBACK;

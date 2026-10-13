@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Be_Vietnam_Pro, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/layout/Toaster";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -9,14 +9,17 @@ export const metadata: Metadata = {
   description: "A social travel planning platform that turns real travelers' trips into reusable, collaborative travel plans.",
 };
 
-export const viewport: Viewport = { themeColor: "#f6eee2", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#f3efe6", width: "device-width", initialScale: 1 };
 
-const fraunces = Fraunces({ subsets: ["latin", "latin-ext", "vietnamese"], axes: ["SOFT", "WONK", "opsz"], display: "swap", variable: "--font-fraunces" });
-const inter = Inter({ subsets: ["latin", "latin-ext", "vietnamese"], display: "swap", variable: "--font-inter" });
+// Atlas type: Be Vietnam Pro for UI (static font, so weights are explicit), Bricolage Grotesque
+// for display (variable, optical size), JetBrains Mono for times and distances.
+const sans = Be_Vietnam_Pro({ weight: ["400", "500", "600", "700"], subsets: ["latin", "latin-ext", "vietnamese"], display: "swap", variable: "--font-be-vietnam" });
+const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext", "vietnamese"], axes: ["opsz"], display: "swap", variable: "--font-bricolage" });
+const mono = JetBrains_Mono({ subsets: ["latin", "latin-ext", "vietnamese"], display: "swap", variable: "--font-jetbrains" });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body>
         <Providers>
           {children}

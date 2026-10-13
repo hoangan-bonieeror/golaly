@@ -1,104 +1,153 @@
-# Triply Design System — "Slow Roast"
+# Triply Design System — "Atlas"
 
 > Source of truth for Triply's visual language. Page-specific deviations live in
 > `design-system/triply/pages/<page>.md` and override this file for that page only.
-> Tokens are implemented in [`apps/web/src/app/globals.css`](../../apps/web/src/app/globals.css).
+> Tokens are implemented in [`apps/web/src/app/globals.css`](../../apps/web/src/app/globals.css);
+> the day palette and travel-leg estimates live in [`apps/web/src/lib/trip-geo.ts`](../../apps/web/src/lib/trip-geo.ts).
 
 ## Mood
 
-Lazy-morning coffee, poured a little stronger. Warm, unhurried and cozy, but with confident
-contrast: espresso-dark text, a solid roast-brown primary and a caramel-ember accent that pops.
-It should feel like flipping through a travel journal in a café, not like a banking app.
+A good paper map on a café table. The **map is the hero**: Triply is where a group plans *where*
+and *in what order*, so routes, numbered stops and the distances between them carry the screen.
+Warm paper keeps the coziness of the earlier "Slow Roast" theme; deep jade and a vermilion route
+line make it feel precise and confident rather than decorative.
 
-- **Cozy:** cream canvases, warm-tinted shadows, soft serif headings, rounded shapes.
-- **Bolder:** near-black espresso ink, semibold controls, heavy (600–800) display type,
-  one saturated accent used deliberately.
+- **Map-first:** itinerary and map side by side on wide screens; one selection drives both.
+- **Legible days:** every day of a trip has its own colour, used for its chip, pins and route.
+- **Precise:** times, distances and coordinates are set in a mono face so they line up and read as data.
+- **Quiet chrome:** hairline borders instead of heavy shadows; colour is saved for the route and actions.
 
 ## Color tokens
 
-Use tokens through Tailwind (`bg-primary`, `text-ink-2`, `border-line`, …). No raw hex in components,
-except categorical data colors (itinerary item types, map day colors) and cover-art palettes.
+Use tokens through Tailwind (`bg-primary`, `text-ink-2`, `border-line`, …). Token names are kept
+from the previous theme so components follow automatically (`sand` is the paper canvas).
+No raw hex in components, except categorical data colours (day palette, item types, place
+categories) and cover-art palettes.
 
 | Token | Hex | Role |
 |---|---|---|
-| `sand` | `#f6eee2` | Page background (latte foam) |
-| `sand-2` | `#ece0cd` | Wells, hover fills, skeletons |
-| `surface` | `#fffbf5` | Cards, sheets, inputs |
-| `ink` | `#2b1a10` | Primary text, active chips, dark toasts (espresso) |
-| `ink-2` | `#4d3628` | Secondary text, labels |
-| `muted` | `#6e5646` | Hints, metadata |
-| `line` | `#e2d3bd` | Borders, dividers |
-| `primary` / `-600` / `-50` | `#6b3a1f` / `#552d17` / `#f4e7da` | Main actions, links, focus ring, selected states |
-| `accent` | `#e0662d` | Caramel ember: fills, large display type, pins, decoration |
-| `accent-600` | `#b4481a` | Filled accent buttons (white text) |
-| `accent-700` | `#963b15` | Accent-colored **text** and meaningful icons |
-| `accent-50` | `#fce8dc` | Accent tint backgrounds |
-| `gold` / `gold-50` / `gold-700` | `#d9982a` / `#fbefd6` / `#83560c` | Honey: ratings, highlights, warning banners |
-| `success` | `#a9cf9c` | Sage: success icons on dark (`ink`) surfaces only |
+| `sand` | `#f3efe6` | Paper — page background |
+| `sand-2` | `#e8e1d3` | Wells, segmented controls, hover fills, skeletons |
+| `surface` | `#fffdf8` | Cards, sheets, inputs, map overlays |
+| `ink` | `#1f1a16` | Primary text, "All days" chip, dark toasts |
+| `ink-2` | `#4a423a` | Secondary text, labels |
+| `muted` | `#675d53` | Hints, metadata, leg estimates |
+| `line` | `#ddd4c4` | Hairline borders, dividers, dashed leg lines |
+| `primary` / `-600` / `-50` | `#1f5e52` / `#16463d` / `#e1ede8` | Jade: main actions, links, focus ring, selected stop, presence |
+| `accent` | `#d9481c` | Vermilion: route lines, pins, large display only |
+| `accent-600` | `#b23a14` | Filled accent buttons ("Use this trip") |
+| `accent-700` | `#a33412` | Vermilion **text** and meaningful icons |
+| `accent-50` | `#fbe6dc` | Accent tint backgrounds |
+| `gold` / `gold-50` / `gold-700` | `#d39a2e` / `#f8ecd2` / `#7c520f` | Ratings, highlights, warning banners |
+| `success` | `#8fcab7` | Success icons on dark (`ink`) surfaces only |
 | `danger` | `#b3261e` | Errors, destructive actions |
+| `map` / `contour` / `water` | `#ece5d6` / `#ddd3c0` / `#b9d3ca` | Offline SVG map, route thumbnails |
+
+### Day palette
+
+`DAY_COLORS` in `lib/trip-geo.ts`; trips longer than seven days cycle. White numbers on every
+colour pass AA; every colour is ≥ 4.2:1 against the `map` surface (non-text needs 3:1).
+
+| Day | Hex | White text | On `map` |
+|---|---|---|---|
+| 1 | `#c23e14` | 5.3 | 4.2 |
+| 2 | `#1f5e52` | 7.6 | 6.0 |
+| 3 | `#3d4fa1` | 7.4 | 5.9 |
+| 4 | `#93601a` | 5.3 | 4.3 |
+| 5 | `#8a3b6e` | 7.2 | 5.7 |
+| 6 | `#26699a` | 5.9 | 4.7 |
+| 7 | `#5e6f26` | 5.6 | 4.4 |
 
 ### Verified contrast (WCAG 2.2)
 
 | Pair | Ratio | |
 |---|---|---|
-| ink on sand / sand-2 / surface | 14.5 / 12.8 / 16.2 | AAA |
-| ink-2 on sand / sand-2 | 9.7 / 8.6 | AAA |
-| muted on sand / sand-2 / surface / primary-50 | 5.9 / 5.2 / 6.6 / 5.6 | AA |
-| primary on sand / primary-50 | 8.1 / 7.7 | AAA |
-| white on primary / primary-600 | 9.3 / 11.8 | AAA |
-| white on accent-600 | 5.4 | AA |
-| accent-700 on sand / accent-50 | 6.2 / 6.0 | AA |
-| gold-700 on gold-50 | 5.6 | AA |
-| danger on sand / surface | 5.7 / 6.3 | AA |
-| accent / gold / success on ink | 4.9 / 6.7 / 9.6 | AA |
-| **accent on sand / surface** | **3.0 / 3.3** | Non-text & large text only |
+| ink on sand / sand-2 / surface | 15.0 / 13.3 / 17.0 | AAA |
+| ink-2 on sand / sand-2 / primary-50 | 8.6 / 7.6 / 8.2 | AAA |
+| muted on sand / sand-2 / surface / primary-50 / map | 5.6 / 4.9 / 6.3 / 5.4 / 5.1 | AA |
+| primary on sand / surface / primary-50 | 6.6 / 7.4 / 6.3 | AA |
+| white on primary / primary-600 | 7.6 / 10.6 | AAA |
+| white on accent-600 | 6.0 | AA |
+| accent-700 on sand / accent-50 | 6.0 / 5.7 | AA |
+| gold-700 on gold-50 | 5.8 | AA |
+| danger on sand / surface | 5.7 / 6.4 | AA |
+| gold / success on ink | 6.9 / 9.3 | AA |
+| **accent on sand / surface / map / ink** | **3.7 / 4.2 / 3.4 / 4.0** | Non-text & large text only |
 
-**Rule:** raw `accent` is never used for body-size text or a meaningful small icon on a light surface.
-Use `accent-700` for text and `accent-600` for filled buttons.
+**Rule:** raw `accent` is never used for body-size text or a meaningful small icon. Use
+`accent-700` for text and `accent-600` for filled buttons.
 
 ## Typography
 
 | Role | Font | Weights | Notes |
 |---|---|---|---|
-| Display (`font-display`) | **Fraunces** (variable; `SOFT 100`, `WONK 1`) | 600–800 | Headings, hero lines, section titles. Tracking −0.02em. |
-| UI / body (`font-sans`) | **Inter** | 400 body · 500 labels · 600 controls | 16px base for body copy, line-height 1.5–1.6. |
+| Display (`font-display`) | **Bricolage Grotesque** (variable, optical size) | 600–800 | Page titles, day headings. Tracking −0.025em. |
+| UI / body (`font-sans`) | **Be Vietnam Pro** (static) | 400 body · 500 labels · 600 controls · 700 | Designed by Vietnamese type designers; full Vietnamese diacritics. |
+| Data (`font-mono`) | **JetBrains Mono** (variable) | 400–600 | Times, dates, distances, durations, coordinates, counts. Tabular figures. |
 
-Both are loaded through `next/font/google` (`display: swap`, Latin + Vietnamese subsets) and
-exposed as `--font-fraunces` and `--font-inter`.
+All three load through `next/font/google` (`display: swap`, Latin + Latin-ext + Vietnamese) and are
+exposed as `--font-bricolage`, `--font-be-vietnam` and `--font-jetbrains`. Be Vietnam Pro is a static
+family, so `layout.tsx` lists its weights explicitly.
 
-Scale: 12 (caption) · 14 (UI/meta) · 16 (body) · 18 (lead) · 22 (section, `SectionTitle`) ·
-28–32 (page H1) · 40–56 (hero). Headings use 600 or heavier; don't use thin display weights.
+Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 (day / section) ·
+24–32 (page H1) · 40–56 (hero). Don't put body copy in mono; don't use display below 18px.
 
 ## Shape, depth & spacing
 
-- Radius: cards `--radius-card` (1.25rem), sheets `rounded-3xl`, inputs `rounded-xl`, buttons and chips `rounded-full`.
-- Shadows are tinted espresso (`--shadow-card`, `--shadow-pop`), never neutral grey. Two levels only.
+- Radius: 12–20px. Cards `--radius-card` (16px), itinerary stops 14px, buttons and inputs
+  `rounded-xl` (12px), day chips 10px, sheets 20px. Filter chips and badges may stay pills.
+- Depth comes from **hairline borders** (`border-line`). `--shadow-card` is barely there;
+  `--shadow-pop` is only for floating layers (menus, sheets, the selected-stop card on the map).
 - Spacing on a 4/8px rhythm; section gaps 24/32/48.
-- `.grain` paper texture is welcome on covers, adding to the café/journal feel.
+
+## Trip planner (reference screen)
+
+- **Header:** back · route thumbnail (`RouteThumb`) · title · route, mono dates and
+  "N places · N km" · visibility · presence ("Minh is editing Day 2") · avatars (jade ring = here now) · actions.
+- **Wide (≥1280px):** itinerary column + sticky map; one `DayBar` and one selection drive both.
+- **Narrower:** a List / Map segmented control and the `DayBar` stick under the top bar.
+- **Stops:** numbered circle in the day colour (mono), title, meta; the selected stop is
+  `primary-50` with a jade border, and the map shows a card for it.
+- **Legs:** between consecutive places, a dashed line with "Walk ≈ 8 min · 650 m" in mono.
+  Estimates come from coordinates (great-circle × 1.3, typical city speeds); always shown with ≈.
+- **Phones:** a bottom action bar ("Add a place", "Share") above the tab bar — never a floating
+  button over the content.
 
 ## Components (current conventions)
 
-- **Button:** `font-semibold`, pill. One `primary` per screen; `accent` for the single highest-emotion CTA
-  (e.g. "Start a trip"), `secondary` for the rest. Disabled = 50% opacity + `disabled`.
-- **Chip:** `font-semibold`; active = `bg-ink text-white` (bold espresso pill).
-- **Badge tones:** `neutral`, `primary`, `accent` (uses accent-700 text), `gold`.
-- **Focus:** 2px `primary` outline, 2px offset (7–8:1 against canvases).
+- **Button:** `font-semibold`, `rounded-xl`, no shadow. One `primary` per screen; `accent` only for
+  the single highest-emotion CTA ("Use this trip"); `secondary` for the rest. Icon-only on phones
+  keeps its text as `sr-only` so the accessible name doesn't change.
+- **Chip:** active = `bg-ink text-white`. **Day chip:** active fills with the day colour.
+- **Badge tones:** `neutral`, `primary`, `accent` (accent-700 text), `gold`.
+- **Map pins:** round, numbered (mono), day colour with a `surface` ring; selected = jade halo.
+- **Focus:** 2px `primary` outline, 2px offset.
 - **Touch:** controls ≥ 44px hit area (`hit` helper in `components/ui`).
 - **Icons:** lucide-react, one stroke style; icon-only buttons need `label`.
 
 ## Motion
 
-Calm, not sleepy: 150–250ms color/opacity transitions, `rise` (350ms) for sheets and page entrances,
-ease-out on enter. Every animation is disabled under `prefers-reduced-motion`.
+150–250ms colour/opacity transitions, `rise` (350ms) for sheets and menus, map pans 500ms.
+Every animation is disabled under `prefers-reduced-motion`.
 
 ## Avoid
 
-- Cool greys, teal or blue as brand colors (the old lagoon palette is retired).
-- Raw `accent` text on light backgrounds; grey-on-cream low-contrast text.
-- Faux-bold or thin display type; more than one accent-colored element competing per view.
-- Emoji as icons; neutral-grey shadows; hardcoded hex in components.
+- Glassmorphism, gradients as brand colour, neon accents (generic "travel app" looks).
+- Raw `accent` text on light backgrounds; grey-on-paper low-contrast text.
+- Heavy drop shadows on cards; more than one vermilion element competing outside the map.
+- Decorative mono (mono is for data only); emoji as icons; hardcoded hex in components.
+- Pins or routes that don't use the day colour of their day.
 
-## Not yet covered
+## Atlas Night (planned)
 
-- **Dark mode:** not implemented. When added, use a roasted-dark canvas (e.g. `#1d130d`) with
-  desaturated cream text, and re-verify every pair above rather than inverting.
+Dark mode is designed but not implemented yet. Re-verify every pair when it ships; don't invert.
+
+| Token | Hex | Check |
+|---|---|---|
+| bg / surface / well | `#15130f` / `#1e1b16` / `#2a251f` | |
+| ink | `#e9e2d4` | 14.4 on bg, 13.3 on surface |
+| muted | `#a89e8f` | 7.0 on bg, 5.8 on well |
+| line | `#3a342c` | |
+| primary | `#7cc4b0` (text on it `#15130f`) | 9.2 |
+| vermilion (route) | `#ff8a5c` | 8.0 on bg |
+| map / contour / water | `#1b1915` / `#2e2922` / `#24413a` | |

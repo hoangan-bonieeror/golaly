@@ -45,7 +45,7 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
   const { like, save } = usePostActions(post);
   const trip = post.trip;
   const requireLogin = (fn: () => void) => (me ? fn() : router.push("/login"));
-  const photo = post.photos[0] ?? { palette: ["#6b3a1f", "#e0662d"] as [string, string], url: null, image: null };
+  const photo = post.photos[0] ?? { palette: ["#1f5e52", "#d9481c"] as [string, string], url: null, image: null };
 
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">

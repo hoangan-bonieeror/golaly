@@ -11,8 +11,8 @@ export { cx, formatCount, formatDateRange, timeAgo } from "@/lib/utils";
 // ── Button ───────────────────────────────────────────────────────────────
 type Variant = "primary" | "secondary" | "ghost" | "accent" | "danger";
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-600 shadow-sm",
-  accent: "bg-accent-600 text-white hover:bg-accent-700 shadow-sm",
+  primary: "bg-primary text-white hover:bg-primary-600",
+  accent: "bg-accent-600 text-white hover:bg-accent-700",
   secondary: "bg-surface text-ink border border-line hover:bg-sand-2",
   ghost: "text-ink-2 hover:bg-sand-2",
   danger: "bg-surface text-danger border border-line hover:bg-accent-50",
@@ -32,7 +32,7 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 
 export function Button({ variant = "primary", size = "md", className, href, children, ...rest }: BtnProps) {
   const cls = cx(
-    "inline-flex items-center justify-center rounded-full font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
+    "inline-flex items-center justify-center rounded-xl font-semibold transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap",
     variants[variant],
     sizes[size],
     className,
@@ -55,7 +55,7 @@ export function IconButton({ label, className, children, ...rest }: React.Button
     <button
       aria-label={label}
       title={label}
-      className={cx("inline-flex size-10 items-center justify-center rounded-full text-ink-2 hover:bg-sand-2 transition-colors", hit, className)}
+      className={cx("inline-flex size-10 items-center justify-center rounded-xl text-ink-2 hover:bg-sand-2 transition-colors", hit, className)}
       {...rest}
     >
       {children}
@@ -174,7 +174,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
         aria-modal="true"
         aria-labelledby={titleId}
         className={cx(
-          "animate-rise relative max-h-[92dvh] w-full overflow-y-auto rounded-t-3xl bg-surface p-5 pb-8 shadow-pop md:rounded-3xl md:p-6",
+          "animate-rise relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[20px] bg-surface p-5 pb-8 shadow-pop md:rounded-[20px] md:p-6",
           wide ? "md:max-w-2xl" : "md:max-w-md",
         )}
       >

@@ -1,47 +1,53 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
-   TRIPLY design tokens — "Slow Roast"
-   Lazy-morning coffee, poured a little stronger: latte-foam canvas,
-   espresso ink, roast-brown primary and a caramel-ember accent.
-   Full spec + contrast table: design-system/triply/MASTER.md
+   TRIPLY design tokens — "Atlas"
+   The map is the hero: warm paper canvas, ink text, a deep jade primary and a
+   vermilion route accent. Day colours keep a multi-day trip legible at a glance.
+   Token names are kept from the previous theme (sand = paper) so components follow.
+   Full spec + verified contrast table: design-system/triply/MASTER.md
    ───────────────────────────────────────────────────────────── */
 @theme {
-  /* Canvas & text (all text pairs ≥ 5:1 on sand, sand-2 and surface) */
-  --color-sand: #f6eee2; /* latte foam — page background */
-  --color-sand-2: #ece0cd; /* steamed milk — wells, hovers, skeletons */
-  --color-surface: #fffbf5; /* cup white — cards, sheets, inputs */
-  --color-ink: #2b1a10; /* espresso — 14.5:1 on sand */
-  --color-ink-2: #4d3628; /* mocha — 9.7:1 */
-  --color-muted: #6e5646; /* cold brew — 5.2:1 on sand-2 (AA small text) */
-  --color-line: #e2d3bd;
+  /* Canvas & text */
+  --color-sand: #f3efe6; /* paper — page background */
+  --color-sand-2: #e8e1d3; /* paper-2 — wells, hovers, segmented controls, skeletons */
+  --color-surface: #fffdf8; /* cards, sheets, inputs */
+  --color-ink: #1f1a16; /* 15.0:1 on paper */
+  --color-ink-2: #4a423a; /* 8.6:1 */
+  --color-muted: #675d53; /* 5.6:1 on paper, 4.9:1 on paper-2 */
+  --color-line: #ddd4c4; /* hairlines — Atlas uses borders, not heavy shadows */
 
-  /* Primary: roast brown. White text 9.3:1. */
-  --color-primary: #6b3a1f;
-  --color-primary-600: #552d17;
-  --color-primary-50: #f4e7da;
+  /* Primary: jade. White text 7.6:1; jade text on paper 6.6:1. */
+  --color-primary: #1f5e52;
+  --color-primary-600: #16463d;
+  --color-primary-50: #e1ede8;
 
-  /* Accent: caramel ember — the "bolder" pop.
-     #e0662d is ~3:1 on light → fills, large display type and decoration only.
-     Text/meaningful icons use accent-700; filled buttons use accent-600 (white 5.4:1). */
-  --color-accent: #e0662d;
-  --color-accent-50: #fce8dc;
-  --color-accent-600: #b4481a;
-  --color-accent-700: #963b15;
+  /* Accent: vermilion — the route line, pins and large display only (3.7:1).
+     Text and meaningful icons use accent-700; filled buttons use accent-600. */
+  --color-accent: #d9481c;
+  --color-accent-50: #fbe6dc;
+  --color-accent-600: #b23a14; /* white 6.0:1 */
+  --color-accent-700: #a33412; /* 6.0:1 on paper */
 
-  --color-gold: #d9982a; /* honey — stars, highlights (6.7:1 on ink) */
-  --color-gold-50: #fbefd6;
-  --color-gold-700: #83560c; /* text on gold-50: 5.6:1 */
-  --color-success: #a9cf9c; /* sage — icons on dark (ink) surfaces only */
+  --color-gold: #d39a2e; /* stars, highlights */
+  --color-gold-50: #f8ecd2;
+  --color-gold-700: #7c520f; /* text on gold-50: 5.8:1 */
+  --color-success: #8fcab7; /* icons on dark (ink) surfaces only */
   --color-danger: #b3261e;
 
-  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  /* Map surface (SVG fallback map + empty states) */
+  --color-map: #ece5d6;
+  --color-contour: #ddd3c0;
+  --color-water: #b9d3ca;
 
-  --radius-card: 1.25rem;
-  /* Shadows are tinted espresso, not grey, so cards sit warm on the canvas. */
-  --shadow-card: 0 1px 2px rgb(43 26 16 / 0.06), 0 10px 28px -14px rgb(43 26 16 / 0.28);
-  --shadow-pop: 0 16px 44px -14px rgb(43 26 16 / 0.42);
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --radius-card: 1rem;
+  /* Hairline + a soft ink shadow: depth comes from borders, shadows only for floating layers. */
+  --shadow-card: 0 1px 0 rgb(31 26 22 / 0.04), 0 1px 2px rgb(31 26 22 / 0.06);
+  --shadow-pop: 0 12px 32px -12px rgb(31 26 22 / 0.28), 0 0 0 1px rgb(31 26 22 / 0.06);
 }
 
 html,
@@ -54,9 +60,15 @@ body {
 
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
-  /* Fraunces' soft, slightly "wonky" cuts — the cozy part of the bold. */
-  font-variation-settings: "SOFT" 100, "WONK" 1;
+  letter-spacing: -0.025em;
+  font-optical-sizing: auto;
+}
+
+/* Times, distances, coordinates: tabular mono so columns line up. */
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Paper grain on covers — subtle, original texture */
@@ -118,7 +130,7 @@ body {
   }
 }
 
-/* Map pins (MapLibre markers) */
+/* Map pins (MapLibre markers) — round, numbered, filled with the day colour. */
 .triply-pin {
   --pin: var(--color-primary);
   display: flex;
@@ -126,21 +138,22 @@ body {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
+  border-radius: 999px;
   background: var(--pin);
-  border: 2px solid #fff;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgb(31 26 22 / 0.35);
   color: #fff;
-  font: 700 11px/1 var(--font-sans);
+  font: 600 12px/1 var(--font-mono);
   cursor: pointer;
   transition: transform 0.15s ease;
 }
-.triply-pin > * {
-  transform: rotate(45deg);
-}
 .triply-pin.is-selected {
-  transform: rotate(-45deg) scale(1.25);
+  transform: scale(1.2);
   z-index: 2;
-  outline: 3px solid color-mix(in srgb, var(--pin) 35%, transparent);
+  box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-primary);
+}
+@media (prefers-reduced-motion: reduce) {
+  .triply-pin {
+    transition: none;
+  }
 }
