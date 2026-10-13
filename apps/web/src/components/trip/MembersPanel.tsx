@@ -1,14 +1,14 @@
 "use client";
 
-import type { TripDetail, TripRole } from "@triply/shared";
-import { Clock, Link2, LogOut, Mail, UserMinus, UserPlus } from "lucide-react";
+import { localizeMessage, memberDatesSchema, type MemberView, type TripDetail, type TripRole } from "@triply/shared";
+import { CalendarRange, Clock, Link2, LogOut, Mail, UserMinus, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
-import { useFormat, useT } from "@/i18n/client";
-import { Avatar, Badge, Button, Sheet } from "../ui";
+import { useFormat, useI18n, useT } from "@/i18n/client";
+import { Avatar, Badge, Button, Field, Sheet, inputCls } from "../ui";
 import { InviteSheet } from "./InviteSheet";
 
 export function MembersPanel({ trip }: { trip: TripDetail }) {
@@ -52,6 +52,7 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
                 {m.user.displayName} {m.user.id === me?.id && <span className="font-normal text-muted">{tm.you}</span>}
               </div>
               <div className="truncate text-xs text-muted">@{m.user.username}</div>
+              {trip.myRole && <MemberDates trip={trip} member={m} canEdit={m.user.id === me?.id || trip.myRole === "OWNER"} />}
             </div>
             {isOwner && m.role !== "OWNER" ? (
               <>
@@ -141,5 +142,76 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
         </div>
       </Sheet>
     </div>
+  );
+}
+
+/**
+ * The part of the trip a member is there for. Shown to members; editable by the member themselves
+ * and by the owner. Empty = from the start / to the end of the trip.
+ */
+function MemberDates({ trip, member, canEdit }: { trip: TripDetail; member: MemberView; canEdit: boolean }) {
+  const { m: t, locale } = useI18n();
+  const f = useFormat();
+  const td = t.trips.plan.dates;
+  const [editing, setEditing] = useState(false);
+  const [arrive, setArrive] = useState(member.arriveOn ?? "");
+  const [leave, setLeave] = useState(member.leaveOn ?? "");
+  const [error, setError] = useState<string>();
+  const save = useAction((body: { arriveOn: string | null; leaveOn: string | null }) => api.patch(`/trips/${trip.id}/members/${member.user.id}/dates`, body), {
+    invalidate: [keys.trip(trip.id)],
+    success: td.saved,
+  });
+  const day = (iso: string) => f.day(iso, { day: "numeric", month: "short" });
+  const label =
+    member.arriveOn && member.leaveOn ? td.range(day(member.arriveOn), day(member.leaveOn)) : member.arriveOn ? td.from(day(member.arriveOn)) : member.leaveOn ? td.until(day(member.leaveOn)) : td.whole;
+
+  if (!editing)
+    return (
+      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-2">
+        <CalendarRange className="size-3.5 text-muted" aria-hidden />
+        <span>{label}</span>
+        {canEdit && (
+          <button type="button" onClick={() => setEditing(true)} aria-label={td.editFor(member.user.displayName)} className="font-semibold text-primary hover:underline">
+            {td.edit}
+          </button>
+        )}
+      </div>
+    );
+  return (
+    <form
+      className="mt-2 space-y-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const body = { arriveOn: arrive || null, leaveOn: leave || null };
+        const parsed = memberDatesSchema.safeParse(body);
+        if (!parsed.success) return setError(localizeMessage(parsed.error.issues[0]?.message ?? "", locale));
+        setError(undefined);
+        if (await save.run(body)) setEditing(false);
+      }}
+      aria-label={td.editFor(member.user.displayName)}
+    >
+      <div className="grid grid-cols-2 gap-2">
+        <Field label={td.arrive}>
+          <input type="date" className={inputCls} value={arrive} min={trip.startDate ?? undefined} max={trip.endDate ?? undefined} onChange={(e) => setArrive(e.target.value)} />
+        </Field>
+        <Field label={td.leave}>
+          <input type="date" className={inputCls} value={leave} min={arrive || trip.startDate || undefined} max={trip.endDate ?? undefined} onChange={(e) => setLeave(e.target.value)} />
+        </Field>
+      </div>
+      <p className="text-xs text-muted">{td.hint}</p>
+      {error && (
+        <p className="text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={save.isPending}>
+          {td.save}
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(false)}>
+          {td.cancel}
+        </Button>
+      </div>
+    </form>
   );
 }

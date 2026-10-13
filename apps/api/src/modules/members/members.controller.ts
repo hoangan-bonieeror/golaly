@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
-import { changeRoleSchema, createInvitationSchema, type CreateInvitationInput } from "@triply/shared";
+import { changeRoleSchema, createInvitationSchema, memberDatesSchema, type CreateInvitationInput, type MemberDatesInput } from "@triply/shared";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { Errors, ZodPipe } from "../../common/http";
 import { TripsModule } from "../trips/trips.controller";
@@ -40,6 +40,16 @@ export class MembersController {
     @Body(new ZodPipe(changeRoleSchema)) body: { role: "EDITOR" | "VIEWER" },
   ) {
     return this.svc.changeRole(id, userId, requireUser(me), body.role);
+  }
+
+  @Patch("trips/:id/members/:userId/dates")
+  setDates(
+    @Param("id", Uuid) id: string,
+    @Param("userId", Uuid) userId: string,
+    @ViewerId() me: string | null,
+    @Body(new ZodPipe(memberDatesSchema)) body: MemberDatesInput,
+  ) {
+    return this.svc.setDates(id, userId, requireUser(me), body);
   }
 
   @Delete("trips/:id/members/:userId")

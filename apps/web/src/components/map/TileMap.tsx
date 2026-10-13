@@ -40,7 +40,7 @@ type RouteFeature = { type: "Feature"; properties: { color: string }; geometry: 
 
 function routeFeatures(stops: MapStop[], colors: string[]): RouteFeature[] {
   const byDay = new Map<number, MapStop[]>();
-  stops.forEach((s) => byDay.set(s.dayNumber, [...(byDay.get(s.dayNumber) ?? []), s]));
+  stops.forEach((s) => !s.pooled && byDay.set(s.dayNumber, [...(byDay.get(s.dayNumber) ?? []), s]));
   return [...byDay.entries()]
     .filter(([, list]) => list.length > 1)
     .map(([day, list]) => ({
@@ -55,8 +55,10 @@ function routeFeatures(stops: MapStop[], colors: string[]): RouteFeature[] {
  * stop to its last while the numbered pins pop in as the line reaches them, a vehicle riding the tip
  * (walker, train or plane by the length of each leg). Returns a cancel function.
  */
-function revealRoute(m: MapLibreMap, markers: Markers, stops: MapStop[], colors: string[], lib: typeof import("maplibre-gl") | null): () => void {
+function revealRoute(m: MapLibreMap, markers: Markers, all: MapStop[], colors: string[], lib: typeof import("maplibre-gl") | null): () => void {
   const source = m.getSource("route") as GeoJSONSource | undefined;
+  // Ideas from the pool aren't on a route: they simply stay where they are.
+  const stops = all.filter((s) => !s.pooled);
   const features = routeFeatures(stops, colors);
   if (!source || prefersReducedMotion() || !stops.length) return () => undefined;
   const paths = features.map((f) => measurePolyline(f.geometry.coordinates));
@@ -147,7 +149,7 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
     }
   });
   for (const s of stops) {
-    const color = colors[(s.dayNumber - 1) % colors.length];
+    const color = s.pooled ? "var(--color-surface)" : colors[(s.dayNumber - 1) % colors.length];
     let entry = markers.get(s.item.id);
     if (!entry) {
       const node = document.createElement("button");
@@ -169,15 +171,18 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
       markers.set(s.item.id, entry);
     }
     entry.marker.setLngLat([s.place.lng, s.place.lat]);
-    entry.node.firstElementChild!.textContent = String(s.order);
+    entry.node.firstElementChild!.textContent = s.pooled ? "" : String(s.order);
+    entry.node.classList.toggle("is-idea", !!s.pooled);
     entry.node.style.setProperty("--pin", color);
-    entry.node.setAttribute("aria-label", latest.t.trips.map.numberedPin(s.order, s.place.name, s.dayNumber));
+    entry.node.setAttribute("aria-label", s.pooled ? latest.t.trips.plan.pool.pinLabel(s.place.name) : latest.t.trips.map.numberedPin(s.order, s.place.name, s.dayNumber));
     entry.node.title = s.place.name;
   }
   (m.getSource("route") as GeoJSONSource | undefined)?.setData({ type: "FeatureCollection", features: routeFeatures(stops, colors) });
-  if (fit && stops.length) {
+  // Frame the planned stops; ideas only when nothing is planned (they may lie far outside the day).
+  const framed = stops.some((s) => !s.pooled) ? stops.filter((s) => !s.pooled) : stops;
+  if (fit && framed.length) {
     const b = new maplibregl.LngLatBounds();
-    stops.forEach((s) => b.extend([s.place.lng, s.place.lat]));
+    framed.forEach((s) => b.extend([s.place.lng, s.place.lat]));
     m.fitBounds(b, { padding: 64, maxZoom: 14, duration: prefersReducedMotion() ? 0 : 900, essential: false });
   }
 }

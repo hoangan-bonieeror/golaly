@@ -203,6 +203,45 @@ fs.mkdirSync(shots, { recursive: true });
     await A.getByText("Omoide Yokochō").first().waitFor();
   });
 
+  await step("17b. the group pools an idea, votes on it, and plans it into a day around who's there", async () => {
+    await A.goto(tripUrl);
+    await A.getByRole("button", { name: "Add an idea" }).click();
+    const sheet = A.getByRole("dialog");
+    await sheet.getByLabel("Search places").fill("Meiji");
+    await sheet.getByRole("button", { name: /Meiji Jingu/ }).first().click();
+    await sheet.getByRole("button", { name: "Add to itinerary" }).click();
+    await sheet.waitFor({ state: "detached" });
+    const idea = A.locator("#pool-body li", { hasText: "Meiji Jingu" });
+    await idea.waitFor();
+
+    // Minh (an editor) votes; the owner sees it live.
+    await B.goto(tripUrl);
+    await B.locator("#pool-body li", { hasText: "Meiji Jingu" }).getByRole("button", { name: /^Really want/ }).click();
+    await idea.getByRole("button", { name: "Really want: 1 (Minh)" }).waitFor({ timeout: 10000 });
+
+    // Minh leaves after Day 1.
+    await A.goto(`${tripUrl}?tab=members`);
+    await A.getByRole("button", { name: "Dates for Minh" }).click();
+    const dates = A.getByRole("form", { name: "Dates for Minh" });
+    await dates.getByLabel("Leaves").fill("2027-04-01");
+    await dates.getByRole("button", { name: "Save dates" }).click();
+    await A.getByText("Until Apr 1").waitFor();
+    await A.keyboard.press("Escape");
+
+    // Plan the idea into Day 2 afternoon: the sheet warns that Minh won't be there.
+    await A.goto(tripUrl);
+    await A.locator("#pool-body li", { hasText: "Meiji Jingu" }).getByRole("button", { name: "Item actions" }).click();
+    await A.getByRole("menuitem", { name: "Plan into a day…" }).click();
+    const plan = A.getByRole("dialog");
+    await plan.locator("label", { hasText: /^Day 2\b/ }).click();
+    await plan.getByRole("radio", { name: "Afternoon" }).click();
+    await plan.getByText("Minh won't be here that day — and really wants Meiji Jingu.").waitFor();
+    await plan.getByRole("button", { name: "Plan it" }).click();
+    await A.getByRole("group", { name: "Day 2 · Afternoon" }).getByText("Meiji Jingu").waitFor();
+    await A.getByText("Minh really wants this but won't be here that day").waitFor();
+    if (await A.locator("#pool-body li", { hasText: "Meiji Jingu" }).count()) throw new Error("planned idea is still in the pool");
+  });
+
   // A 96×64 PNG: the smallest image the media pipeline accepts is 64×64.
   const PNG = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAwElEQVR4nO3ZwQnDQADEQNejRtL6lZV/IP6EsH4MXAVCK5/t67xyzncIFzrnVhGAAqhfVsKgAIpB/e9RY2IBFIMysVYXWg0KoBiUiaVBPfO7gkgHUAzKxNKg5j0W6QCKQZlY8+64KAZQDMrEmgfIy2oAxaBMLA1qHmORDqAYlIk1j46LYgDFoEyshxx/VgMoBmViaVDzHot0AMWgTKx5d1wUAygGZWLNA+RlNYBiUCaWBjWPsUgHUAzKxJpH5+O8ATloWbTqlBPYAAAAAElFTkSuQmCC",

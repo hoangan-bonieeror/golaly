@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import type { ItemView, TripSummary } from "@triply/shared";
+import { presentOn, type ItemSlot, type ItemView, type TripSummary } from "@triply/shared";
 import { ArrowLeft, Bookmark, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -65,7 +65,7 @@ function TripPlanner() {
   const preview = qcPreview.getQueryData<TripSummary>(["trip-preview", id]);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [forkOpen, setForkOpen] = useState(false);
-  const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; item?: ItemView | null }>({ open: false });
+  const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; slot?: ItemSlot; pool?: boolean; item?: ItemView | null }>({ open: false });
   const [day, setDay] = useState<DayFilter | null>(null);
 
   // URL state: `?view=map` (narrow screens) and `?tab=members` (the travelers panel). Older `?tab=map` links still open the map.
@@ -123,14 +123,17 @@ function TripPlanner() {
 
   const select = (it: ItemView) => {
     setSelected((cur) => (cur?.id === it.id ? null : it));
-    const d = trip.days.find((x) => x.id === it.dayId);
+    // Ideas have no day: they show on the map whatever day is shown.
+    const d = it.dayId ? trip.days.find((x) => x.id === it.dayId) : null;
     if (d && dayFilter !== "all" && dayFilter !== d.dayNumber) setDay(d.dayNumber);
   };
   const changeDay = (d: DayFilter) => {
     setDay(d);
-    if (selected && d !== "all" && trip.days.find((x) => x.id === selected.dayId)?.dayNumber !== d) setSelected(null);
+    if (selected?.dayId && d !== "all" && trip.days.find((x) => x.id === selected.dayId)?.dayNumber !== d) setSelected(null);
   };
-  const addDayId = () => (dayFilter !== "all" ? trip.days.find((d) => d.dayNumber === dayFilter)?.id : selected?.dayId) ?? trip.days[0]?.id;
+  const addDayId = () => (dayFilter !== "all" ? trip.days.find((d) => d.dayNumber === dayFilter)?.id : (selected?.dayId ?? undefined)) ?? trip.days[0]?.id;
+  // Who is there on each day (members' own dates).
+  const dayPresence = (d: (typeof trip.days)[number]) => ({ present: trip.members.filter((m) => presentOn(m, d.date)).length, total: trip.members.length });
   const cityOf = (d: (typeof trip.days)[number]) => {
     const names = new Set(d.items.map((i) => i.place?.destinationName).filter(Boolean));
     return names.size === 1 ? [...names][0]! : null;
@@ -294,7 +297,7 @@ function TripPlanner() {
                 </button>
               ))}
             </div>
-            <DayBar days={trip.days} value={dayFilter} onChange={changeDay} cityOf={trip.destinations.length > 1 ? cityOf : undefined} />
+            <DayBar days={trip.days} value={dayFilter} onChange={changeDay} cityOf={trip.destinations.length > 1 ? cityOf : undefined} presence={trip.myRole ? dayPresence : undefined} />
           </div>
 
           {(wide || view === "list") && (
@@ -341,7 +344,8 @@ function TripPlanner() {
                 hoveredId={hovered}
                 onHover={setHovered}
                 onSelect={select}
-                onAdd={(dayId) => setSheet({ open: true, dayId })}
+                onAdd={(dayId, slot) => setSheet({ open: true, dayId, slot })}
+                onAddIdea={() => setSheet({ open: true, pool: true })}
                 onEdit={(item) => setSheet({ open: true, item })}
               />
             </div>
@@ -375,7 +379,7 @@ function TripPlanner() {
       <Sheet open={membersOpen} onClose={() => go(view)} title={p.travelers} wide>
         <MembersPanel trip={trip} />
       </Sheet>
-      {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} item={sheet.item} />}
+      {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} defaultSlot={sheet.slot} pool={sheet.pool} item={sheet.item} />}
       {may("members.invite") && <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={trip.id} />}
       {may("trip.fork") && <ForkSheet open={forkOpen} onClose={() => setForkOpen(false)} trip={trip} />}
     </div>

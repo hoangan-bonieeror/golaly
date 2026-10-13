@@ -5,3 +5,4 @@ export * from "./schemas";
 export * from "./api-types";
 export * from "./admin";
 export * from "./i18n";
+export * from "./plan";

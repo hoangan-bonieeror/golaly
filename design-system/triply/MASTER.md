@@ -127,6 +127,18 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   Estimates come from coordinates (great-circle × 1.3, typical city speeds); always shown with ≈.
 - **Phones:** a bottom action bar ("Add a place", "Share") above the tab bar — never a floating
   button over the content.
+- **Flexible plans:** no clock times unless something really happens at one. Each day is split
+  into parts — morning (Sunrise), afternoon (Sun), evening (Moon), any time (Shuffle) — with a
+  quiet mono uppercase label and a hairline; editors see every part (each with its own "+") so
+  there's always somewhere to drop, viewers only the parts with plans. Anchors keep their time
+  in the left column and the ticket style.
+- **Ideas pool:** the first thing in the itinerary column — a dashed `sand` panel with a gold
+  lightbulb, the group's top 3 ideas (the rest on request), "close together" area chips, and
+  vote buttons: *really want* (accent-600, filled heart), *fine* (primary), *skip* (ink-2);
+  counts in mono, voters as a small avatar stack. On the map an idea is a hollow dashed pin with a
+  gold dot, under the planned stops and never on a route.
+- **Who's there:** the day chip shows "3/4" with a people icon when someone is away; the day
+  header says "Not here: Nam"; a gold note on a stop says when someone who loves it isn't there.
 
 ## Components (current conventions)
 
@@ -135,7 +147,8 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   keeps its text as `sr-only` so the accessible name doesn't change.
 - **Chip:** active = `bg-ink text-white`. **Day chip:** active fills with the day colour.
 - **Badge tones:** `neutral`, `primary`, `accent` (accent-700 text), `gold`.
-- **Map pins:** round, numbered (mono), day colour with a `surface` ring; selected = jade halo.
+- **Map pins:** round, numbered (mono), day colour with a `surface` ring; selected = jade halo. Ideas: hollow,
+  dashed `ink-2` ring, gold dot, no number.
 - **Focus:** 2px `primary` outline, 2px offset.
 - **Touch:** controls ≥ 44px hit area (`hit` helper in `components/ui`).
 - **Icons:** lucide-react, one stroke style; icon-only buttons need `label`.

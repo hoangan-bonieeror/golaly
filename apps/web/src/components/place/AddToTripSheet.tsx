@@ -1,7 +1,7 @@
 "use client";
 
-import type { ItemView, PlaceView, TripSummary, TripTarget } from "@triply/shared";
-import { ArrowLeft, Check, CheckCircle2, Luggage, MapPin, Plus } from "lucide-react";
+import { ITEM_SLOTS, type ItemSlot, type ItemView, type PlaceView, type TripSummary, type TripTarget } from "@triply/shared";
+import { ArrowLeft, Check, CheckCircle2, Lightbulb, Luggage, MapPin, Plus } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useFormat, useT } from "@/i18n/client";
@@ -72,11 +72,11 @@ function AddToTripSheet({ place, onClose }: { place: Place; onClose: () => void 
       <div className="space-y-5 py-2 text-center">
         <CheckCircle2 className="mx-auto size-12 text-primary" aria-hidden />
         <p className="text-base" role="status">
-          {a.added.before}
+          {done.dayNumber === 0 ? a.addedToPool.before : a.added.before}
           <strong>{place.name}</strong>
-          {a.added.middle(done.dayNumber)}
+          {done.dayNumber === 0 ? a.addedToPool.middle : a.added.middle(done.dayNumber)}
           <strong>{done.trip.title}</strong>
-          {a.added.after}
+          {done.dayNumber === 0 ? a.addedToPool.after : a.added.after}
         </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button href={`/trips/${done.trip.id}`}>{a.viewTrip}</Button>
@@ -150,16 +150,23 @@ function TripList({ targets, onPick, onNew }: { targets: TripTarget[]; onPick: (
   );
 }
 
+const POOL = "pool";
+
+/** Day (and part of the day), or the trip's ideas pool — where the group votes before it's planned. */
 function DayPicker({ place, trip, onBack, onDone }: { place: Place; trip: TripTarget; onBack: () => void; onDone: (dayNumber: number) => void }) {
   const [dayId, setDayId] = useState<string | null>(trip.days.length === 1 ? trip.days[0].id : null);
+  const [slot, setSlot] = useState<ItemSlot>("ANY");
   const [time, setTime] = useState("");
   const t = useT();
   const f = useFormat();
   const a = t.explore.addToTrip;
   const day = trip.days.find((d) => d.id === dayId) ?? null;
+  const toPool = dayId === POOL;
   const add = useAction(
     (d: { dayId: string }) =>
-      api.post<ItemView>(`/days/${d.dayId}/items`, { type: place.category, title: place.name, placeId: place.id, startTime: time || null }),
+      d.dayId === POOL
+        ? api.post<ItemView>(`/trips/${trip.id}/pool`, { type: place.category, title: place.name, placeId: place.id })
+        : api.post<ItemView>(`/days/${d.dayId}/items`, { type: place.category, title: place.name, placeId: place.id, startTime: time || null, slot }),
     { invalidate: [keys.trip(trip.id), keys.tripTargets(place.id), ["trips"]] },
   );
   const dateLabel = (iso: string | null) => (iso ? f.day(iso, { weekday: "short", month: "short", day: "numeric" }) : null);
@@ -175,6 +182,19 @@ function DayPicker({ place, trip, onBack, onDone }: { place: Place; trip: TripTa
         <fieldset>
           <legend className="mb-2 text-sm font-semibold text-ink-2">{a.whichDay}</legend>
           <div className="grid max-h-[40vh] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            <label
+              className={cx(
+                "flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed p-3 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary sm:col-span-2",
+                toPool ? "border-ink bg-ink text-on-ink" : "border-line-strong bg-surface hover:border-ink-2",
+              )}
+            >
+              <input type="radio" name="day" value={POOL} checked={toPool} onChange={() => setDayId(POOL)} className="sr-only" />
+              <Lightbulb className={cx("size-5 shrink-0", toPool ? "text-on-ink" : "text-gold-700")} aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{a.toPool}</span>
+                <span className={cx("block text-xs", toPool ? "text-on-ink/80" : "text-muted")}>{a.toPoolHint}</span>
+              </span>
+            </label>
             {trip.days.map((d) => (
               <label
                 key={d.id}
@@ -203,18 +223,42 @@ function DayPicker({ place, trip, onBack, onDone }: { place: Place; trip: TripTa
           </div>
         </fieldset>
       )}
-      <Field label={a.time} hint={a.timeHint}>
-        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={cx(inputCls, "max-w-40")} />
-      </Field>
+      {!toPool && (
+        <>
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold text-ink-2">{t.trips.item.slot}</legend>
+            <div role="radiogroup" className="grid grid-cols-2 gap-1 rounded-xl bg-sand-2 p-1 sm:grid-cols-4">
+              {ITEM_SLOTS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="radio"
+                  aria-checked={slot === s}
+                  disabled={!!time}
+                  onClick={() => setSlot(s)}
+                  className={cx("h-9 rounded-[9px] text-[13px] font-semibold disabled:opacity-50", slot === s && !time ? "bg-surface text-ink shadow-card" : "text-ink-2 enabled:hover:text-ink")}
+                >
+                  {t.trips.plan.slots[s]}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <Field label={a.time} hint={a.timeHint}>
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={cx(inputCls, "max-w-40")} />
+          </Field>
+        </>
+      )}
       {day?.hasPlace && <p className="rounded-xl bg-gold-50 px-3 py-2 text-sm text-gold-700">{a.alreadyOnDay(day.dayNumber)}</p>}
       <Button
         className="w-full"
-        disabled={!day || add.isPending}
+        disabled={(!day && !toPool) || add.isPending}
         onClick={async () => {
-          if (day && (await add.run({ dayId: day.id }))) onDone(day.dayNumber);
+          if (toPool) {
+            if (await add.run({ dayId: POOL })) onDone(0);
+          } else if (day && (await add.run({ dayId: day.id }))) onDone(day.dayNumber);
         }}
       >
-        <MapPin className="size-4" /> {day ? a.addToDay(day.dayNumber) : a.chooseDay}
+        {toPool ? <Lightbulb className="size-4" /> : <MapPin className="size-4" />} {toPool ? a.addToPool : day ? a.addToDay(day.dayNumber) : a.chooseDay}
       </Button>
     </div>
   );

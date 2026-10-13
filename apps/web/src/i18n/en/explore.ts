@@ -171,6 +171,11 @@ export const explore = {
     logInBody: "Add places to your trips, then share or plan them with friends.",
     /** "<place> is on Day 2 of <trip>." — the names are bold. */
     added: { before: "", middle: (day: number) => ` is on Day ${day} of `, after: "." },
+    /** "<place> is in the ideas of <trip>." */
+    addedToPool: { before: "", middle: " is in the ideas of ", after: "." },
+    toPool: "Ideas — no day yet",
+    toPoolHint: "The group votes, and you plan it into a day later.",
+    addToPool: "Add to ideas",
     viewTrip: "View trip",
     keepExploring: "Keep exploring",
     addedTitle: "Added",
@@ -186,8 +191,8 @@ export const explore = {
     plans: (n: number) => `${n} plan${n === 1 ? "" : "s"}`,
     nothingPlanned: "Nothing planned yet",
     alreadyAdded: "Added",
-    time: "Time (optional)",
-    timeHint: "Timed plans are sorted into the day automatically.",
+    time: "Fixed time (optional)",
+    timeHint: "Only for set times (tours, reservations). Otherwise pick a part of the day.",
     alreadyOnDay: (day: number) => `This place is already on Day ${day}. Adding it again creates a second stop.`,
     addToDay: (day: number) => `Add to Day ${day}`,
     chooseDay: "Choose a day",

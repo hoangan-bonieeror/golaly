@@ -7,8 +7,8 @@ import { prefersReducedMotion } from "@/lib/motion";
  * Drag-and-drop for the itinerary, without a library:
  *
  * - **Pointer** (mouse, pen, touch) from a stop's grip handle: the stop lifts and follows the pointer,
- *   the others slide apart to show where it will land — within its day or into another day — and the
- *   list scrolls when the pointer nears an edge.
+ *   the others slide apart to show where it will land — within its list or into another one (the ideas
+ *   pool, another part of the day, another day) — and the column scrolls when the pointer nears an edge.
  * - **Keyboard** (WAI-ARIA sortable pattern): Space/Enter on the handle picks the stop up, arrow keys move
  *   it (across day boundaries), Space/Enter drops, Escape cancels. Every step is announced.
  *
@@ -17,9 +17,9 @@ import { prefersReducedMotion } from "@/lib/motion";
  * animates every stop from where it was on screen to its new place.
  */
 
+/** A list stops can be dropped into: the ideas pool, or one part of one day. */
 export interface DayList {
   id: string;
-  dayNumber: number;
   itemIds: string[];
 }
 

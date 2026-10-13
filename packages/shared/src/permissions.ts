@@ -33,6 +33,8 @@ export type TripAction =
   | "itinerary.edit"
   | "itinerary.delete"
   | "itinerary.reorder"
+  /** Say how much you want to go somewhere (every member, viewers included: it changes nothing by itself). */
+  | "itinerary.vote"
   | "members.view"
   | "members.invite"
   | "members.change_role"
@@ -50,6 +52,7 @@ const ROLE_ACTIONS: Record<TripRole, ReadonlySet<TripAction>> = {
     "itinerary.edit",
     "itinerary.delete",
     "itinerary.reorder",
+    "itinerary.vote",
     "members.view",
     "members.invite",
     "members.change_role",
@@ -63,9 +66,10 @@ const ROLE_ACTIONS: Record<TripRole, ReadonlySet<TripAction>> = {
     "itinerary.edit",
     "itinerary.delete",
     "itinerary.reorder",
+    "itinerary.vote",
     "members.view",
   ]),
-  VIEWER: new Set<TripAction>(["trip.view", "trip.fork", "itinerary.view", "members.view"]),
+  VIEWER: new Set<TripAction>(["trip.view", "trip.fork", "itinerary.view", "itinerary.vote", "members.view"]),
 };
 
 /** Actions a non-member may perform on a PUBLIC / LINK_ONLY trip. */

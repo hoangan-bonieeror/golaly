@@ -9,7 +9,7 @@ import { hash } from "@node-rs/argon2";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient, type ItemType, type NotificationType, type Prisma } from "../src/generated/prisma/client";
 import { createSeed } from "./seed-data/data";
-import { notificationText } from "@triply/shared";
+import { notificationText, orderBySlot, slotForTime, type ItemSlot } from "@triply/shared";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -32,6 +32,8 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     prisma.postLike.deleteMany(),
     prisma.postMedia.deleteMany(),
     prisma.post.deleteMany(),
+    prisma.tripEvent.deleteMany(),
+    prisma.itemVote.deleteMany(),
     prisma.itineraryItem.deleteMany(),
     prisma.tripDay.deleteMany(),
     prisma.tripInvitation.deleteMany(),
@@ -122,23 +124,50 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
       },
     });
   }
-  await prisma.tripMember.createMany({ data: db.members.map((m) => ({ ...m, joinedAt: new Date(m.joinedAt) })) });
+  await prisma.tripMember.createMany({
+    data: db.members.map((m) => {
+      const dates = db.memberDates.find((x) => x.tripId === m.tripId && x.userId === m.userId);
+      return { ...m, joinedAt: new Date(m.joinedAt), arriveOn: d(dates?.arriveOn ?? undefined), leaveOn: d(dates?.leaveOn ?? undefined) };
+    }),
+  });
   await prisma.tripDay.createMany({ data: db.days.map((x) => ({ id: x.id, tripId: x.tripId, dayNumber: x.dayNumber, date: d(x.date), title: x.title ?? null })) });
+  // Flexible plans: timed items sit in their time's part of the day, untimed ones in the part of the
+  // timed item before them (same rule as migration 20261017000000), each day grouped by part.
+  const tripOfDay = new Map(db.days.map((x) => [x.id, x.tripId]));
+  const slotOf = new Map<string, ItemSlot>();
+  const order = new Map<string, number>();
+  for (const day of db.days) {
+    const list = db.items.filter((i) => i.dayId === day.id).sort((a, b) => a.sortOrder - b.sortOrder);
+    list.forEach((i, idx) => {
+      const before = list.slice(0, idx).reverse().find((x) => x.startTime);
+      const after = list.slice(idx + 1).find((x) => x.startTime);
+      const ref = i.startTime ?? before?.startTime ?? after?.startTime;
+      slotOf.set(i.id, ref ? slotForTime(ref) : "ANY");
+    });
+    orderBySlot(list.map((i) => ({ id: i.id, slot: slotOf.get(i.id)!, startTime: i.startTime ?? null, sortOrder: i.sortOrder }))).forEach((id, n) => order.set(id, n));
+  }
   await prisma.itineraryItem.createMany({
     data: db.items.map((i) => ({
       id: i.id,
+      tripId: tripOfDay.get(i.dayId)!,
       dayId: i.dayId,
+      slot: slotOf.get(i.id)!,
+      addedById: i.updatedBy ?? null,
       type: i.type as ItemType,
       title: i.title,
       placeId: i.placeId ?? null,
       startTime: i.startTime ?? null,
       endTime: i.endTime ?? null,
       notes: i.notes ?? null,
-      sortOrder: i.sortOrder,
+      sortOrder: order.get(i.id)!,
       updatedById: i.updatedBy ?? null,
       updatedAt: i.updatedAt ? new Date(i.updatedAt) : new Date(),
     })),
   });
+  await prisma.itineraryItem.createMany({
+    data: db.pool.map((x) => ({ id: x.id, tripId: x.tripId, dayId: null, slot: "ANY" as const, type: x.type as ItemType, title: x.title, placeId: x.placeId, sortOrder: x.sortOrder, addedById: x.addedBy, updatedById: x.addedBy })),
+  });
+  await prisma.itemVote.createMany({ data: db.votes.map((v) => ({ ...v })) });
 
   // Demo invitations get fresh random tokens; only hashes are stored.
   for (const inv of db.invitations) {

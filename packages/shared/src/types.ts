@@ -22,6 +22,13 @@ export type ItineraryItemType =
   | "ACTIVITY"
   | "NOTE";
 
+/** Part of the day an item is planned for; only anchors (flights, bookings) need a clock time. */
+export type ItemSlot = "MORNING" | "AFTERNOON" | "EVENING" | "ANY";
+/** What happened to a planned item during the trip. */
+export type ItemStatus = "PLANNED" | "VISITED" | "SKIPPED";
+/** A member's interest in a pool item. */
+export type VoteLevel = "LOVE" | "OK" | "SKIP";
+
 export type TravelerType = "SOLO" | "COUPLE" | "FRIENDS" | "FAMILY" | "ALL";
 export type Interest =
   | "FOOD"

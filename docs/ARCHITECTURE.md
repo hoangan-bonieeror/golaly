@@ -99,6 +99,25 @@ destination (within 15 km) only when there is one. Lists and search show only `s
 opening a merged place follows `merged_into_id`. The importer is a separate Python service (`pipelines/`), which only
 talks to the database; it never calls the API.
 
+**Flexible plans** (migration `20261017000000_flexible_plans`). Trips, places and travellers rarely follow a clock, so a
+plan has three layers: *anchors* (items with a `start_time` — flights, tours, bookings), a soft day plan where every
+other item sits in a part of the day (`itinerary_items.slot`: MORNING, AFTERNOON, EVENING, ANY), and the trip's
+*ideas pool* (`itinerary_items.day_id IS NULL`; every item now carries `trip_id`). An anchor's time decides its slot
+(`slotForTime`: before 12:00, before 17:00, evening); a day is kept grouped by slot, anchors chronological within it
+(`orderBySlot`, in `packages/shared/src/plan.ts`, used by the API and by the web app's optimistic updates). Moving an
+item to the pool clears its time; deleting a day returns its places to the pool. Every member — viewers too, through
+the `itinerary.vote` permission — has one vote per item (`item_votes`: LOVE / OK / SKIP); the pool is ranked by the
+group's score (+2 / +1 / −1). Members can be there for part of the trip (`trip_members.arrive_on` / `leave_on`); the
+planner shows who is away each day and warns when someone who loves a place isn't there the day it's planned. Ideas
+close to each other are grouped client-side (`clusterByArea`, single-linkage within 1.5 km) so a whole area can be
+planned into one part of a day.
+
+**Activity log** (`trip_events`, append-only). Every structural change to a plan — added, pooled, updated, moved,
+deleted, status, voted, unvoted, member dates — is inserted in the same transaction as the change, with facts only
+(ids, day numbers, slots, vote levels; never titles or notes). It is the behavioural record future planning
+suggestions will learn from; whether a user's events may be used for that is their opt-in
+`user_profiles.analytics_consent` (Settings → Planning suggestions), checked by whatever exports them.
+
 Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB straight from those SQL files, so the tests always exercise exactly what production will run.
 
 ## REST API (`/api/v1`)
@@ -109,8 +128,9 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Users | `GET/PATCH/DELETE /users/me` · `GET /users/:handle` `/users/:handle/trips` `/users/:handle/posts` `/users/:handle/followers` `/users/:handle/following` · `POST/DELETE /users/:handle/follow` |
 | Trips | `POST/GET /trips` (`?filter=all\|mine\|shared\|past`) · `GET /trips/saved` · `GET/PATCH/DELETE /trips/:id` · `POST /trips/:id/fork` · `POST/DELETE /trips/:id/save` |
 | Days | `GET/POST /trips/:id/days` · `PATCH/DELETE /trips/:id/days/:dayId` |
-| Items | `POST /days/:dayId/items` · `PATCH/DELETE /items/:id` · `POST /items/:id/reorder` `{dayId,index}` · `POST /items/:id/duplicate` |
-| Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` |
+| Items | `POST /days/:dayId/items` · `PATCH/DELETE /items/:id` · `POST /items/:id/reorder` `{dayId \| null, index, slot?}` · `POST /items/:id/duplicate` |
+| Ideas pool & votes | `GET/POST /trips/:id/pool` · `PUT/DELETE /items/:id/vote` `{level: LOVE\|OK\|SKIP}` |
+| Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` · `PATCH /trips/:id/members/:userId/dates` `{arriveOn, leaveOn}` |
 | Invitations | `GET /invitations/:token` · `POST /invitations/:token/accept\|reject` · `GET /invitations/id/:id` · `POST /invitations/id/:id/accept\|reject` |
 | Discovery | `GET /explore` · `GET /search?q&type` · `GET /destinations` · `GET /destinations/:slug` |
 | Catalog admin (ADMIN only, audit-logged) | `GET /admin/areas?parent=` · `GET/POST /admin/sync-jobs` · `PATCH/DELETE /admin/sync-jobs/:id` · `POST /admin/sync-jobs/:id/run {dryRun}` · `POST /admin/sync-runs {area, providers, dryRun}` · `GET /admin/sync-runs?status=&jobId=&area=` · `GET /admin/sync-runs/:id` (+ `/errors`) · `POST /admin/sync-runs/:id/cancel` · `GET /admin/merge-candidates?status=&area=` · `POST /admin/merge-candidates/:id/decide {merge\|reject}` · `POST /admin/place-merges/:id/undo` · `GET /admin/places?q=&area=&status=&category=` · `GET/PATCH /admin/places/:id` (edits lock fields; `unlock: [...]`) · `GET /admin/categories` · `GET /admin/category-maps?provider=&unmapped=true` · `PUT /admin/category-maps` · socket `admin.join` → `sync_run` events |

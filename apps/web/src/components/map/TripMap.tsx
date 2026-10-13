@@ -1,7 +1,7 @@
 "use client";
 
 import type { DirectionsMode, ItemView, PlaceView, TripDetail } from "@triply/shared";
-import { Navigation, Star, X } from "lucide-react";
+import { Lightbulb, Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n, useT } from "@/i18n/client";
@@ -38,8 +38,11 @@ export interface MapDirections {
 export interface MapStop {
   item: ItemView;
   place: PlaceView;
+  /** 0 for ideas in the pool. */
   dayNumber: number;
   order: number;
+  /** An idea from the pool: a hollow pin, on the map whatever day is shown, never on a route. */
+  pooled?: boolean;
 }
 
 const COLORS = [...DAY_COLORS];
@@ -79,10 +82,12 @@ export function TripMap({
         if (item.place) out.push({ item, place: item.place, dayNumber: d.dayNumber, order: ++order });
       }
     }
+    for (const item of trip.pool) if (item.place) out.push({ item, place: item.place, dayNumber: 0, order: 0, pooled: true });
     return out;
-  }, [days]);
+  }, [days, trip.pool]);
 
-  const visible = stops.filter((s) => day === "all" || s.dayNumber === day);
+  const visible = stops.filter((s) => s.pooled || day === "all" || s.dayNumber === day);
+  const planned = visible.filter((s) => !s.pooled);
   const selected = visible.find((s) => s.item.id === selectedId) ?? null;
   const shownDay = day === "all" ? null : days.find((d) => d.dayNumber === day);
 
@@ -133,14 +138,14 @@ export function TripMap({
             </>
           ) : (
             <>
-              {tm.allDays} <span className="font-mono font-normal text-muted">· {t.format.stops(visible.length)}</span>
+              {tm.allDays} <span className="font-mono font-normal text-muted">· {t.format.stops(planned.length)}</span>
             </>
           )}
         </span>
       </div>
-      {visible.length === 0 && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted">
-          {stops.length ? tm.noPlacesDay : tm.noPlaces}
+      {planned.length === 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-6 text-center text-sm text-muted">
+          {stops.some((s) => !s.pooled) ? tm.noPlacesDay : tm.noPlaces}
         </div>
       )}
       {selected && (
@@ -152,13 +157,19 @@ export function TripMap({
           )}
         >
           <div className="flex items-center gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
-              {selected.order}
-            </span>
+            {selected.pooled ? (
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-line-strong bg-surface text-gold-700" aria-hidden>
+                <Lightbulb className="size-4" />
+              </span>
+            ) : (
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
+                {selected.order}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold">{selected.place.name}</div>
               <div className="truncate text-[13px] text-muted">
-                {t.trips.day(selected.dayNumber)}
+                {selected.pooled ? t.trips.plan.pool.onMap : t.trips.day(selected.dayNumber)}
                 {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || t.labels.itemType[selected.place.category]}
                 {selected.place.rating && (
                   <span className="ml-1 inline-flex items-center gap-0.5">
@@ -244,8 +255,10 @@ function MapCanvas({
     if (stops.length === 0) return null;
     // With directions open, the frame also takes in the viewer and their route.
     const extra = directions ? [[directions.from.lng, directions.from.lat], ...(directions.geometry ?? [])] : [];
-    const lats = [...stops.map((s) => s.place.lat), ...extra.map((c) => c[1])];
-    const lngs = [...stops.map((s) => s.place.lng), ...extra.map((c) => c[0])];
+    // Frame the planned stops; ideas only when nothing is planned (they may lie far outside the day).
+    const framed = stops.some((s) => !s.pooled) ? stops.filter((s) => !s.pooled) : stops;
+    const lats = [...framed.map((s) => s.place.lat), ...extra.map((c) => c[1])];
+    const lngs = [...framed.map((s) => s.place.lng), ...extra.map((c) => c[0])];
     let [minLat, maxLat, minLng, maxLng] = [Math.min(...lats), Math.max(...lats), Math.min(...lngs), Math.max(...lngs)];
     const minSpan = 0.02;
     if (maxLat - minLat < minSpan) [minLat, maxLat] = [minLat - minSpan, maxLat + minSpan];
@@ -261,7 +274,7 @@ function MapCanvas({
 
   const byDay = useMemo(() => {
     const m = new Map<number, MapStop[]>();
-    stops.forEach((s) => m.set(s.dayNumber, [...(m.get(s.dayNumber) ?? []), s]));
+    stops.forEach((s) => !s.pooled && m.set(s.dayNumber, [...(m.get(s.dayNumber) ?? []), s]));
     return m;
   }, [stops]);
 
@@ -357,7 +370,7 @@ function MapCanvas({
                 opacity="0.9"
               />
             ))}
-            {stops.map((s) => {
+            {[...stops].sort((a, b) => Number(!!b.pooled) - Number(!!a.pooled)).map((s) => {
               const [x, y] = proj(s.place.lat, s.place.lng);
               const color = dayColor(s.dayNumber);
               const sel = s.item.id === selectedId;
@@ -370,15 +383,25 @@ function MapCanvas({
                   onMouseLeave={() => onHover?.(null)}
                   className="cursor-pointer"
                   role="button"
-                  aria-label={t.trips.map.pin(s.place.name, s.dayNumber)}
+                  aria-label={s.pooled ? t.trips.plan.pool.pinLabel(s.place.name) : t.trips.map.pin(s.place.name, s.dayNumber)}
                 >
-                  <g className="svg-pin-in" style={{ "--delay": `${Math.round(150 + (appearAt.get(s.item.id) ?? 0) * duration)}ms` } as React.CSSProperties}>
+                  {/* Ideas appear once the routes have drawn. */}
+                  <g className="svg-pin-in" style={{ "--delay": `${Math.round(150 + (s.pooled ? 1 : (appearAt.get(s.item.id) ?? 0)) * duration)}ms` } as React.CSSProperties}>
                     <g className={cx("svg-pin", hoveredId === s.item.id && "is-hover")}>
                       {sel && <circle r="21" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="4" />}
-                      <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-pin-ring)"} strokeWidth="2" />
-                      <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
-                        {s.order}
-                      </text>
+                      {s.pooled ? (
+                        <>
+                          <circle r={sel ? 12 : 10} fill="var(--color-surface)" stroke="var(--color-ink-2)" strokeWidth="2" strokeDasharray="3 2.5" />
+                          <circle r="3.5" fill="var(--color-gold)" />
+                        </>
+                      ) : (
+                        <>
+                          <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-pin-ring)"} strokeWidth="2" />
+                          <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
+                            {s.order}
+                          </text>
+                        </>
+                      )}
                     </g>
                   </g>
                 </g>

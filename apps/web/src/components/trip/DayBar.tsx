@@ -1,6 +1,7 @@
 "use client";
 
 import type { DayView } from "@triply/shared";
+import { Users } from "lucide-react";
 import { cx } from "@/components/ui";
 import { useT } from "@/i18n/client";
 import { dayColor } from "@/lib/trip-geo";
@@ -11,7 +12,22 @@ export type DayFilter = number | "all";
  * Day chips shared by the itinerary and the map. The active day fills with its own colour
  * (white text ≥ 5.3:1); the others show a colour dot so pins on the map are easy to match.
  */
-export function DayBar({ days, value, onChange, cityOf, className }: { days: DayView[]; value: DayFilter; onChange: (d: DayFilter) => void; cityOf?: (d: DayView) => string | null; className?: string }) {
+export function DayBar({
+  days,
+  value,
+  onChange,
+  cityOf,
+  presence,
+  className,
+}: {
+  days: DayView[];
+  value: DayFilter;
+  onChange: (d: DayFilter) => void;
+  cityOf?: (d: DayView) => string | null;
+  /** Members there that day (their own dates); shown when someone is away. */
+  presence?: (d: DayView) => { present: number; total: number };
+  className?: string;
+}) {
   const t = useT();
   const chip = "flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-semibold transition-colors";
   return (
@@ -22,6 +38,8 @@ export function DayBar({ days, value, onChange, cityOf, className }: { days: Day
       {days.map((d) => {
         const on = value === d.dayNumber;
         const city = cityOf?.(d);
+        const who = presence?.(d);
+        const someoneAway = !!who && who.present < who.total;
         return (
           <button
             key={d.id}
@@ -34,6 +52,15 @@ export function DayBar({ days, value, onChange, cityOf, className }: { days: Day
             {!on && <span aria-hidden className="size-2 rounded-full" style={{ background: dayColor(d.dayNumber) }} />}
             {t.trips.day(d.dayNumber)}
             {on && city && <span className="font-medium opacity-90">· {city}</span>}
+            {someoneAway && (
+              <span className={cx("inline-flex items-center gap-0.5 font-mono text-[11px] font-medium", on ? "opacity-90" : "text-muted")} title={t.trips.plan.presentCount(who.present, who.total)}>
+                <Users className="size-3" aria-hidden />
+                <span className="sr-only">{t.trips.plan.presentCount(who.present, who.total)}</span>
+                <span aria-hidden>
+                  {who.present}/{who.total}
+                </span>
+              </span>
+            )}
           </button>
         );
       })}

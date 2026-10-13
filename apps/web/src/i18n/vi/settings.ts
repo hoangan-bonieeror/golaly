@@ -34,6 +34,13 @@ export const settings: Messages["settings"] = {
       local: "Tên địa phương (như trên biển chỉ dẫn)",
     },
   },
+  suggestions: {
+    title: "Gợi ý lên kế hoạch",
+    label: "Dùng hoạt động trong chuyến đi của tôi để cải thiện gợi ý",
+    hint: "Những gì bạn lên kế hoạch, bình chọn và bỏ qua giúp TRIPLY gợi ý kế hoạch tốt hơn cho mọi người. Dữ liệu được ẩn danh hoá và không bao giờ hiển thị cho người khác. Mặc định tắt.",
+    on: "Cảm ơn bạn — hoạt động của bạn sẽ giúp cải thiện gợi ý",
+    off: "Hoạt động của bạn sẽ không được dùng cho gợi ý",
+  },
   password: {
     change: "Đổi mật khẩu",
     set: "Đặt mật khẩu",

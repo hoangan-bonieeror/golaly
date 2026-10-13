@@ -9,6 +9,7 @@ import { env } from "./config/env";
 import { PrismaModule, PrismaService } from "./prisma/prisma.service";
 import { AdminModule } from "./modules/admin/admin.module";
 import { AuditModule } from "./modules/audit/audit";
+import { TripEventsModule } from "./modules/activity/trip-events";
 import { AuthModule } from "./modules/auth/auth.module";
 import { ItineraryModule } from "./modules/itinerary/itinerary.controller";
 import { MailModule } from "./modules/mail/mail";
@@ -43,6 +44,7 @@ class HealthController {
     RealtimeModule,
     NotificationsModule,
     AuditModule,
+    TripEventsModule,
     MailModule,
     SearchIndexModule,
     UsersModule,

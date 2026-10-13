@@ -2,11 +2,12 @@ import { isLocale } from "@triply/shared";
 import { requestLocale } from "../../common/locale";
 import { mails } from "../mail/templates";
 import { Injectable } from "@nestjs/common";
-import type { CreatedInvitation, CreateInvitationInput, InvitationLookup, MemberView, TripRole } from "@triply/shared";
+import type { CreatedInvitation, CreateInvitationInput, InvitationLookup, MemberDatesInput, MemberView, TripRole } from "@triply/shared";
 import { randomToken, sha256 } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import { mediaUrl, toUserSummary, userSummarySelect } from "../../common/presenters";
-import { fromDate } from "../../common/dates";
+import { fromDate, toDate } from "../../common/dates";
+import { TripEventsService } from "../activity/trip-events";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
@@ -27,6 +28,7 @@ export class MembersService {
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly events: TripEventsService,
   ) {}
 
   async members(tripId: string, viewerId: string): Promise<MemberView[]> {
@@ -34,7 +36,32 @@ export class MembersService {
     if (!trip.members.some((m) => m.userId === viewerId)) throw Errors.forbidden("Only trip members can see who's on this trip.");
     const rows = await this.prisma.tripMember.findMany({ where: { tripId }, include: { user: { select: userSummarySelect } }, orderBy: { joinedAt: "asc" } });
     const order = { OWNER: 0, EDITOR: 1, VIEWER: 2 } as const;
-    return rows.sort((a, b) => order[a.role] - order[b.role]).map((m) => ({ user: toUserSummary(m.user), role: m.role, joinedAt: m.joinedAt.toISOString() }));
+    return rows
+      .sort((a, b) => order[a.role] - order[b.role])
+      .map((m) => ({ user: toUserSummary(m.user), role: m.role, joinedAt: m.joinedAt.toISOString(), arriveOn: fromDate(m.arriveOn), leaveOn: fromDate(m.leaveOn) }));
+  }
+
+  /**
+   * PATCH /trips/:id/members/:userId/dates — the part of the trip a member is there for. Members set
+   * their own; the owner can set anyone's (they often plan for the group). Dates may fall outside
+   * the trip's range (someone arriving early); the planner only uses them to show who's there.
+   */
+  async setDates(tripId: string, userId: string, viewerId: string, input: MemberDatesInput): Promise<MemberView> {
+    const trip = await this.access.require("members.view", tripId, viewerId);
+    if (!trip.members.some((m) => m.userId === viewerId)) throw Errors.forbidden("Only trip members can see who's on this trip.");
+    if (userId !== viewerId && trip.ownerId !== viewerId) throw new AppError(403, "Only the trip owner can change other members' dates.");
+    if (!trip.members.some((m) => m.userId === userId)) throw Errors.notFound("That member");
+    const m = await this.prisma.transaction(async (tx) => {
+      const row = await tx.tripMember.update({
+        where: { tripId_userId: { tripId, userId } },
+        data: { arriveOn: toDate(input.arriveOn), leaveOn: toDate(input.leaveOn) },
+        include: { user: { select: userSummarySelect } },
+      });
+      await this.events.log({ tripId, actorId: viewerId, type: "member.dates", payload: { member: userId, arriveOn: input.arriveOn, leaveOn: input.leaveOn } }, tx);
+      return row;
+    });
+    this.realtime.trip(tripId, viewerId, "trip.member.updated", userId);
+    return { user: toUserSummary(m.user), role: m.role, joinedAt: m.joinedAt.toISOString(), arriveOn: fromDate(m.arriveOn), leaveOn: fromDate(m.leaveOn) };
   }
 
   // ── Invitations ────────────────────────────────────────────────────────

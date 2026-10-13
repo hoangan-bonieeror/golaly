@@ -33,6 +33,13 @@ export const settings = {
       local: "Local names (as on the signs)",
     },
   },
+  suggestions: {
+    title: "Planning suggestions",
+    label: "Use my trip activity to improve suggestions",
+    hint: "What you plan, vote on and skip helps TRIPLY suggest better plans for everyone. It's pseudonymised and never shown to other people. Off unless you turn it on.",
+    on: "Thanks — your activity will help improve suggestions",
+    off: "Your activity won't be used for suggestions",
+  },
   password: {
     change: "Change password",
     set: "Set a password",

@@ -85,6 +85,7 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     destinationId: p.destinationId,
     // Imported places outside a curated destination fall back to their administrative area.
     destinationName: p.destination?.name ?? p.area?.name ?? "",
+    areaName: p.area?.name ?? null,
     address: p.address,
     lat: p.lat,
     lng: p.lng,
@@ -201,21 +202,31 @@ export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripS
   };
 }
 
+export const itemInclude = (viewerId: string | null) =>
+  ({
+    place: { include: placeInclude(viewerId) },
+    updatedBy: { select: userSummarySelect },
+    addedBy: { select: userSummarySelect },
+    votes: { select: { userId: true, level: true }, orderBy: { createdAt: "asc" } },
+  }) satisfies Prisma.ItineraryItemInclude;
+
 export const dayInclude = (viewerId: string | null) =>
   ({
-    items: {
-      orderBy: { sortOrder: "asc" },
-      include: { place: { include: placeInclude(viewerId) }, updatedBy: { select: userSummarySelect } },
-    },
+    items: { orderBy: { sortOrder: "asc" }, include: itemInclude(viewerId) },
   }) satisfies Prisma.TripDayInclude;
 
 export type DayRow = Prisma.TripDayGetPayload<{ include: ReturnType<typeof dayInclude> }>;
-export type ItemRow = DayRow["items"][number];
+export type ItemRow = Prisma.ItineraryItemGetPayload<{ include: ReturnType<typeof itemInclude> }>;
 
 export function toItemView(i: ItemRow): ItemView {
   return {
     id: i.id,
+    tripId: i.tripId,
     dayId: i.dayId,
+    slot: i.slot,
+    status: i.status,
+    votes: i.votes.map((v) => ({ userId: v.userId, level: v.level })),
+    addedBy: i.addedBy ? toUserSummary(i.addedBy) : null,
     type: i.type,
     title: i.title,
     description: i.description,

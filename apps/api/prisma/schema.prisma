@@ -143,6 +143,9 @@ model User {
   placePhotos   PlacePhoto[]
   invitationsBy TripInvitation[]         @relation("Inviter")
   itemsEdited   ItineraryItem[]          @relation("ItemEditor")
+  itemsAdded    ItineraryItem[]          @relation("ItemAdder")
+  itemVotes     ItemVote[]
+  tripEvents    TripEvent[]
   auditLogs     AuditLog[]
   syncJobs      SyncJob[]
   syncRuns      SyncRun[]
@@ -152,20 +155,22 @@ model User {
 }
 
 model UserProfile {
-  userId        String        @id @map("user_id") @db.Uuid
-  displayName   String        @map("display_name")
-  bio           String        @default("")
-  homeBase      String?       @map("home_base")
-  avatarHue     Int           @default(180) @map("avatar_hue")
-  avatarMediaId String?       @map("avatar_media_id") @db.Uuid
-  travelerType  TravelerType? @map("traveler_type")
-  interests     String[]      @default([])
-  onboardedAt   DateTime?     @map("onboarded_at")
+  userId           String        @id @map("user_id") @db.Uuid
+  displayName      String        @map("display_name")
+  bio              String        @default("")
+  homeBase         String?       @map("home_base")
+  avatarHue        Int           @default(180) @map("avatar_hue")
+  avatarMediaId    String?       @map("avatar_media_id") @db.Uuid
+  travelerType     TravelerType? @map("traveler_type")
+  interests        String[]      @default([])
+  onboardedAt      DateTime?     @map("onboarded_at")
   /// Interface language ("en" | "vi", CHECK in the migration); null = never chosen.
-  locale        String?
+  locale           String?
+  /// Opt-in: this user's trip activity may be used (pseudonymised) to improve planning suggestions.
+  analyticsConsent Boolean       @default(false) @map("analytics_consent")
   /// Lower-cased, accent-free "display name username home base" for fuzzy search.
-  searchText    String        @default("") @map("search_text")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  searchText       String        @default("") @map("search_text")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   avatar Media? @relation("Avatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
@@ -394,6 +399,8 @@ model Trip {
   members      TripMember[]
   invitations  TripInvitation[]
   days         TripDay[]
+  items        ItineraryItem[]
+  events       TripEvent[]
   posts        Post[]
   savedBy      SavedTrip[]
 
@@ -419,10 +426,13 @@ model TripDestination {
 }
 
 model TripMember {
-  tripId   String   @map("trip_id") @db.Uuid
-  userId   String   @map("user_id") @db.Uuid
+  tripId   String    @map("trip_id") @db.Uuid
+  userId   String    @map("user_id") @db.Uuid
   role     TripRole
-  joinedAt DateTime @default(now()) @map("joined_at")
+  joinedAt DateTime  @default(now()) @map("joined_at")
+  /// The part of the trip this member is there for (inclusive); null = from the start / to the end.
+  arriveOn DateTime? @map("arrive_on") @db.Date
+  leaveOn  DateTime? @map("leave_on") @db.Date
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -468,27 +478,97 @@ model TripDay {
   @@map("trip_days")
 }
 
+/// Part of the day an item is planned for. Plans are flexible: only anchors (flights, bookings…)
+/// carry a clock time; everything else sits in a slot, or ANY when it can happen whenever.
+enum ItemSlot {
+  MORNING
+  AFTERNOON
+  EVENING
+  ANY
+}
+
+/// What actually happened to a planned item (set during the trip).
+enum ItemStatus {
+  PLANNED
+  VISITED
+  SKIPPED
+}
+
+/// A member's interest in an item of the trip — mostly used on the shared place pool.
+enum VoteLevel {
+  LOVE
+  OK
+  SKIP
+}
+
 model ItineraryItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  dayId       String   @map("day_id") @db.Uuid
+  id          String     @id @default(uuid()) @db.Uuid
+  tripId      String     @map("trip_id") @db.Uuid
+  /// null = in the trip's place pool ("want to go if we can"), not yet on a day.
+  dayId       String?    @map("day_id") @db.Uuid
+  slot        ItemSlot   @default(ANY)
+  status      ItemStatus @default(PLANNED)
+  /// Who put it on the trip (credited on pool cards).
+  addedById   String?    @map("added_by") @db.Uuid
   type        ItemType
   title       String
   description String?
-  placeId     String?  @map("place_id") @db.Uuid
-  startTime   String?  @map("start_time")
-  endTime     String?  @map("end_time")
+  placeId     String?    @map("place_id") @db.Uuid
+  startTime   String?    @map("start_time")
+  endTime     String?    @map("end_time")
   notes       String?
-  sortOrder   Int      @map("sort_order")
-  updatedById String?  @map("updated_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  sortOrder   Int        @map("sort_order")
+  updatedById String?    @map("updated_by") @db.Uuid
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
-  day       TripDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  place     Place?  @relation(fields: [placeId], references: [id], onDelete: SetNull)
-  updatedBy User?   @relation("ItemEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  day       TripDay?   @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  place     Place?     @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  updatedBy User?      @relation("ItemEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+  addedBy   User?      @relation("ItemAdder", fields: [addedById], references: [id], onDelete: SetNull)
+  votes     ItemVote[]
 
   @@index([dayId, sortOrder])
+  @@index([tripId, dayId])
   @@map("itinerary_items")
+}
+
+model ItemVote {
+  itemId    String    @map("item_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  level     VoteLevel
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  item ItineraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
+  @@index([userId])
+  @@map("item_votes")
+}
+
+/// Append-only log of what people do on a trip's plan (add, vote, move, visit, skip, edit…).
+/// The product's behavioural record and the raw input for future planning suggestions; rows are
+/// never updated. `payload` holds the event's facts (slot, day number, vote level…), never free text.
+model TripEvent {
+  id      BigInt   @id @default(autoincrement())
+  tripId  String   @map("trip_id") @db.Uuid
+  actorId String?  @map("actor_id") @db.Uuid
+  /// Not a foreign key: the event outlives the item.
+  itemId  String?  @map("item_id") @db.Uuid
+  placeId String?  @map("place_id") @db.Uuid
+  type    String
+  payload Json     @default("{}")
+  at      DateTime @default(now())
+
+  trip  Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, at])
+  @@index([type, at])
+  @@map("trip_events")
 }
 
 // ── Social ───────────────────────────────────────────────────────────────
@@ -841,8 +921,8 @@ model SyncRun {
   startedAt       DateTime  @default(now()) @map("started_at")
   finishedAt      DateTime? @map("finished_at")
 
-  job         SyncJob?       @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  requestedBy User?          @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  job         SyncJob?        @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  requestedBy User?           @relation(fields: [requestedById], references: [id], onDelete: SetNull)
   errors      SyncRunError[]
   cursors     SyncRunCursor[]
 

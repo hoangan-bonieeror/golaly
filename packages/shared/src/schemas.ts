@@ -1,4 +1,5 @@
 import { LOCALES } from "./i18n";
+import { ITEM_SLOTS, ITEM_STATUSES, VOTE_LEVELS } from "./plan";
 /**
  * Zod schemas shared by the API (request validation) and the web app (forms).
  * One definition → same rules on both sides (spec §41).
@@ -53,6 +54,7 @@ export const updateProfileSchema = z
     interests: z.array(interestSchema).max(8),
     avatarMediaId: uuid.nullable(),
     locale: z.enum(LOCALES),
+    analyticsConsent: z.boolean(),
   })
   .partial();
 
@@ -99,13 +101,21 @@ const itemBase = z.object({
   startTime: hhmm.nullable().optional(),
   endTime: hhmm.nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  /** Part of the day; set from startTime when one is given (see slotForTime). */
+  slot: z.enum(ITEM_SLOTS).optional(),
+  status: z.enum(ITEM_STATUSES).optional(),
 });
 const timeOrder = (v: { startTime?: string | null; endTime?: string | null }) => !v.startTime || !v.endTime || v.endTime >= v.startTime;
 const timeMsg = { message: "End time should be after the start time.", path: ["endTime"] };
 
 export const createItemSchema = itemBase.refine(timeOrder, timeMsg);
 export const updateItemSchema = itemBase.partial().refine(timeOrder, timeMsg);
-export const reorderItemSchema = z.object({ dayId: uuid, index: z.number().int().min(0).max(10_000) });
+/** Move an item: `dayId` null = to the place pool; `index` is its position in the target list; `slot` its new part of the day. */
+export const reorderItemSchema = z.object({ dayId: uuid.nullable(), index: z.number().int().min(0).max(10_000), slot: z.enum(ITEM_SLOTS).optional() });
+export const voteSchema = z.object({ level: z.enum(VOTE_LEVELS) });
+export const memberDatesSchema = z
+  .object({ arriveOn: isoDate.nullable(), leaveOn: isoDate.nullable() })
+  .refine((v) => !v.arriveOn || !v.leaveOn || v.arriveOn <= v.leaveOn, { message: "The leaving date should be on or after the arrival date.", path: ["leaveOn"] });
 export const updateDaySchema = z.object({ title: z.string().trim().max(120).nullable() });
 
 // ── Members & invitations ───────────────────────────────────────────────
@@ -185,6 +195,8 @@ export type UpdateTripInput = z.infer<typeof updateTripSchema>;
 export type CreateItemInput = z.infer<typeof createItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
 export type ReorderItemInput = z.infer<typeof reorderItemSchema>;
+export type VoteInput = z.infer<typeof voteSchema>;
+export type MemberDatesInput = z.infer<typeof memberDatesSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 export type CreatePostInput = z.input<typeof createPostSchema>;
 export type CreateReportInput = z.infer<typeof createReportSchema>;

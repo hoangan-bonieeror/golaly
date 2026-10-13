@@ -102,6 +102,8 @@ function Settings({ me }: { me: Me }) {
 
       <PlaceNamesCard />
 
+      <SuggestionsCard consent={me.analyticsConsent} />
+
       <PasswordCard hasPassword={me.hasPassword} providers={me.providers} />
 
       <section className="space-y-2">
@@ -262,6 +264,24 @@ function PlaceNamesCard() {
           ))}
         </select>
       </Field>
+    </section>
+  );
+}
+
+/** Opt-in: may this person's trip activity (the plan's event log) be used to improve suggestions? */
+function SuggestionsCard({ consent }: { consent: boolean }) {
+  const t = useT().settings.suggestions;
+  const save = useAction((on: boolean) => api.patch<Me>("/users/me", { analyticsConsent: on }), { invalidate: [keys.me], success: (me) => (me.analyticsConsent ? t.on : t.off) });
+  return (
+    <section className="space-y-3 rounded-[var(--radius-card)] border border-line bg-surface p-5">
+      <h2 className="font-display text-xl font-semibold">{t.title}</h2>
+      <label className="flex cursor-pointer items-start gap-3">
+        <input type="checkbox" className="mt-1 size-5 shrink-0 accent-[var(--color-primary)]" checked={consent} disabled={save.isPending} onChange={(e) => save.run(e.target.checked)} />
+        <span>
+          <span className="block font-medium">{t.label}</span>
+          <span className="mt-0.5 block text-sm text-muted">{t.hint}</span>
+        </span>
+      </label>
     </section>
   );
 }

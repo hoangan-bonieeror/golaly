@@ -4,7 +4,7 @@ import { addDays, dayCount, fromDate, MAX_TRIP_DAYS, toDate } from "../../common
 import { Errors } from "../../common/http";
 import { lockTrip } from "../../common/locks";
 import { pageOf } from "../../common/paging";
-import { dayInclude, toDayView, toTripSummary, toUserSummary, tripSummaryInclude, userSummarySelect } from "../../common/presenters";
+import { dayInclude, itemInclude, toDayView, toItemView, toTripSummary, toUserSummary, tripSummaryInclude, userSummarySelect } from "../../common/presenters";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
@@ -37,7 +37,7 @@ export class TripsService {
   async detail(tripId: string, viewerId: string | null): Promise<TripDetail> {
     const trip = await this.access.require("trip.view", tripId, viewerId);
     const isOwner = trip.ownerId === viewerId;
-    const [t, days, members, invitations] = await Promise.all([
+    const [t, days, pool, members, invitations] = await Promise.all([
       this.prisma.trip.findUniqueOrThrow({
         where: { id: tripId },
         include: tripSummaryInclude(viewerId),
@@ -47,6 +47,7 @@ export class TripsService {
         orderBy: { dayNumber: "asc" },
         include: dayInclude(viewerId),
       }),
+      this.prisma.itineraryItem.findMany({ where: { tripId, dayId: null }, orderBy: { sortOrder: "asc" }, include: itemInclude(viewerId) }),
       this.prisma.tripMember.findMany({
         where: { tripId },
         include: { user: { select: userSummarySelect } },
@@ -69,6 +70,7 @@ export class TripsService {
     return {
       ...toTripSummary(t, viewerId),
       days: days.map(toDayView),
+      pool: pool.map(toItemView),
       // Non-members of a public trip see who created it, not the private member list (spec §34).
       members: (trip.members.some((m) => m.userId === viewerId) ? members : members.filter((m) => m.role === "OWNER"))
         .sort((a, b) => order[a.role] - order[b.role])
@@ -76,6 +78,8 @@ export class TripsService {
           user: toUserSummary(m.user),
           role: m.role,
           joinedAt: m.joinedAt.toISOString(),
+          arriveOn: fromDate(m.arriveOn),
+          leaveOn: fromDate(m.leaveOn),
         })),
       permissions: this.access.permissions(trip, viewerId),
       ...(isOwner
@@ -315,6 +319,7 @@ export class TripsService {
           orderBy: { dayNumber: "asc" },
           include: { items: { orderBy: { sortOrder: "asc" } } },
         },
+        items: { where: { dayId: null }, orderBy: { sortOrder: "asc" } },
       },
     });
 
@@ -353,6 +358,8 @@ export class TripsService {
             title: day.title,
             items: {
               create: day.items.map((i) => ({
+                tripId: created.id,
+                slot: i.slot,
                 type: i.type,
                 title: i.title,
                 description: i.description,
@@ -367,6 +374,22 @@ export class TripsService {
           },
         });
       }
+      // The pool comes along too (ideas, not votes: those belong to the source trip's group).
+      if (source.items.length)
+        await tx.itineraryItem.createMany({
+          data: source.items.map((i) => ({
+            tripId: created.id,
+            dayId: null,
+            type: i.type,
+            title: i.title,
+            description: i.description,
+            placeId: i.placeId,
+            notes: i.notes,
+            sortOrder: i.sortOrder,
+            updatedById: viewerId,
+            addedById: viewerId,
+          })),
+        });
       await tx.trip.update({
         where: { id: source.id },
         data: { forkCount: { increment: 1 }, updatedAt: source.updatedAt },

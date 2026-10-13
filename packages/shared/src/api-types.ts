@@ -8,11 +8,14 @@ import type { TripAction } from "./permissions";
 import type {
   Destination,
   Interest,
+  ItemSlot,
+  ItemStatus,
   ItineraryItemType,
   NotificationType,
   TravelerType,
   TripRole,
   TripVisibility,
+  VoteLevel,
 } from "./types";
 
 export interface UserSummary {
@@ -39,6 +42,8 @@ export interface Me extends UserSummary {
   isAdmin: boolean;
   /** Interface language chosen in the app (null = never chosen; the device language is used). */
   locale: Locale | null;
+  /** Opted in to their trip activity improving planning suggestions (off by default). */
+  analyticsConsent: boolean;
 }
 
 export interface ProfileView {
@@ -70,6 +75,8 @@ export interface PlaceView {
   /** null for imported places outside any curated destination; destinationName then names their area. */
   destinationId: string | null;
   destinationName: string;
+  /** The smallest administrative area the place is in (district / city), when known — names areas on the pool. */
+  areaName: string | null;
   address: string;
   lat: number;
   lng: number;
@@ -239,9 +246,23 @@ export interface TripSummary {
   updatedAt: string;
 }
 
+export interface ItemVoteView {
+  userId: string;
+  level: VoteLevel;
+}
+
 export interface ItemView {
   id: string;
-  dayId: string;
+  tripId: string;
+  /** null = in the trip's place pool. */
+  dayId: string | null;
+  /** Part of the day (ANY = whenever). Items with a startTime are anchors and keep their clock time. */
+  slot: ItemSlot;
+  status: ItemStatus;
+  /** Members' interest, one vote per member. */
+  votes: ItemVoteView[];
+  /** Who put it on the trip. */
+  addedBy: UserSummary | null;
   type: ItineraryItemType;
   title: string;
   description: string | null;
@@ -266,6 +287,9 @@ export interface MemberView {
   user: UserSummary;
   role: TripRole;
   joinedAt: string;
+  /** The part of the trip they're there for (inclusive); null = from the start / to the end. */
+  arriveOn: string | null;
+  leaveOn: string | null;
 }
 
 export interface InvitationView {
@@ -279,6 +303,8 @@ export interface InvitationView {
 
 export interface TripDetail extends TripSummary {
   days: DayView[];
+  /** Places the group wants to fit in somewhere, not yet on a day. */
+  pool: ItemView[];
   members: MemberView[];
   /** Actions the current viewer may perform — UI hints only; the API re-checks every request. */
   permissions: TripAction[];
@@ -387,11 +413,13 @@ export type TripEventName =
   | "trip.item.updated"
   | "trip.item.deleted"
   | "trip.item.reordered"
+  | "trip.item.voted"
   | "trip.day.created"
   | "trip.updated"
   | "trip.member.joined"
   | "trip.member.role_changed"
-  | "trip.member.removed";
+  | "trip.member.removed"
+  | "trip.member.updated";
 
 export interface TripEvent {
   tripId: string;

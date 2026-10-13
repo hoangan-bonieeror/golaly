@@ -22,6 +22,7 @@ export type Agent = {
   get: (url: string) => request.Test;
   post: (url: string, body?: object) => request.Test;
   patch: (url: string, body?: object) => request.Test;
+  put: (url: string, body?: object) => request.Test;
   delete: (url: string, body?: object) => request.Test;
   raw: TestAgent;
   cookies: () => string;
@@ -37,6 +38,7 @@ function wrap(raw: TestAgent): Agent {
     get: (url) => raw.get(API + url),
     post: (url, body) => csrf(raw.post(API + url)).send(body ?? {}),
     patch: (url, body) => csrf(raw.patch(API + url)).send(body ?? {}),
+    put: (url, body) => csrf(raw.put(API + url)).send(body ?? {}),
     delete: (url, body) => csrf(raw.delete(API + url)).send(body ?? {}),
     cookies: () => cookieHeader,
     set cookie(v: string) {

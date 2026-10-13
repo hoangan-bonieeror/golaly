@@ -129,8 +129,9 @@ def test_merges_moves_links_and_unmerges(db, cat, demo_user, settings):
     dup = add_place(db, cat, "Quán Bánh Xèo Bà Dưỡng", 16.06015, 108.21012, provider="osm", address="K280/23 Hoàng Diệu")
     item = str(uuid.uuid4())
     db.execute(
-        "INSERT INTO itinerary_items (id, day_id, type, title, place_id, sort_order, updated_at) VALUES (%s, %s, 'RESTAURANT', 'Lunch', %s, 99, now())",
-        [item, day, dup],
+        "INSERT INTO itinerary_items (id, trip_id, day_id, type, title, place_id, sort_order, updated_at)"
+        " SELECT %s, d.trip_id, d.id, 'RESTAURANT', 'Lunch', %s, 99, now() FROM trip_days d WHERE d.id = %s",
+        [item, dup, day],
     )
     db.execute("INSERT INTO saved_places (user_id, place_id) VALUES (%s, %s), (%s, %s)", [user, dup, user, keep])
 

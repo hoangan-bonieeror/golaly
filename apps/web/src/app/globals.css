@@ -222,6 +222,23 @@ body {
     0 0 0 3px var(--color-pin-ring),
     0 0 0 6px var(--color-primary);
 }
+/* An idea from the pool: a small hollow pin with a gold dot, under the planned stops. */
+.triply-pin.is-idea {
+  z-index: 0;
+}
+.triply-pin.is-idea > span {
+  width: 22px;
+  height: 22px;
+  border: 2px dashed var(--color-ink-2);
+  box-shadow: none;
+}
+.triply-pin.is-idea > span::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--color-gold);
+}
 /* Route reveal: pins wait, then pop in as the line reaches them. */
 .triply-pin.is-pending > span {
   opacity: 0;

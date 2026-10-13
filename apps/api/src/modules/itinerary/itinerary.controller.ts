@@ -1,12 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Put } from "@nestjs/common";
 import {
   createItemSchema,
   reorderItemSchema,
   updateDaySchema,
   updateItemSchema,
+  voteSchema,
   type CreateItemInput,
   type ReorderItemInput,
   type UpdateItemInput,
+  type VoteInput,
 } from "@triply/shared";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
@@ -39,6 +41,29 @@ export class ItineraryController {
   @HttpCode(200)
   deleteDay(@Param("id", Uuid) id: string, @Param("dayId", Uuid) dayId: string, @ViewerId() me: string | null) {
     return this.svc.deleteDay(id, dayId, requireUser(me));
+  }
+
+  /** The trip's place pool: ideas not yet on a day. */
+  @Public()
+  @Get("trips/:id/pool")
+  pool(@Param("id", Uuid) id: string, @ViewerId() me: string | null) {
+    return this.svc.pool(id, me);
+  }
+
+  @Post("trips/:id/pool")
+  addToPool(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(createItemSchema)) body: CreateItemInput) {
+    return this.svc.addToPool(id, requireUser(me), body);
+  }
+
+  @Put("items/:itemId/vote")
+  vote(@Param("itemId", Uuid) itemId: string, @ViewerId() me: string | null, @Body(new ZodPipe(voteSchema)) body: VoteInput) {
+    return this.svc.vote(itemId, requireUser(me), body.level);
+  }
+
+  @Delete("items/:itemId/vote")
+  @HttpCode(200)
+  unvote(@Param("itemId", Uuid) itemId: string, @ViewerId() me: string | null) {
+    return this.svc.unvote(itemId, requireUser(me));
   }
 
   @Post("days/:dayId/items")

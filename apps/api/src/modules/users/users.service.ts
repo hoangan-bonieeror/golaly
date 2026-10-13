@@ -52,6 +52,7 @@ export class UsersService {
       providers: u.oauthAccounts.map((a) => a.provider),
       isAdmin: u.role === "ADMIN",
       locale: isLocale(u.profile?.locale) ? u.profile.locale : null,
+      analyticsConsent: u.profile?.analyticsConsent ?? false,
     };
   }
 

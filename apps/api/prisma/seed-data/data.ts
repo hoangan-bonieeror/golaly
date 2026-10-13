@@ -38,6 +38,11 @@ export interface DB {
   savedPosts: { userId: string; postId: string }[];
   savedPlaces: { userId: string; placeId: string }[];
   notifications: Notification[];
+  /** Place-pool ideas (items with no day) and members' votes on them. */
+  pool: { id: string; tripId: string; placeId: string; type: ItineraryItemType; title: string; addedBy: string; sortOrder: number }[];
+  votes: { itemId: string; userId: string; level: "LOVE" | "OK" | "SKIP" }[];
+  /** Members who are only there for part of the trip. */
+  memberDates: { tripId: string; userId: string; arriveOn: string | null; leaveOn: string | null }[];
   reports: { id: string; reporterId: string; target: string; targetId: string; reason: string; createdAt: string }[];
 }
 
@@ -98,6 +103,14 @@ const placeSeeds: PlaceSeed[] = [
   ["kuromon", "Kuromon Market", "RESTAURANT", "osaka", "2-4-1 Nipponbashi, Chūō", 34.6655, 135.5066, 4.2],
   ["osaka-castle", "Osaka Castle", "PLACE", "osaka", "1-1 Ōsakajō, Chūō", 34.6873, 135.5262, 4.5],
   ["kix", "Kansai Airport (KIX)", "FLIGHT", "osaka", "Izumisano, Osaka", 34.4320, 135.2304],
+  // Ideas in the Japan trip's pool: Higashiyama (Kyoto) and Ueno–Yanaka (Tokyo) cluster; Shinsekai stands alone.
+  ["kiyomizu", "Kiyomizu-dera", "PLACE", "kyoto", "1-294 Kiyomizu, Higashiyama", 34.9949, 135.7850, 4.7],
+  ["ninenzaka", "Ninenzaka & Sannenzaka", "PLACE", "kyoto", "Kiyomizu, Higashiyama", 34.9981, 135.7806, 4.6],
+  ["yasaka", "Yasaka Pagoda", "PLACE", "kyoto", "388 Yasaka-kamimachi, Higashiyama", 34.9986, 135.7794, 4.5],
+  ["philosophers-path", "Philosopher's Path", "PLACE", "kyoto", "Sakyō Ward, Kyoto", 35.0270, 135.7944, 4.5],
+  ["ueno-park", "Ueno Park", "PLACE", "tokyo", "Uenokōen, Taitō", 35.7148, 139.7731, 4.4],
+  ["yanaka", "Yanaka Ginza", "RESTAURANT", "tokyo", "3-13-1 Yanaka, Taitō", 35.7276, 139.7663, 4.2],
+  ["shinsekai", "Shinsekai & Tsūtenkaku", "PLACE", "osaka", "1-18-6 Ebisuhigashi, Naniwa", 34.6524, 135.5063, 4.2],
 
   ["hoan-kiem", "Hoàn Kiếm Lake", "PLACE", "hanoi", "Hoàn Kiếm, Hà Nội", 21.0288, 105.8525, 4.6],
   ["cafe-giang", "Café Giảng (egg coffee)", "RESTAURANT", "hanoi", "39 Nguyễn Hữu Huân", 21.0335, 105.8545, 4.5],
@@ -154,7 +167,8 @@ const placeCategoryKeys: Record<string, string> = {
   shibuya: "sights.landmark", meiji: "culture.pagoda", sensoji: "culture.pagoda", fushimi: "culture.pagoda", kinkakuji: "culture.pagoda",
   "phuc-kien": "culture.pagoda", "temple-literature": "sights.historic", gion: "sights.old_town", "ancient-town": "sights.old_town",
   alfama: "sights.viewpoint", ribeira: "sights.old_town", dotonbori: "sights.landmark", "osaka-castle": "sights.historic",
-  arashiyama: "nature.park", "an-bang": "nature.beach", "hoan-kiem": "nature.lake", mcway: "nature.waterfall", bixby: "sights.viewpoint",
+  arashiyama: "nature.park", kiyomizu: "culture.pagoda", yasaka: "culture.pagoda", ninenzaka: "sights.old_town", "philosophers-path": "nature.park",
+  "ueno-park": "nature.park", yanaka: "food.street_food", shinsekai: "sights.landmark", "an-bang": "nature.beach", "hoan-kiem": "nature.lake", mcway: "nature.waterfall", bixby: "sights.viewpoint",
   ggb: "sights.landmark", "santa-monica": "sights.landmark", griffith: "sights.viewpoint", "train-street": "sights.landmark",
   "war-museum": "culture.museum", "hoian-museum": "culture.museum", livraria: "shopping.souvenir",
   "hoian-market": "shopping.market", "ben-thanh": "shopping.market", tailor: "shopping.tailor",
@@ -452,6 +466,31 @@ export function createSeed(): DB {
     savedPosts: [],
     savedPlaces: [{ userId: u("an"), placeId: p("fushimi") }],
     notifications,
+    pool: [
+      { key: "kiyomizu", title: "Kiyomizu-dera", type: "PLACE", by: "minh" },
+      { key: "ninenzaka", title: "Ninenzaka & Sannenzaka", type: "PLACE", by: "an" },
+      { key: "yasaka", title: "Yasaka Pagoda at dusk", type: "PLACE", by: "linh" },
+      { key: "ueno-park", title: "Ueno Park", type: "PLACE", by: "an" },
+      { key: "yanaka", title: "Yanaka Ginza snacks", type: "RESTAURANT", by: "nam" },
+      { key: "shinsekai", title: "Shinsekai kushikatsu", type: "PLACE", by: "nam" },
+      { key: "philosophers-path", title: "Philosopher's Path", type: "PLACE", by: "minh" },
+    ].map((x, i) => ({ id: seedId(`pool:japan:${x.key}`), tripId: t("japan"), placeId: p(x.key), type: x.type as ItineraryItemType, title: x.title, addedBy: u(x.by), sortOrder: i })),
+    votes: (
+      [
+        ["kiyomizu", "an", "LOVE"], ["kiyomizu", "minh", "LOVE"], ["kiyomizu", "linh", "OK"],
+        ["ninenzaka", "an", "LOVE"], ["ninenzaka", "linh", "LOVE"],
+        ["yasaka", "linh", "LOVE"], ["yasaka", "nam", "OK"],
+        ["ueno-park", "an", "OK"], ["ueno-park", "minh", "SKIP"],
+        ["yanaka", "nam", "LOVE"], ["yanaka", "linh", "OK"],
+        ["shinsekai", "nam", "LOVE"], ["shinsekai", "an", "OK"], ["shinsekai", "minh", "OK"],
+        ["philosophers-path", "minh", "OK"],
+      ] as const
+    ).map(([k, who, level]) => ({ itemId: seedId(`pool:japan:${k}`), userId: u(who), level })),
+    // Nam joins in Kyoto; Linh flies home before Osaka's last night.
+    memberDates: [
+      { tripId: t("japan"), userId: u("nam"), arriveOn: "2027-03-12", leaveOn: null },
+      { tripId: t("japan"), userId: u("linh"), arriveOn: null, leaveOn: "2027-03-14" },
+    ],
     reports: [],
   });
 }

@@ -133,6 +133,13 @@ const VI_EXACT: Record<string, string> = {
   "That's too far for this way of travelling. Try another mode.": "Quãng đường quá xa cho cách di chuyển này. Hãy thử cách khác.",
   "The directions service is busy. Try again in a minute.": "Dịch vụ chỉ đường đang bận. Hãy thử lại sau một phút.",
   "Couldn't reach the directions service. Try again.": "Không kết nối được dịch vụ chỉ đường. Hãy thử lại.",
+
+  // Flexible plans: pool, votes, members' dates
+  "That place is already in the pool.": "Địa điểm này đã có trong kho ý tưởng.",
+  "Notes belong on a day; the pool is for places and activities.": "Ghi chú thuộc về một ngày; kho ý tưởng dành cho địa điểm và hoạt động.",
+  "Pool ideas can't be duplicated; plan it into a day first.": "Không thể nhân bản ý tưởng trong kho; hãy xếp nó vào một ngày trước.",
+  "Only the trip owner can change other members' dates.": "Chỉ chủ chuyến đi mới đổi được ngày của thành viên khác.",
+  "The leaving date should be on or after the arrival date.": "Ngày rời đi phải cùng hoặc sau ngày đến.",
 };
 
 /** `${what} couldn't be found.` — by subject. */
@@ -159,6 +166,7 @@ const VI_PATTERNS: [RegExp, (...m: string[]) => string][] = [
   [/^Trips can be up to (\d+) days long\.$/, (_, n) => `Chuyến đi dài tối đa ${n} ngày.`],
   [/^Day (\d+)(?: and (\d+) more)? still has plans\. Move or delete them before shortening the trip\.$/, (_, d, more) =>
     `Ngày ${d}${more ? ` và ${more} ngày khác` : ""} vẫn còn lịch trình. Hãy chuyển hoặc xoá trước khi rút ngắn chuyến đi.`],
+  [/^A trip's pool holds up to (\d+) ideas\. Plan some into days or remove a few first\.$/, (_, n) => `Kho ý tưởng của một chuyến đi chứa tối đa ${n} mục. Hãy xếp bớt vào các ngày hoặc xoá vài mục trước.`],
   [/^Photos can be up to (\d+) MB\.$/, (_, n) => `Ảnh tối đa ${n} MB.`],
   [/^Images need to be at least (\d+)×(\d+) pixels\.$/, (_, a, b) => `Ảnh cần ít nhất ${a}×${b} pixel.`],
   [/^Images can be at most (\d+) pixels on a side and ([\d.]+) megapixels\.$/, (_, a, b) => `Ảnh tối đa ${a} pixel mỗi cạnh và ${b} megapixel.`],
@@ -191,6 +199,7 @@ export type NotificationMessage =
   | { k: "trip_saved"; trip: string }
   | { k: "trip_forked"; trip: string }
   | { k: "item_added"; item: string; day: number; trip: string }
+  | { k: "pool_added"; item: string; trip: string }
   | { k: "item_updated"; item: string; trip: string }
   | { k: "invited"; role: "EDITOR" | "VIEWER"; trip: string }
   | { k: "joined"; role: "EDITOR" | "VIEWER"; trip: string }
@@ -206,6 +215,7 @@ export function notificationText(m: NotificationMessage, locale: Locale): string
       case "trip_saved": return `đã lưu chuyến đi ${m.trip} của bạn`;
       case "trip_forked": return `đã remix chuyến đi ${m.trip} của bạn`;
       case "item_added": return `đã thêm “${m.item}” vào Ngày ${m.day} của ${m.trip}`;
+      case "pool_added": return `đã gợi ý “${m.item}” cho ${m.trip}`;
       case "item_updated": return `đã cập nhật “${m.item}” trong ${m.trip}`;
       case "invited": return `đã mời bạn ${m.role === "EDITOR" ? "cùng lên kế hoạch" : "xem"} ${m.trip}`;
       case "joined": return `đã tham gia ${m.trip} với vai trò ${role}`;
@@ -220,6 +230,7 @@ export function notificationText(m: NotificationMessage, locale: Locale): string
     case "trip_saved": return `saved your trip ${m.trip}`;
     case "trip_forked": return `remixed your trip ${m.trip}`;
     case "item_added": return `added “${m.item}” to Day ${m.day} of ${m.trip}`;
+    case "pool_added": return `suggested “${m.item}” for ${m.trip}`;
     case "item_updated": return `updated “${m.item}” in ${m.trip}`;
     case "invited": return `invited you to ${m.role === "EDITOR" ? "edit" : "view"} ${m.trip}`;
     case "joined": return `joined ${m.trip} as ${role}`;

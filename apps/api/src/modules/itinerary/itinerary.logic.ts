@@ -1,22 +1,8 @@
 /**
- * Pure ordering rules for itinerary items — unit tested in isolation.
+ * Pure ordering rules for itinerary items — unit tested in isolation. Day ordering by part of the
+ * day (`orderBySlot`) and the other flexible-planning rules live in @triply/shared (plan.ts), so the
+ * web app applies exactly the same rules to its optimistic updates.
  */
-export interface Orderable {
-  id: string;
-  startTime: string | null;
-  sortOrder: number;
-}
-
-/**
- * Timed items are kept in chronological order; untimed items (notes, "free afternoon")
- * keep the slot the user put them in. Returns ids in their new order.
- */
-export function orderByTime<T extends Orderable>(items: T[]): string[] {
-  const list = [...items].sort((a, b) => a.sortOrder - b.sortOrder);
-  const timed = list.filter((i) => i.startTime).sort((a, b) => a.startTime!.localeCompare(b.startTime!) || a.sortOrder - b.sortOrder);
-  let t = 0;
-  return list.map((i) => (i.startTime ? timed[t++] : i).id);
-}
 
 /** Moves `id` to `index` within `targetIds` (which must not already contain it). */
 export function insertAt(targetIds: string[], id: string, index: number): string[] {
