@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItemView, PlaceView, TripDetail } from "@triply/shared";
+import type { DirectionsMode, ItemView, PlaceView, TripDetail } from "@triply/shared";
 import { Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +8,7 @@ import { useI18n, useT } from "@/i18n/client";
 import { drawDuration, measurePolyline } from "@/lib/motion";
 import { useTheme } from "@/lib/theme";
 import { DAY_COLORS, dayColor, dayStats, formatKm } from "@/lib/trip-geo";
+import { defaultMode, DirectionsPanel, useDirections, useGeolocation, type LatLng } from "./Directions";
 import { mapStyleFor } from "./TileMap";
 import type { DayFilter } from "../trip/DayBar";
 import { cx } from "../ui";
@@ -26,6 +27,13 @@ const TILES_ENABLED = process.env.NEXT_PUBLIC_MAP_STYLE_URL !== "off";
  * The day filter is owned by the page (shared with the itinerary through <DayBar>).
  * Size it with `className` (e.g. `h-[440px]`, or `h-full` inside a sticky column).
  */
+/** The viewer's position and (once found) their route to the selected stop. */
+export interface MapDirections {
+  from: LatLng;
+  to: LatLng;
+  geometry: [number, number][] | null;
+}
+
 export interface MapStop {
   item: ItemView;
   place: PlaceView;
@@ -76,6 +84,23 @@ export function TripMap({
   const visible = stops.filter((s) => day === "all" || s.dayNumber === day);
   const selected = visible.find((s) => s.item.id === selectedId) ?? null;
   const shownDay = day === "all" ? null : days.find((d) => d.dayNumber === day);
+
+  // Directions to the selected stop, from where the viewer is (one position fix, on request).
+  const geo = useGeolocation();
+  const [dirFor, setDirFor] = useState<string | null>(null);
+  const [chosenMode, setChosenMode] = useState<DirectionsMode | null>(null);
+  const dirOpen = !!selected && dirFor === selected.item.id;
+  const dest = selected ? { lat: selected.place.lat, lng: selected.place.lng } : null;
+  const from = dirOpen && geo.state.status === "ok" ? geo.state.at : null;
+  const mode: DirectionsMode = chosenMode ?? (from && dest ? defaultMode(from, dest) : "walk");
+  const route = useDirections(from, dest ?? { lat: 0, lng: 0 }, mode);
+  const openDirections = () => {
+    if (!selected) return;
+    setDirFor(selected.item.id);
+    setChosenMode(null);
+    if (geo.state.status !== "ok") geo.request();
+  };
+  const directions = dirOpen && from && dest ? { from, to: dest, geometry: route.data?.geometry ?? null } : null;
   const km = shownDay ? dayStats(shownDay).km : 0;
 
   return (
@@ -91,10 +116,12 @@ export function TripMap({
           revealKey={String(day)}
           onSelect={onSelect}
           onHover={onHover}
+          directions={directions}
+          youLabel={tm.directions.you}
           onFail={() => setTiles(false)}
         />
       ) : (
-        <MapCanvas stops={visible} selectedId={selectedId} hoveredId={hoveredId} revealKey={String(day)} onSelect={onSelect} onHover={onHover} />
+        <MapCanvas stops={visible} selectedId={selectedId} hoveredId={hoveredId} revealKey={String(day)} onSelect={onSelect} onHover={onHover} directions={directions} />
       )}
       <div className={cx("pointer-events-none absolute z-10 flex gap-2", flush ? "left-4 top-4" : "left-3 top-3")}>
         <span className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold">
@@ -116,37 +143,59 @@ export function TripMap({
         </div>
       )}
       {selected && (
-        <div className={cx("absolute z-10 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-pop sm:right-auto sm:w-[22rem]", flush ? "inset-x-4 bottom-4" : "inset-x-3 bottom-3")}>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
-            {selected.order}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold">{selected.place.name}</div>
-            <div className="truncate text-[13px] text-muted">
-              {t.trips.day(selected.dayNumber)}
-              {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || t.labels.itemType[selected.place.category]}
-              {selected.place.rating && (
-                <span className="ml-1 inline-flex items-center gap-0.5">
-                  <Star className="size-3 fill-gold text-gold" aria-hidden /> {selected.place.rating}
-                </span>
-              )}
+        <div
+          className={cx(
+            "absolute z-10 rounded-2xl border border-line bg-surface p-3 shadow-pop sm:right-auto",
+            dirOpen ? "sm:w-[24rem]" : "sm:w-[22rem]",
+            flush ? "inset-x-4 bottom-4" : "inset-x-3 bottom-3",
+          )}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
+              {selected.order}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-semibold">{selected.place.name}</div>
+              <div className="truncate text-[13px] text-muted">
+                {t.trips.day(selected.dayNumber)}
+                {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || t.labels.itemType[selected.place.category]}
+                {selected.place.rating && (
+                  <span className="ml-1 inline-flex items-center gap-0.5">
+                    <Star className="size-3 fill-gold text-gold" aria-hidden /> {selected.place.rating}
+                  </span>
+                )}
+              </div>
+              <div className="hidden truncate font-mono text-xs text-ink-2 sm:block">
+                {Math.abs(selected.place.lat).toFixed(4)}° {selected.place.lat >= 0 ? tm.north : tm.south}, {Math.abs(selected.place.lng).toFixed(4)}° {selected.place.lng >= 0 ? tm.east : tm.west}
+              </div>
             </div>
-            <div className="hidden truncate font-mono text-xs text-ink-2 sm:block">
-              {Math.abs(selected.place.lat).toFixed(4)}° {selected.place.lat >= 0 ? tm.north : tm.south}, {Math.abs(selected.place.lng).toFixed(4)}° {selected.place.lng >= 0 ? tm.east : tm.west}
-            </div>
+            {!dirOpen && (
+              <button
+                type="button"
+                onClick={openDirections}
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary hover:bg-primary hover:text-on-primary"
+                aria-label={tm.directions.openLabel(selected.place.name)}
+                title={tm.directions.open}
+              >
+                <Navigation className="size-4" />
+              </button>
+            )}
+            <button type="button" onClick={() => onSelect?.(selected.item)} aria-label={tm.closeDetails} className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink">
+              <X className="size-4" />
+            </button>
           </div>
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${selected.place.lat}&mlon=${selected.place.lng}#map=16/${selected.place.lat}/${selected.place.lng}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary hover:bg-primary hover:text-on-primary"
-            aria-label={tm.openInOsm(selected.place.name)}
-          >
-            <Navigation className="size-4" />
-          </a>
-          <button type="button" onClick={() => onSelect?.(selected.item)} aria-label={tm.closeDetails} className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink">
-            <X className="size-4" />
-          </button>
+          {dirOpen && (
+            <DirectionsPanel
+              name={selected.place.name}
+              to={dest!}
+              geo={geo.state}
+              mode={mode}
+              onMode={setChosenMode}
+              route={route}
+              onRetry={() => (geo.state.status === "ok" ? void route.refetch() : geo.request())}
+              onClose={() => setDirFor(null)}
+            />
+          )}
         </div>
       )}
     </div>
@@ -160,6 +209,7 @@ function MapCanvas({
   revealKey,
   onSelect,
   onHover,
+  directions,
 }: {
   stops: MapStop[];
   selectedId?: string | null;
@@ -167,6 +217,7 @@ function MapCanvas({
   revealKey: string;
   onSelect?: (i: ItemView) => void;
   onHover?: (id: string | null) => void;
+  directions?: MapDirections | null;
 }) {
   // Drawn at the box's real pixel size, so pins and labels stay the same size on a phone and a desktop.
   const t = useT();
@@ -190,8 +241,10 @@ function MapCanvas({
   // Equirectangular projection fitted to the visible stops' bounding box.
   const proj = useMemo(() => {
     if (stops.length === 0) return null;
-    const lats = stops.map((s) => s.place.lat);
-    const lngs = stops.map((s) => s.place.lng);
+    // With directions open, the frame also takes in the viewer and their route.
+    const extra = directions ? [[directions.from.lng, directions.from.lat], ...(directions.geometry ?? [])] : [];
+    const lats = [...stops.map((s) => s.place.lat), ...extra.map((c) => c[1])];
+    const lngs = [...stops.map((s) => s.place.lng), ...extra.map((c) => c[0])];
     let [minLat, maxLat, minLng, maxLng] = [Math.min(...lats), Math.max(...lats), Math.min(...lngs), Math.max(...lngs)];
     const minSpan = 0.02;
     if (maxLat - minLat < minSpan) [minLat, maxLat] = [minLat - minSpan, maxLat + minSpan];
@@ -203,7 +256,7 @@ function MapCanvas({
     const ox = (W - (maxLng - minLng) * k * s) / 2;
     const oy = top + (H - top - pad - (maxLat - minLat) * s) / 2;
     return (lat: number, lng: number) => [ox + (lng - minLng) * k * s, oy + (maxLat - lat) * s] as const;
-  }, [stops, W, H, pad, top]);
+  }, [stops, W, H, pad, top, directions]);
 
   const byDay = useMemo(() => {
     const m = new Map<number, MapStop[]>();
@@ -237,6 +290,20 @@ function MapCanvas({
           <path d="M0 -10 L3.5 0 L0 10 L-3.5 0Z" fill="var(--color-muted)" />
         </g>
 
+        {proj && directions && (
+          <g aria-hidden>
+            {directions.geometry && (
+              <>
+                <polyline points={directions.geometry.map(([lng, lat]) => proj(lat, lng).join(",")).join(" ")} fill="none" stroke="var(--color-surface)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+                <polyline points={directions.geometry.map(([lng, lat]) => proj(lat, lng).join(",")).join(" ")} pathLength={1} className="route-draw" fill="none" stroke="var(--color-primary)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+              </>
+            )}
+            <g transform={`translate(${proj(directions.from.lat, directions.from.lng).join(",")})`}>
+              <circle r="16" fill="var(--color-primary)" opacity="0.18" />
+              <circle r="8" fill="var(--color-primary)" stroke="var(--color-pin-ring)" strokeWidth="3" />
+            </g>
+          </g>
+        )}
         {/* Keyed by the day filter: choosing a day replays the route drawing and the pins popping in. */}
         {proj && (
           <g key={revealKey}>

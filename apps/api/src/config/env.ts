@@ -51,6 +51,12 @@ const schema = z.object({
   AIRFLOW_PASSWORD: z.string().optional().transform((v) => v || undefined),
   /** "off" disables LISTEN sync_run (live run progress on the admin screens). */
   CATALOG_REALTIME: z.enum(["on", "off"]).default("on"),
+  /**
+   * Directions (planner → "Directions from here") through OpenRouteService. Free key: openrouteservice.org/dev.
+   * Without it the planner still offers "Open in Google Maps"; the in-app route is hidden.
+   */
+  ORS_API_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+  ORS_API_URL: z.string().url().default("https://api.openrouteservice.org"),
   /** Requests per minute per IP for the general limiter. Auth routes use a stricter limit. */
   RATE_LIMIT_PER_MIN: z.coerce.number().int().default(300),
   AUTH_RATE_LIMIT_PER_MIN: z.coerce.number().int().default(10),

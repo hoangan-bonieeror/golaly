@@ -242,6 +242,35 @@ body {
   }
 }
 
+/* "You are here" (directions): a jade dot with a slow halo. */
+.triply-me {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  border: 3px solid var(--color-pin-ring);
+  box-shadow: 0 1px 4px rgb(31 26 22 / 0.4);
+}
+.triply-me::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  opacity: 0.18;
+  animation: me-halo 2s ease-out infinite;
+}
+@keyframes me-halo {
+  from {
+    transform: scale(0.5);
+    opacity: 0.35;
+  }
+  to {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
 /* Offline SVG map: the same reveal with stroke dash + per-pin delay. */
 .route-draw {
   stroke-dasharray: 1;
@@ -314,7 +343,8 @@ body {
     animation: none;
     stroke-dashoffset: 0;
   }
-  .animate-select-pulse {
+  .animate-select-pulse,
+  .triply-me::after {
     animation: none;
   }
   ::view-transition-group(*),

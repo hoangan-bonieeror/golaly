@@ -188,3 +188,17 @@ export type ReorderItemInput = z.infer<typeof reorderItemSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 export type CreatePostInput = z.input<typeof createPostSchema>;
 export type CreateReportInput = z.infer<typeof createReportSchema>;
+
+// ── Directions ──────────────────────────────────────────────────────────
+export const DIRECTIONS_MODES = ["walk", "bike", "car"] as const;
+const latLngParam = z
+  .string()
+  .regex(/^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/, "Use “lat,lng”.")
+  .transform((v) => v.split(",").map(Number) as [number, number])
+  .refine(([lat, lng]) => Math.abs(lat) <= 90 && Math.abs(lng) <= 180, "That location is out of range.");
+export const directionsQuerySchema = z.object({
+  from: latLngParam,
+  to: latLngParam,
+  mode: z.enum(DIRECTIONS_MODES).default("walk"),
+});
+export type DirectionsQuery = z.infer<typeof directionsQuerySchema>;

@@ -126,6 +126,13 @@ const VI_EXACT: Record<string, string> = {
   "That place was merged into another one; edit that one instead.": "Địa điểm này đã được gộp vào một địa điểm khác; hãy sửa địa điểm đó.",
   "That page link is invalid.": "Liên kết trang không hợp lệ.",
   "Unknown category.": "Danh mục không xác định.",
+
+  // Directions
+  "Directions aren't set up on this server.": "Máy chủ này chưa bật tính năng chỉ đường.",
+  "No route found between these points. You may be too far from a road or path.": "Không tìm thấy đường giữa hai điểm này. Có thể bạn đang ở quá xa đường đi.",
+  "That's too far for this way of travelling. Try another mode.": "Quãng đường quá xa cho cách di chuyển này. Hãy thử cách khác.",
+  "The directions service is busy. Try again in a minute.": "Dịch vụ chỉ đường đang bận. Hãy thử lại sau một phút.",
+  "Couldn't reach the directions service. Try again.": "Không kết nối được dịch vụ chỉ đường. Hãy thử lại.",
 };
 
 /** `${what} couldn't be found.` — by subject. */

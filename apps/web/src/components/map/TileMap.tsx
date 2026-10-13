@@ -13,7 +13,10 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "@/i18n/client";
 import type { Messages } from "@/i18n/catalog";
 import { drawDuration, easeInOut, measurePolyline, prefersReducedMotion } from "@/lib/motion";
-import type { MapStop } from "./TripMap";
+import type { MapDirections, MapStop } from "./TripMap";
+
+/** A literal colour for MapLibre paint (CSS variables don't reach WebGL); read once per map (it's keyed by theme). */
+const cssColor = (name: string, fallback: string) => (typeof window === "undefined" ? fallback : getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback);
 
 export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/positron";
 /** Atlas Night uses a dark basemap (OpenFreeMap "dark", or NEXT_PUBLIC_MAP_STYLE_URL_DARK). */
@@ -156,8 +159,13 @@ export function TileMap({
   onSelect,
   onHover,
   onFail,
+  directions,
+  youLabel,
   styleUrl = MAP_STYLE_URL,
 }: {
+  /** The viewer's position and route to the selected stop ("Directions from here"). */
+  directions?: MapDirections | null;
+  youLabel?: string;
   /** Pin to lift (the stop under the pointer in the itinerary). */
   hoveredId?: string | null;
   /** Changing it (the day filter) replays the camera move + route drawing. */
@@ -176,6 +184,8 @@ export function TileMap({
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef<Markers>(new Map());
   const cancelReveal = useRef<() => void>(() => undefined);
+  const libRef = useRef<typeof import("maplibre-gl") | null>(null);
+  const me = useRef<Marker | null>(null);
   const [loaded, setLoaded] = useState(false);
   // Event handlers registered once read the latest props through this ref.
   const latest = useRef<Latest>({ stops, colors, onSelect, onHover, onFail, t });
@@ -220,6 +230,11 @@ export function TileMap({
           paint: { "line-color": ["get", "color"], "line-width": 4, "line-opacity": 0.9 },
           layout: { "line-cap": "round", "line-join": "round" },
         });
+        // Directions sit under the pins, above the day routes: a white casing and a jade line.
+        m.addSource("directions", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        m.addLayer({ id: "directions-casing", type: "line", source: "directions", paint: { "line-color": cssColor("--color-surface", "#fffdf8"), "line-width": 9 }, layout: { "line-cap": "round", "line-join": "round" } });
+        m.addLayer({ id: "directions-line", type: "line", source: "directions", paint: { "line-color": cssColor("--color-primary", "#1f5e52"), "line-width": 5 }, layout: { "line-cap": "round", "line-join": "round" } });
+        libRef.current = maplibregl;
         void syncMap(m, markerMap, latest.current, true, maplibregl).then(() => {
           cancelReveal.current = revealRoute(m, markerMap, latest.current.stops, latest.current.colors);
           setLoaded(true);
@@ -229,6 +244,8 @@ export function TileMap({
     return () => {
       cancelled = true;
       cancelReveal.current();
+      me.current?.remove();
+      me.current = null;
       clearTimeout(failTimer);
       markerMap.forEach(({ marker }) => marker.remove());
       markerMap.clear();
@@ -252,6 +269,39 @@ export function TileMap({
     // stopsKey + revealKey capture every change to `stops` that matters for drawing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopsKey, revealKey]);
+
+  // Directions: the "you are here" dot, the route line, and a frame that shows both ends.
+  const dirKey = directions ? `${directions.from.lat},${directions.from.lng}>${directions.to.lat},${directions.to.lng}:${directions.geometry?.length ?? 0}` : "";
+  useEffect(() => {
+    const m = map.current;
+    const lib = libRef.current;
+    if (!m || !lib || !m.getSource("directions")) return;
+    (m.getSource("directions") as GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: directions?.geometry ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: directions.geometry } }] : [],
+    });
+    if (!directions) {
+      me.current?.remove();
+      me.current = null;
+      return;
+    }
+    if (!me.current) {
+      const node = document.createElement("div");
+      node.className = "triply-me";
+      node.setAttribute("role", "img");
+      me.current = new lib.Marker({ element: node, anchor: "center" }).setLngLat([directions.from.lng, directions.from.lat]).addTo(m);
+    }
+    me.current.setLngLat([directions.from.lng, directions.from.lat]);
+    me.current.getElement().setAttribute("aria-label", youLabel ?? "");
+    const b = new lib.LngLatBounds();
+    b.extend([directions.from.lng, directions.from.lat]);
+    b.extend([directions.to.lng, directions.to.lat]);
+    directions.geometry?.forEach((c) => b.extend(c));
+    // Leave room at the bottom for the stop card with the directions panel.
+    m.fitBounds(b, { padding: { top: 72, left: 48, right: 48, bottom: 300 }, maxZoom: 16, duration: prefersReducedMotion() ? 0 : 800 });
+    // dirKey captures every change to `directions` that matters for drawing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirKey, loaded]);
 
   // Lift the pin of the stop under the pointer in the itinerary.
   useEffect(() => {

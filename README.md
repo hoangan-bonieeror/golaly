@@ -148,6 +148,8 @@ CATALOG_REALTIME=on                     # live run progress on the admin screens
 
 Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](https://openfreemap.org) Positron style (quiet greys, so day-coloured pins and routes stand out), so they need internet access. Set `NEXT_PUBLIC_MAP_STYLE_URL` in `apps/web/.env.local` to use another style (MapTiler, Stadia, your own), or `off` to always use the offline SVG map. If tiles fail to load (offline, no WebGL), the app falls back to the SVG map automatically.
 
+**Directions** ("Directions from here" on a stop in the trip planner) draw the route from the viewer's position using [OpenRouteService](https://openrouteservice.org) (OpenStreetMap data; free key, 2,000 routes/day). Get a key at openrouteservice.org/dev and add `ORS_API_KEY=…` to `apps/api/.env`. The key stays on the API (`GET /api/v1/directions`, signed-in users, cached ~10 min). Without a key the planner still offers "Open in Google Maps", which starts from the device's location. Turn-by-turn guidance is handed off to Google Maps / Apple Maps.
+
 ### Useful commands
 
 | Command | What it does |

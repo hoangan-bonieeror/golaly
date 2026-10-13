@@ -408,3 +408,14 @@ export interface TripPresence {
   tripId: string;
   users: { userId: string; editingDay: number | null }[];
 }
+
+/** A route from the viewer's position to a stop (`GET /directions`, OpenRouteService behind the API). */
+export type DirectionsMode = "walk" | "bike" | "car";
+export interface DirectionsView {
+  mode: DirectionsMode;
+  distanceM: number;
+  durationS: number;
+  /** [lng, lat] pairs, GeoJSON order. */
+  geometry: [number, number][];
+  attribution: string;
+}

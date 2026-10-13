@@ -1,3 +1,4 @@
+import { DirectionsModule } from "./modules/directions/directions";
 import { Controller, Get, Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
@@ -54,6 +55,7 @@ class HealthController {
     SocialModule,
     MediaModule,
     AdminModule,
+    DirectionsModule,
   ],
   controllers: [HealthController],
   providers: [
