@@ -7,7 +7,7 @@ import helmet from "helmet";
 import path from "node:path";
 import { AppModule } from "./app.module";
 import { localeMiddleware } from "./common/locale";
-import { env } from "./config/env";
+import { corsOrigins, env } from "./config/env";
 
 export async function createApp() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -18,7 +18,7 @@ export async function createApp() {
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
   app.use(localeMiddleware);
-  app.enableCors({ origin: env.WEB_ORIGIN, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
+  app.enableCors({ origin: corsOrigins, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
   app.setGlobalPrefix("api/v1", { exclude: ["health"] });
   // Local media driver serves files directly; S3/R2 would hand out signed URLs instead.
   app.useStaticAssets(path.resolve(env.MEDIA_DIR), { prefix: "/media/", maxAge: "30d", immutable: true, index: false, dotfiles: "deny" });

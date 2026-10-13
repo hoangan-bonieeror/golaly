@@ -150,11 +150,38 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 
 **Directions** ("Directions from here" on a stop in the trip planner) draw the route from the viewer's position using [OpenRouteService](https://openrouteservice.org) (OpenStreetMap data; free key, 2,000 routes/day). Get a key at openrouteservice.org/dev and add `ORS_API_KEY=…` to `apps/api/.env`. The key stays on the API (`GET /api/v1/directions`, signed-in users, cached ~10 min). Without a key the planner still offers "Open in Google Maps", which starts from the device's location. Turn-by-turn guidance is handed off to Google Maps / Apple Maps.
 
+### Testing on a phone
+
+Stop `npm run dev`, then:
+
+```bash
+node scripts/dev-phone.mjs            # same Wi-Fi → open http://<this computer's IP>:3100 on the phone
+node scripts/dev-phone.mjs --tunnel   # anywhere → a https://….trycloudflare.com address (4G works too)
+```
+
+The script starts the usual dev servers plus a small proxy on port 3100 that serves the web app and forwards
+`/socket.io` to the API, so the phone needs a single address and live collaboration works. It prints the
+addresses; open the same one on the computer too, or keep using `http://localhost:3000`.
+
+- **Same Wi-Fi** is plain HTTP, so phone browsers block location (directions, "Near me"); everything else works.
+  On Windows, allow Node.js on *Private networks* the first time. If the phone can't connect, the script lists
+  the computer's other addresses — pick one with `--ip 192.168.x.x` (VPN / VirtualBox / WSL adapters are skipped).
+- **`--tunnel`** uses a free [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/)
+  (no account). Install `cloudflared` once — Windows: `winget install --id Cloudflare.cloudflared`, macOS:
+  `brew install cloudflared`. It's HTTPS, so location features work. The address changes every run, and anyone
+  with it can reach your dev app while the script runs.
+- Log in with email (or a demo account after `npm run db:seed`); Google sign-in only works on `localhost`, the
+  redirect address registered with Google. Invite and email links point at the phone address while it runs.
+- How it plugs in: Next.js only serves its dev server to hostnames in `allowedDevOrigins` (`DEV_ALLOWED_ORIGINS`),
+  the API accepts the extra origins in `CORS_EXTRA_ORIGINS`, and `NEXT_PUBLIC_REALTIME_URL=auto` makes the socket
+  use the page's own origin when it isn't the dev server on :3000.
+
 ### Useful commands
 
 | Command | What it does |
 |---|---|
 | `npm run dev` | shared (watch) + API (watch) + web (hot reload) |
+| `node scripts/dev-phone.mjs [--tunnel]` | The same, reachable from a phone (Wi-Fi, or HTTPS anywhere with `--tunnel`) — see above |
 | `npm test` | API unit + integration tests (uses `TEST_DATABASE_URL`, rebuilt each run) |
 | `npm run test:unit` | Unit tests only (no database needed) |
 | `npm run e2e` | Playwright Definition-of-Done journey against a running stack |

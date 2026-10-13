@@ -10,6 +10,16 @@ const schema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   WEB_ORIGIN: z.string().url().default("http://localhost:3000"),
+  /**
+   * More origins allowed to call the API cross-origin and open the realtime socket, comma-separated
+   * (e.g. a phone on the LAN or an HTTPS tunnel — set by `node scripts/dev-phone.mjs`). WEB_ORIGIN
+   * stays the one used in links (emails, invites, redirects).
+   */
+  CORS_EXTRA_ORIGINS: z
+    .string()
+    .default("")
+    .transform((v) => v.split(",").map((s) => s.trim().replace(/\/$/, "")).filter(Boolean))
+    .pipe(z.array(z.string().url())),
   COOKIE_SECURE: z
     .enum(["true", "false"])
     .default("false")
@@ -92,3 +102,6 @@ function load(): Env {
 }
 
 export const env = load();
+
+/** Every origin the browser may call the API or the socket from. */
+export const corsOrigins = [env.WEB_ORIGIN, ...env.CORS_EXTRA_ORIGINS];

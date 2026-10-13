@@ -12,7 +12,7 @@ import {
 import { can, type NotificationView, type TripEvent, type TripEventName, type TripPresence } from "@triply/shared";
 import type { Server, Socket } from "socket.io";
 import { ACCESS_COOKIE, verifyAccess } from "../../common/auth";
-import { env } from "../../config/env";
+import { corsOrigins } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
 
 function parseCookies(header: string | undefined): Record<string, string> {
@@ -29,7 +29,7 @@ function parseCookies(header: string | undefined): Record<string, string> {
  * then ask to join `trip:<id>` rooms; joining re-checks `trip.view` permission server-side.
  * Events are notifications to refetch — the REST API stays the single source of truth.
  */
-@WebSocketGateway({ path: "/socket.io", cors: { origin: env.WEB_ORIGIN, credentials: true } })
+@WebSocketGateway({ path: "/socket.io", cors: { origin: corsOrigins, credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
   @WebSocketServer() server: Server;
   private readonly log = new Logger("Realtime");

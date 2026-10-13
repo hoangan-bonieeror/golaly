@@ -14,10 +14,17 @@ import { keys } from "./api/queries";
 let socket: Socket | null = null;
 let ownerId: string | null = null;
 
+/**
+ * Where the socket connects. NEXT_PUBLIC_REALTIME_URL is either a URL, or "auto" (set by
+ * `node scripts/dev-phone.mjs`): the dev server opened directly on :3000 talks to the API on :4000,
+ * while a page served through the phone proxy or a tunnel uses its own origin, which forwards
+ * /socket.io to the API. Unset = the dev default (API on :4000 next to the web app).
+ */
 function realtimeUrl() {
-  if (process.env.NEXT_PUBLIC_REALTIME_URL) return process.env.NEXT_PUBLIC_REALTIME_URL;
-  // Dev default: API on :4000 next to the web app on :3000.
-  return `${window.location.protocol}//${window.location.hostname}:4000`;
+  const configured = process.env.NEXT_PUBLIC_REALTIME_URL;
+  const direct = `${window.location.protocol}//${window.location.hostname}:4000`;
+  if (configured === "auto") return window.location.port === "3000" ? direct : window.location.origin;
+  return configured || direct;
 }
 
 /** One socket per signed-in user; replaced when the user changes. */
