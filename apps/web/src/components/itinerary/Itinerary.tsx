@@ -1,29 +1,40 @@
 "use client";
 
-import type { ItemView, TripDetail } from "@triply/shared";
+import { ITEM_TYPE_LABEL, type ItemView, type TripDetail } from "@triply/shared";
 import { ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { cx, timeAgo } from "../ui";
-import { ItemSheet } from "./ItemSheet";
+import type { DayFilter } from "../trip/DayBar";
 import { ItemTypeIcon } from "./ItemTypeIcon";
 
+/**
+ * The itinerary column of the planner (Atlas): one section per day, numbered stops in the day's
+ * colour, and an estimated travel leg between consecutive places. The page owns the day filter,
+ * the selection (shared with the map) and the add/edit sheet.
+ */
 export function Itinerary({
   trip,
+  day = "all",
   selectedId,
   onSelect,
+  onAdd,
+  onEdit,
 }: {
   trip: TripDetail;
+  day?: DayFilter;
   selectedId?: string | null;
   onSelect?: (item: ItemView) => void;
+  onAdd?: (dayId: string) => void;
+  onEdit?: (item: ItemView) => void;
 }) {
   const me = useMe().data;
-  const days = trip.days;
+  const days = day === "all" ? trip.days : trip.days.filter((d) => d.dayNumber === day);
   const may = (a: string) => trip.permissions.includes(a as never);
   const canEdit = may("itinerary.edit");
   const canAdd = may("itinerary.add");
-  const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; item?: ItemView | null }>({ open: false });
   const [dragId, setDragId] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
 
@@ -41,18 +52,29 @@ export function Itinerary({
 
   return (
     <div className="space-y-8">
-      {days.map((day) => {
-        const items = day.items;
+      {days.map((d) => {
+        const items = d.items;
+        const color = dayColor(d.dayNumber);
+        const legs = dayLegs(items);
+        const stats = dayStats(d);
+        let stop = 0;
         return (
-          <section key={day.id} aria-labelledby={`day-${day.id}`}>
-            <header className="sticky top-[100px] z-10 -mx-1 mb-2 flex items-baseline gap-3 bg-sand/90 px-1 py-2 backdrop-blur md:top-0">
-              <h2 id={`day-${day.id}`} className="font-display text-xl font-semibold">
-                Day {day.dayNumber}
+          <section key={d.id} aria-labelledby={`day-${d.id}`}>
+            <header className="mb-3 flex items-baseline justify-between gap-3">
+              <h2 id={`day-${d.id}`} className="flex min-w-0 items-baseline gap-2 font-display text-xl font-bold">
+                <span aria-hidden className="size-2.5 shrink-0 translate-y-[-2px] self-center rounded-full" style={{ background: color }} />
+                <span className="truncate">
+                  Day {d.dayNumber}
+                  {d.date && <span className="font-semibold text-ink-2"> · {new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>}
+                  {d.title && <span className="font-semibold text-ink-2"> · {d.title}</span>}
+                </span>
               </h2>
-              <span className="text-sm text-muted">
-                {day.date && new Date(day.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
-                {day.title && ` · ${day.title}`}
-              </span>
+              {stats.stops > 0 && (
+                <span className="shrink-0 font-mono text-xs text-muted">
+                  {stats.stops} {stats.stops === 1 ? "stop" : "stops"}
+                  {stats.km > 0 && ` · ${formatKm(stats.km)}`}
+                </span>
+              )}
             </header>
 
             <ol
@@ -60,19 +82,23 @@ export function Itinerary({
               onDragOver={(e) => {
                 if (dragId && items.length === 0) {
                   e.preventDefault();
-                  setOverKey(`${day.id}:0`);
+                  setOverKey(`${d.id}:0`);
                 }
               }}
-              onDrop={() => items.length === 0 && drop(day.id, 0)}
+              onDrop={() => items.length === 0 && drop(d.id, 0)}
             >
               {items.length === 0 && (
-                <li className={cx("rounded-2xl border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${day.id}:0` && "border-primary bg-primary-50")}>
+                <li className={cx("rounded-[14px] border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${d.id}:0` && "border-primary bg-primary-50")}>
                   Nothing planned yet.
                 </li>
               )}
               {items.map((it, idx) => {
                 const place = it.place;
+                const n = place ? ++stop : null;
+                const leg = legs.get(it.id);
                 const editor = it.updatedBy && it.updatedBy.id !== me?.id ? it.updatedBy : null;
+                const selected = selectedId === it.id;
+                const meta = [place ? place.categoryLabel || ITEM_TYPE_LABEL[it.type] : it.type === "NOTE" ? "Note" : `${ITEM_TYPE_LABEL[it.type]} · custom`, place && place.name !== it.title ? place.name : null, it.endTime ? `until ${it.endTime}` : null].filter(Boolean).join(" · ");
                 return (
                   <li
                     key={it.id}
@@ -85,66 +111,71 @@ export function Itinerary({
                     onDragOver={(e) => {
                       if (!dragId) return;
                       e.preventDefault();
-                      setOverKey(`${day.id}:${idx}`);
+                      setOverKey(`${d.id}:${idx}`);
                     }}
-                    onDrop={() => drop(day.id, idx)}
-                    className={cx("group relative flex gap-3", dragId === it.id && "opacity-40")}
+                    onDrop={() => drop(d.id, idx)}
+                    className={cx("group relative", dragId === it.id && "opacity-40")}
                   >
-                    {overKey === `${day.id}:${idx}` && dragId !== it.id && <span className="absolute -top-1 left-16 right-0 h-0.5 rounded bg-primary" />}
-                    <div className="w-12 shrink-0 pt-3 text-right text-sm font-semibold tabular-nums text-ink-2">{it.startTime ?? ""}</div>
-                    <div className="relative flex flex-col items-center">
-                      {items.length > 1 && (
-                        <span
-                          className="absolute w-px bg-line"
-                          style={idx === items.length - 1 ? { top: 0, height: 24 } : { top: idx === 0 ? 24 : 0, bottom: 0 }}
-                        />
-                      )}
-                      <div className="relative mt-1.5">
-                        <ItemTypeIcon type={it.type} size="sm" />
+                    {idx > 0 && (
+                      <div className="ml-[26px] border-l-2 border-dashed border-line py-1.5 pl-[14px] font-mono text-xs text-muted sm:ml-[62px]" title={leg ? "Estimated from straight-line distance" : undefined}>
+                        {leg ? legLabel(leg) : <span aria-hidden>&nbsp;</span>}
+                        {leg && <span className="sr-only"> (estimate)</span>}
                       </div>
-                    </div>
-                    <div
-                      onClick={() => onSelect?.(it)}
-                      className={cx(
-                        "mb-2.5 min-w-0 flex-1 cursor-pointer rounded-2xl border bg-surface px-3.5 py-2.5 transition-colors",
-                        selectedId === it.id ? "border-primary ring-2 ring-primary/15" : "border-line hover:border-ink-2/40",
-                      )}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelect?.(it);
-                            }}
-                            className="text-left font-semibold leading-snug hover:underline"
-                            aria-label={`Show ${it.title} on map`}
-                          >
-                            {it.title}
-                          </button>
-                          {place && place.name !== it.title && <div className="truncate text-xs text-muted">{place.name}</div>}
-                          {!place && it.type !== "NOTE" && <div className="text-xs text-muted">Custom</div>}
-                          {it.endTime && <div className="text-xs text-muted">until {it.endTime}</div>}
-                          {it.notes && <p className="mt-1.5 rounded-lg bg-sand px-2 py-1 text-[13px] text-ink-2">{it.notes}</p>}
-                          {editor && it.updatedAt && (
-                            <p className="mt-1.5 text-[11px] text-muted">
-                              Edited by {editor.displayName} · {timeAgo(it.updatedAt)}
-                            </p>
+                    )}
+                    {overKey === `${d.id}:${idx}` && dragId !== it.id && <span className="absolute left-0 right-0 top-0 h-0.5 rounded bg-primary sm:left-[62px]" />}
+                    <div className="flex items-start gap-3 sm:gap-3.5">
+                      <div className="hidden w-12 shrink-0 pt-[15px] text-right font-mono text-[13px] text-ink sm:block">{it.startTime ?? ""}</div>
+                      <div
+                        onClick={() => onSelect?.(it)}
+                        className={cx(
+                          "min-w-0 flex-1 cursor-pointer rounded-[14px] border p-3 transition-colors",
+                          selected ? "border-primary bg-primary-50 ring-1 ring-primary" : "border-line bg-surface hover:border-ink-2/40",
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          {n !== null ? (
+                            <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: color }}>
+                              <span className="sr-only">Stop </span>
+                              {n}
+                            </span>
+                          ) : (
+                            <ItemTypeIcon type={it.type} size="sm" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelect?.(it);
+                              }}
+                              className="text-left font-semibold leading-snug hover:underline"
+                              aria-label={place ? `Show ${it.title} on map` : undefined}
+                              aria-pressed={place ? selected : undefined}
+                            >
+                              {it.title}
+                            </button>
+                            <div className={cx("truncate text-[13px]", selected ? "text-ink-2" : "text-muted")}>{meta}</div>
+                          </div>
+                          {it.startTime && <span className="shrink-0 font-mono text-[13px] text-ink sm:hidden">{it.startTime}</span>}
+                          {canEdit && (
+                            <>
+                              <GripVertical className="hidden size-4 shrink-0 cursor-grab text-muted opacity-0 group-hover:opacity-100 md:block" aria-hidden />
+                              <ItemMenu
+                                first={idx === 0}
+                                last={idx === items.length - 1}
+                                onEdit={() => onEdit?.(it)}
+                                onDuplicate={() => duplicate.run(it.id)}
+                                onMove={(dir) => reorder.run({ id: it.id, dayId: d.id, index: idx + dir })}
+                                onDelete={() => remove.run(it.id)}
+                              />
+                            </>
                           )}
                         </div>
-                        {canEdit && (
-                          <>
-                            <GripVertical className="mt-0.5 hidden size-4 shrink-0 cursor-grab text-muted opacity-0 group-hover:opacity-100 md:block" aria-hidden />
-                            <ItemMenu
-                              first={idx === 0}
-                              last={idx === items.length - 1}
-                              onEdit={() => setSheet({ open: true, item: it })}
-                              onDuplicate={() => duplicate.run(it.id)}
-                              onMove={(dir) => reorder.run({ id: it.id, dayId: day.id, index: idx + dir })}
-                              onDelete={() => remove.run(it.id)}
-                            />
-                          </>
+                        {it.notes && <p className={cx("mt-2 whitespace-pre-line border-l-2 pl-2.5 text-[13px]", selected ? "border-primary font-semibold text-primary" : "border-line text-ink-2")}>{it.notes}</p>}
+                        {editor && it.updatedAt && (
+                          <p className="mt-1.5 text-[11px] text-muted">
+                            Edited by {editor.displayName} · {timeAgo(it.updatedAt)}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -155,37 +186,27 @@ export function Itinerary({
 
             {canAdd && (
               <button
-                onClick={() => setSheet({ open: true, dayId: day.id })}
-                className="ml-[60px] mt-1 flex h-11 w-[calc(100%-60px)] items-center justify-center gap-2 rounded-2xl border border-dashed border-line text-sm font-semibold text-primary hover:border-primary hover:bg-primary-50/60"
+                type="button"
+                onClick={() => onAdd?.(d.id)}
+                className="mt-4 flex h-11 w-full items-center gap-2 rounded-xl border border-dashed border-[#b9ad99] px-3.5 text-left text-sm font-semibold text-primary hover:border-primary hover:bg-primary-50/60 sm:ml-[62px] sm:w-[calc(100%-62px)]"
               >
-                <Plus className="size-4" /> Add to Day {day.dayNumber}
+                <Plus className="size-4 shrink-0" aria-hidden /> Add a place to Day {d.dayNumber}
               </button>
             )}
           </section>
         );
       })}
 
-      {canAdd && (
+      {canAdd && day === "all" && (
         <button
+          type="button"
           disabled={addDay.isPending}
           onClick={() => addDay.run(undefined)}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-sand-2 text-sm font-semibold text-ink-2 hover:bg-line"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sand-2 text-sm font-semibold text-ink-2 hover:bg-line"
         >
           <CalendarPlus className="size-4" /> Add another day
         </button>
       )}
-
-      {/* One-hand mobile FAB */}
-      {canAdd && (
-        <button
-          onClick={() => setSheet({ open: true, dayId: days[0]?.id })}
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-30 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 font-semibold text-white shadow-pop md:hidden"
-        >
-          <Plus className="size-5" /> Add item
-        </button>
-      )}
-
-      <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} item={sheet.item} />
     </div>
   );
 }
@@ -273,7 +294,7 @@ function ItemMenu({
             setOpen(true);
           }
         }}
-        className="flex size-11 items-center justify-center rounded-full text-muted hover:bg-sand-2 hover:text-ink md:size-8"
+        className="flex size-11 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink md:size-8"
       >
         <MoreHorizontal className="size-4" />
       </button>

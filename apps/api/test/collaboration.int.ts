@@ -203,7 +203,7 @@ describe("fork", () => {
 describe("realtime", () => {
   it("delivers item events to members in the trip room and refuses strangers", async () => {
     const { owner, trip, day } = await tripWithEditor();
-    await t.app.listen(0);
+    if (!t.app.getHttpServer().listening) await t.app.listen(0);
     const port = (t.app.getHttpServer().address() as AddressInfo).port;
     const connect = (cookie: string) =>
       new Promise<Socket>((resolve, reject) => {
@@ -221,6 +221,59 @@ describe("realtime", () => {
     const event = new Promise((resolve) => ownerSock.on("trip.event", resolve));
     const item = (await owner.post(`/days/${day.id}/items`, { type: "NOTE", title: "Realtime!" })).body;
     await expect(event).resolves.toMatchObject({ tripId: trip.id, event: "trip.item.created", entityId: item.id, actorId: owner.id });
+    ownerSock.close();
+    strangerSock.close();
+  });
+
+  it("presence: lists who has the trip open and which day they're editing; leaving or disconnecting drops them", async () => {
+    const { owner, trip } = await tripWithEditor();
+    if (!t.app.getHttpServer().listening) await t.app.listen(0);
+    const port = (t.app.getHttpServer().address() as AddressInfo).port;
+    const connect = (cookie: string) =>
+      new Promise<Socket>((resolve, reject) => {
+        const s = io(`http://localhost:${port}`, { path: "/socket.io", transports: ["websocket"], extraHeaders: { cookie } });
+        s.on("connect", () => resolve(s));
+        s.on("connect_error", reject);
+      });
+    type P = { tripId: string; users: { userId: string; editingDay: number | null }[] };
+    const next = (s: Socket, pred: (p: P) => boolean) =>
+      new Promise<P>((resolve) => {
+        const h = (p: P) => {
+          if (p.tripId === trip.id && pred(p)) {
+            s.off("trip.presence", h);
+            resolve(p);
+          }
+        };
+        s.on("trip.presence", h);
+      });
+
+    const editor = await t.register("pres");
+    const link = (await owner.post(`/trips/${trip.id}/invitations`, { role: "EDITOR" })).body;
+    expect((await editor.post(`/invitations/${link.token}/accept`)).status).toBe(200);
+
+    const ownerSock = await connect(owner.cookies());
+    const alone = next(ownerSock, (p) => p.users.length === 1);
+    await ownerSock.emitWithAck("trip.join", { tripId: trip.id });
+    expect((await alone).users).toEqual([{ userId: owner.id, editingDay: null }]);
+
+    const editorSock = await connect(editor.cookies());
+    const both = next(ownerSock, (p) => p.users.length === 2);
+    await editorSock.emitWithAck("trip.join", { tripId: trip.id });
+    expect((await both).users.map((u) => u.userId).sort()).toEqual([owner.id, editor.id].sort());
+
+    const editing = next(ownerSock, (p) => p.users.some((u) => u.userId === editor.id && u.editingDay === 2));
+    expect(await editorSock.emitWithAck("trip.activity", { tripId: trip.id, editingDay: 2 })).toEqual({ ok: true });
+    await editing;
+    expect(await editorSock.emitWithAck("trip.activity", { tripId: trip.id, editingDay: 0 })).toEqual({ ok: false });
+
+    // Someone who never joined (or couldn't) can't report activity on the trip.
+    const stranger = await t.register("presx");
+    const strangerSock = await connect(stranger.cookies());
+    expect(await strangerSock.emitWithAck("trip.activity", { tripId: trip.id, editingDay: 1 })).toEqual({ ok: false });
+
+    const gone = next(ownerSock, (p) => p.users.length === 1);
+    editorSock.close();
+    expect((await gone).users).toEqual([{ userId: owner.id, editingDay: null }]);
     ownerSock.close();
     strangerSock.close();
   });

@@ -146,7 +146,7 @@ CATALOG_REALTIME=on                     # live run progress on the admin screens
 
 ### Map tiles
 
-Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](https://openfreemap.org) style, so they need internet access. Set `NEXT_PUBLIC_MAP_STYLE_URL` in `apps/web/.env.local` to use another style (MapTiler, Stadia, your own), or `off` to always use the offline SVG map. If tiles fail to load (offline, no WebGL), the app falls back to the SVG map automatically.
+Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](https://openfreemap.org) Positron style (quiet greys, so day-coloured pins and routes stand out), so they need internet access. Set `NEXT_PUBLIC_MAP_STYLE_URL` in `apps/web/.env.local` to use another style (MapTiler, Stadia, your own), or `off` to always use the offline SVG map. If tiles fail to load (offline, no WebGL), the app falls back to the SVG map automatically.
 
 ### Useful commands
 
@@ -175,7 +175,7 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 | **Trips** | CRUD, destinations (multi-stop route), dates that keep days in sync and **never silently delete plans**, cover upload, budget, visibility `PRIVATE` (default) / `LINK_ONLY` / `PUBLIC`, allow comments, allow fork, soft delete. |
 | **Itinerary** | Days (add, rename, delete with renumbering), items of 7 types, place search, times (chronological auto-ordering; untimed notes keep their slot), notes, duplicate, reorder within or across days (drag & drop or a keyboard-accessible menu), "Edited by …" trail. Concurrent edits to one trip are serialised with a row lock, so two people reordering at once can't undo each other. |
 | **Collaboration** | Owner / Editor / Viewer enforced **server-side on every request**. Invite by email (bound to that address, single-use, and only claimable once the address is confirmed) or link (reusable until expiry/revoke). Tokens are 256-bit, stored as SHA-256 hashes, expire in 7 days and are revocable. Owners change roles and remove members; members can leave. Audit log for every permission change. |
-| **Realtime** | Socket.IO rooms per trip (handshake checks the live session; joining re-checks permission). Item, day and member events refresh collaborators' screens; removed members are kicked, outsiders are evicted when a trip goes private, revoked sessions are disconnected. Notifications are pushed live — only after their transaction commits. The client refreshes its session and reconnects on its own. |
+| **Realtime** | Socket.IO rooms per trip (handshake checks the live session; joining re-checks permission). Item, day and member events refresh collaborators' screens; presence shows who has the trip open and which day they are editing ("Minh is editing Day 2"); removed members are kicked, outsiders are evicted when a trip goes private, revoked sessions are disconnected. Notifications are pushed live — only after their transaction commits. The client refreshes its session and reconnects on its own. |
 | **Fork / Remix** | Copies title, description, dates, destinations, days, items and places. Does **not** copy members, invites, comments, media or counters. New owner = forker; copy starts Private; "Based on … by @…" attribution survives even if the source is deleted. |
 | **Social** | Feed (For You / Following), cursor pagination on every list that can grow (trips, saved, comments, notifications), posts linked to trips (public post of a private trip is refused), drafts, photos, likes and saves that are idempotent under double-clicks, comments (author can moderate), follows, share, reports (5 reasons, one per user per target). |
 | **Discovery** | Search across trips, places, people and destinations: **accent-insensitive and typo-tolerant** (`hoi an` → Hội An, `tokio` → Tokyo) using `pg_trgm` trigram indexes, every word must match, best matches first (behind a `SearchProvider` interface, so it can move to OpenSearch/Algolia later), destination pages, explore, recent searches. Interactive **MapLibre** trip maps with numbered pins and the day's route. |
@@ -193,6 +193,8 @@ Trip maps use [MapLibre GL](https://maplibre.org) with the free [OpenFreeMap](ht
 Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking.
 
 API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+The visual language ("Atlas": map-first, paper + jade + vermilion, a colour per day, mono for times and distances) is specified in **[design-system/triply/MASTER.md](design-system/triply/MASTER.md)**.
 
 ---
 

@@ -2,7 +2,7 @@
 
 /**
  * Real map tiles via MapLibre GL (open source, no API key). Default style is
- * OpenFreeMap; override with NEXT_PUBLIC_MAP_STYLE_URL (e.g. a MapTiler/Stadia style).
+ * OpenFreeMap Positron — quiet greys, so the day-coloured pins and routes carry the map (Atlas); override with NEXT_PUBLIC_MAP_STYLE_URL (e.g. a MapTiler/Stadia style).
  * If WebGL or the tile server is unavailable, `onFail` lets the caller fall back to the
  * offline SVG map, so the trip page never shows a blank box.
  */
@@ -12,7 +12,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
 import type { MapStop } from "./TripMap";
 
-export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/liberty";
+export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/positron";
 
 type Markers = Map<string, { marker: Marker; node: HTMLButtonElement }>;
 interface Latest {
@@ -47,7 +47,7 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
         const cur = latest.stops.find((x) => x.item.id === s.item.id);
         if (cur) latest.onSelect?.(cur.item);
       });
-      const marker = new maplibregl.Marker({ element: node, anchor: "bottom" }).setLngLat([s.place.lng, s.place.lat]).addTo(m);
+      const marker = new maplibregl.Marker({ element: node, anchor: "center" }).setLngLat([s.place.lng, s.place.lat]).addTo(m);
       entry = { marker, node };
       markers.set(s.item.id, entry);
     }
@@ -131,7 +131,7 @@ export function TileMap({
           id: "route",
           type: "line",
           source: "route",
-          paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.85, "line-dasharray": [1, 2] },
+          paint: { "line-color": ["get", "color"], "line-width": 4, "line-opacity": 0.9 },
           layout: { "line-cap": "round", "line-join": "round" },
         });
         void syncMap(m, markerMap, latest.current, true, maplibregl);
@@ -163,5 +163,10 @@ export function TileMap({
     if (s && m?.isStyleLoaded()) m.easeTo({ center: [s.place.lng, s.place.lat], zoom: Math.max(m.getZoom(), 13), duration: 500 });
   }, [selectedId]);
 
-  return <div ref={el} className="h-[440px] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-[#eef1ea]" role="region" aria-label="Map of trip stops" />;
+  // MapLibre makes its container `position: relative`, so the container fills an absolute wrapper.
+  return (
+    <div className="absolute inset-0">
+      <div ref={el} className="h-full w-full" role="region" aria-label="Map of trip stops" />
+    </div>
+  );
 }

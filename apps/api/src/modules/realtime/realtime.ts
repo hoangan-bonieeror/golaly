@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import { can, type NotificationView, type TripEvent, type TripEventName } from "@triply/shared";
+import { can, type NotificationView, type TripEvent, type TripEventName, type TripPresence } from "@triply/shared";
 import type { Server, Socket } from "socket.io";
 import { ACCESS_COOKIE, verifyAccess } from "../../common/auth";
 import { env } from "../../config/env";
@@ -59,6 +59,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
   }
 
   async handleConnection(socket: Socket) {
+    socket.data.activity = {} as Record<string, number | null>;
+    // Closing the tab (or losing the connection) drops the user from every trip's presence list.
+    // "disconnecting" still sees the rooms; they're left right after, so recount on the next tick.
+    socket.on("disconnecting", () => {
+      const trips = [...socket.rooms].filter((r) => r.startsWith("trip:")).map((r) => r.slice(5));
+      if (trips.length) setImmediate(() => trips.forEach((id) => void this.broadcastPresence(id)));
+    });
     await socket.join([`user:${socket.data.userId}`, `session:${socket.data.sessionId}`]);
   }
 
@@ -70,13 +77,49 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     const trip = await this.prisma.trip.findFirst({ where: { id: tripId, deletedAt: null }, include: { members: true } });
     if (!trip || !can("trip.view", { trip, members: trip.members, userId })) return { ok: false };
     await socket.join(`trip:${tripId}`);
+    await this.broadcastPresence(tripId);
     return { ok: true };
   }
 
   @SubscribeMessage("trip.leave")
   async leaveTrip(@ConnectedSocket() socket: Socket, @MessageBody() body: { tripId?: string }) {
-    if (typeof body?.tripId === "string") await socket.leave(`trip:${body.tripId}`);
+    if (typeof body?.tripId !== "string") return { ok: true };
+    const room = `trip:${body.tripId}`;
+    if (!socket.rooms.has(room)) return { ok: true };
+    await socket.leave(room);
+    delete socket.data.activity?.[body.tripId];
+    await this.broadcastPresence(body.tripId);
     return { ok: true };
+  }
+
+  /**
+   * "Minh is editing Day 2": a member reports which day they have an editor open on (null when
+   * they close it). Only sockets already in the trip room — i.e. allowed to view it — may report.
+   */
+  @SubscribeMessage("trip.activity")
+  async activity(@ConnectedSocket() socket: Socket, @MessageBody() body: { tripId?: string; editingDay?: number | null }) {
+    const tripId = typeof body?.tripId === "string" ? body.tripId : "";
+    if (!socket.rooms.has(`trip:${tripId}`)) return { ok: false };
+    const day = body.editingDay;
+    if (day !== null && day !== undefined && !(Number.isInteger(day) && day >= 1 && day <= 366)) return { ok: false };
+    const activity = (socket.data.activity ??= {}) as Record<string, number | null>;
+    if (activity[tripId] === (day ?? null)) return { ok: true };
+    activity[tripId] = day ?? null;
+    await this.broadcastPresence(tripId);
+    return { ok: true };
+  }
+
+  /** One entry per user (several tabs collapse into one); a day being edited in any tab wins. */
+  async broadcastPresence(tripId: string) {
+    if (!this.server) return;
+    const users = new Map<string, number | null>();
+    for (const s of await this.server.in(`trip:${tripId}`).fetchSockets()) {
+      const id = s.data.userId as string;
+      const day = (s.data.activity as Record<string, number | null> | undefined)?.[tripId] ?? null;
+      if (!users.has(id) || (users.get(id) === null && day !== null)) users.set(id, day);
+    }
+    const payload: TripPresence = { tripId, users: [...users].map(([userId, editingDay]) => ({ userId, editingDay })) };
+    this.server.to(`trip:${tripId}`).emit("trip.presence", payload);
   }
 
   /** Catalog admin screens: live sync-run updates. Role is re-checked against the database. */
@@ -108,6 +151,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     const sockets = await this.server.in(`user:${userId}`).fetchSockets();
     for (const s of sockets) s.leave(`trip:${tripId}`);
     this.log.debug(`removed ${sockets.length} socket(s) from trip room`);
+    await this.broadcastPresence(tripId);
   }
 
   /** A trip turned private: everyone who isn't a member leaves its room right away. */
@@ -115,6 +159,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
     if (!this.server) return;
     const keep = new Set(memberIds);
     for (const s of await this.server.in(`trip:${tripId}`).fetchSockets()) if (!keep.has(s.data.userId)) s.leave(`trip:${tripId}`);
+    await this.broadcastPresence(tripId);
   }
 
   /** Revoked sessions lose their live connection immediately (logout, password change/reset, account deletion). */

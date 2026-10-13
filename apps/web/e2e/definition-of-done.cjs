@@ -82,7 +82,7 @@ fs.mkdirSync(shots, { recursive: true });
 
   await step("4. adds 3 itinerary items", async () => {
     for (const [query, name] of [["Shibuya Cr", "Shibuya Crossing"], ["Sensō", "Sensō-ji"], ["Ichiran", "Ichiran Shibuya"]]) {
-      await A.getByRole("button", { name: "Add to Day 1" }).click();
+      await A.getByRole("button", { name: "Add a place to Day 1" }).click();
       await A.getByLabel("Search places").fill(query);
       await A.getByRole("dialog").getByRole("button", { name: new RegExp(name) }).first().click();
       await A.getByRole("button", { name: "Add to itinerary" }).click();
@@ -108,7 +108,7 @@ fs.mkdirSync(shots, { recursive: true });
     await B.getByRole("button", { name: /Accept/ }).click();
     await B.waitForURL(tripUrl);
     await B.getByText("You · Viewer").waitFor();
-    if (await B.getByRole("button", { name: "Add to Day 1" }).count()) throw new Error("viewer can add items");
+    if (await B.getByRole("button", { name: "Add a place to Day 1" }).count()) throw new Error("viewer can add items");
   });
 
   await step("7. owner makes them Editor", async () => {
@@ -117,13 +117,14 @@ fs.mkdirSync(shots, { recursive: true });
     await A.getByText("Role updated").waitFor();
   });
 
-  await step("8–9. editor modifies itinerary; owner sees it live (no reload)", async () => {
+  await step("8–9. editor modifies itinerary; owner sees presence and the change live (no reload)", async () => {
     await A.goto(tripUrl);
-    await A.getByText("Live").waitFor({ timeout: 10000 });
     await B.reload();
     await B.getByText("You · Editor").waitFor();
+    await A.getByText("Minh is here too").waitFor({ timeout: 10000 });
     await B.getByRole("button", { name: "Item actions", exact: true }).first().click();
     await B.getByRole("menuitem", { name: "Edit", exact: true }).click();
+    await A.getByText("Minh is editing Day 1").waitFor({ timeout: 10000 });
     await B.getByLabel("Title").fill("Shibuya at night (Minh)");
     await B.getByRole("button", { name: "Save changes" }).click();
     await A.getByText("Shibuya at night (Minh)").waitFor({ timeout: 10000 });
@@ -242,19 +243,27 @@ fs.mkdirSync(shots, { recursive: true });
     const routes = ["/home", "/explore", "/explore?tab=places&dest=hoi-an", "/explore/hoi-an", "/trips", tripUrl.replace(BASE, ""), "/u/an.nguyen", "/saved", "/notifications", "/settings"];
     if (placeUrl) routes.push(placeUrl.replace(BASE, ""));
     const problems = [];
-    for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
-      await C.setViewportSize(vp);
-      for (const r of routes) {
-        await C.goto(`${BASE}${r}`);
-        await C.waitForLoadState("networkidle");
-        await C.addScriptTag({ content: axeSource });
-        const res = await C.evaluate(() => window.axe.run(document, { resultTypes: ["violations"] }));
-        for (const v of res.violations.filter((v) => v.impact === "serious" || v.impact === "critical")) problems.push(`${vp.width}px ${r}: ${v.id} (${v.nodes.length})`);
-        // No sideways scrolling on phones.
-        const overflow = await C.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-        if (overflow > 1) problems.push(`${vp.width}px ${r}: page is ${overflow}px wider than the screen`);
+    // Visitor (C) on the public pages, and the owner (A) on the planner they can edit: list, map and members.
+    const trip = tripUrl.replace(BASE, "");
+    const runs = [
+      [C, routes],
+      [A, [trip, `${trip}?view=map`, `${trip}?tab=members`]],
+    ];
+    for (const [page, list] of runs)
+      for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
+        await page.setViewportSize(vp);
+        for (const r of list) {
+          await page.goto(`${BASE}${r}`);
+          await page.waitForLoadState("networkidle");
+          await page.addScriptTag({ content: axeSource });
+          const res = await page.evaluate(() => window.axe.run(document, { resultTypes: ["violations"] }));
+          for (const v of res.violations.filter((v) => v.impact === "serious" || v.impact === "critical")) problems.push(`${vp.width}px ${r}: ${v.id} (${v.nodes.length})`);
+          // No sideways scrolling on phones.
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+          if (overflow > 1) problems.push(`${vp.width}px ${r}: page is ${overflow}px wider than the screen`);
+        }
       }
-    }
+    await A.setViewportSize({ width: 1360, height: 900 });
     await C.setViewportSize({ width: 1360, height: 900 });
     if (problems.length) throw new Error(problems.join("; "));
   });

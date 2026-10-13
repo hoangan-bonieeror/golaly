@@ -5,8 +5,8 @@
  * affected queries from the REST API, which stays the single source of truth.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import type { NotificationView, TripEvent } from "@triply/shared";
-import { useEffect, useRef, useState } from "react";
+import type { NotificationView, TripEvent, TripPresence } from "@triply/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { refreshSession } from "./api/client";
 import { keys } from "./api/queries";
@@ -52,33 +52,62 @@ export function getSocket(userId: string | null): Socket | null {
   return socket;
 }
 
-/** Joins the trip room and refetches the trip whenever a collaborator changes it. */
+export type PresenceUser = TripPresence["users"][number];
+
+/**
+ * Joins the trip room and refetches the trip whenever a collaborator changes it. Also tracks
+ * who else has the trip open (`presence`) and lets this tab report which day it is editing.
+ */
 export function useTripRealtime(tripId: string, userId: string | null | undefined, enabled: boolean) {
   const qc = useQueryClient();
   const [live, setLive] = useState(false);
+  const [presence, setPresence] = useState<PresenceUser[]>([]);
+  // Re-sent after a reconnect so collaborators still see "editing Day N".
+  const activity = useRef<number | null>(null);
   useEffect(() => {
     if (!enabled || !userId) return;
     const s = getSocket(userId);
     if (!s) return;
-    const join = () => s.emit("trip.join", { tripId }, (r: { ok: boolean }) => setLive(!!r?.ok));
+    const join = () =>
+      s.emit("trip.join", { tripId }, (r: { ok: boolean }) => {
+        setLive(!!r?.ok);
+        if (r?.ok && activity.current !== null) s.emit("trip.activity", { tripId, editingDay: activity.current });
+      });
     const onEvent = (e: TripEvent) => {
       if (e.tripId !== tripId) return;
       void qc.invalidateQueries({ queryKey: keys.trip(tripId) });
       if (e.event.startsWith("trip.member")) void qc.invalidateQueries({ queryKey: ["trips"] });
     };
-    const onDisconnect = () => setLive(false);
+    const onPresence = (p: TripPresence) => p.tripId === tripId && setPresence(p.users);
+    const onDisconnect = () => {
+      setLive(false);
+      setPresence([]);
+    };
     if (s.connected) join();
     s.on("connect", join);
     s.on("disconnect", onDisconnect);
     s.on("trip.event", onEvent);
+    s.on("trip.presence", onPresence);
     return () => {
       s.emit("trip.leave", { tripId });
       s.off("connect", join);
       s.off("disconnect", onDisconnect);
       s.off("trip.event", onEvent);
+      s.off("trip.presence", onPresence);
+      setPresence([]);
     };
   }, [tripId, userId, enabled, qc]);
-  return live;
+
+  const reportActivity = useCallback(
+    (editingDay: number | null) => {
+      if (activity.current === editingDay) return;
+      activity.current = editingDay;
+      const s = userId ? getSocket(userId) : null;
+      if (s?.connected) s.emit("trip.activity", { tripId, editingDay });
+    },
+    [tripId, userId],
+  );
+  return { live, presence, reportActivity };
 }
 
 /** Keeps the bell badge and notifications list fresh. */

@@ -395,3 +395,12 @@ export interface TripEvent {
   event: TripEventName;
   entityId?: string;
 }
+
+/**
+ * Who has the trip open right now (`trip.presence`, sent to the trip room whenever it changes).
+ * `editingDay` is the day a member has an item editor open on, or null while they're just looking.
+ */
+export interface TripPresence {
+  tripId: string;
+  users: { userId: string; editingDay: number | null }[];
+}

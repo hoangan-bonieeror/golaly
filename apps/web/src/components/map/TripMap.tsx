@@ -1,21 +1,26 @@
 "use client";
 
 import { ITEM_TYPE_LABEL, type ItemView, type PlaceView, type TripDetail } from "@triply/shared";
-import { Navigation, Star } from "lucide-react";
+import { Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
-import { Chip, cx } from "../ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { DAY_COLORS, dayColor, dayStats, formatKm } from "@/lib/trip-geo";
+import type { DayFilter } from "../trip/DayBar";
+import { cx } from "../ui";
 
 const TileMap = dynamic(() => import("./TileMap").then((m) => m.TileMap), { ssr: false });
 const TILES_ENABLED = process.env.NEXT_PUBLIC_MAP_STYLE_URL !== "off";
 
 /**
- * Trip map (spec §14) — markers, day filter, selected place, simple A→B→C route.
+ * Trip map (spec §14) — numbered pins in each day's colour, the day's route, and the selected stop.
  *
  * Renders real tiles with MapLibre (<TileMap>) and falls back to <MapCanvas>, an offline,
  * dependency-free SVG projection, when WebGL/tiles are unavailable or
  * NEXT_PUBLIC_MAP_STYLE_URL=off. Routes are straight lines between stops; a RouteProvider
  * (routing API) can replace them later without changing TripMap's props.
+ *
+ * The day filter is owned by the page (shared with the itinerary through <DayBar>).
+ * Size it with `className` (e.g. `h-[440px]`, or `h-full` inside a sticky column).
  */
 export interface MapStop {
   item: ItemView;
@@ -24,23 +29,22 @@ export interface MapStop {
   order: number;
 }
 
-const DAY_COLORS = ["#6b3a1f", "#e0662d", "#5b4a9e", "#2f6db5", "#c28512", "#b5446e", "#3d8b5a", "#6b7780", "#a4471f", "#1b4965"];
+const COLORS = [...DAY_COLORS];
 
 export function TripMap({
   trip,
+  day,
   selectedId,
   onSelect,
   className,
 }: {
   trip: TripDetail;
+  day: DayFilter;
   selectedId?: string | null;
   onSelect?: (item: ItemView) => void;
   className?: string;
 }) {
   const days = trip.days;
-  const multiCity = trip.destinations.length > 1;
-  // Multi-city trips start on Day 1 so markers aren't squeezed into far-apart clusters.
-  const [dayFilter, setDayFilter] = useState<number | "all">(multiCity ? 1 : "all");
   const [tiles, setTiles] = useState(TILES_ENABLED);
 
   const stops: MapStop[] = useMemo(() => {
@@ -54,74 +58,92 @@ export function TripMap({
     return out;
   }, [days]);
 
-  // Selecting an item (in the list or on the map) focuses its day. Adjusted during render
-  // (React's "state from a changed prop" pattern) rather than in an effect, to avoid a second pass.
-  const [seenSelection, setSeenSelection] = useState(selectedId);
-  if (selectedId !== seenSelection) {
-    setSeenSelection(selectedId);
-    const s = stops.find((x) => x.item.id === selectedId);
-    if (s && dayFilter !== "all" && dayFilter !== s.dayNumber) setDayFilter(s.dayNumber);
-  }
-
-  const visible = stops.filter((s) => dayFilter === "all" || s.dayNumber === dayFilter);
-  const selected = stops.find((s) => s.item.id === selectedId) ?? null;
+  const visible = stops.filter((s) => day === "all" || s.dayNumber === day);
+  const selected = visible.find((s) => s.item.id === selectedId) ?? null;
+  const shownDay = day === "all" ? null : days.find((d) => d.dayNumber === day);
+  const km = shownDay ? dayStats(shownDay).km : 0;
 
   return (
-    <div className={cx("flex flex-col gap-3", className)}>
-      <div className="scrollbar-none -mx-1 flex gap-2 overflow-x-auto px-1">
-        <Chip active={dayFilter === "all"} onClick={() => setDayFilter("all")} className="h-8 shrink-0 px-3">
-          All days
-        </Chip>
-        {days.map((d) => (
-          <Chip key={d.id} active={dayFilter === d.dayNumber} onClick={() => setDayFilter(d.dayNumber)} className="h-8 shrink-0 px-3">
-            <span className="size-2 rounded-full" style={{ background: DAY_COLORS[(d.dayNumber - 1) % DAY_COLORS.length] }} />
-            Day {d.dayNumber}
-          </Chip>
-        ))}
-      </div>
+    <div className={cx("relative isolate overflow-hidden rounded-[var(--radius-card)] border border-line bg-map", className ?? "h-[440px]")}>
       {tiles ? (
-        <TileMap stops={visible} colors={DAY_COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
+        <TileMap stops={visible} colors={COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
       ) : (
         <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
       )}
-      {selected ? (
-        <div className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3">
-          <span className="flex size-10 items-center justify-center rounded-xl text-white" style={{ background: DAY_COLORS[(selected.dayNumber - 1) % DAY_COLORS.length] }}>
+      <div className="pointer-events-none absolute left-3 top-3 z-10 flex gap-2">
+        <span className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold">
+          {shownDay ? (
+            <>
+              Day {shownDay.dayNumber} route{km > 0 && <span className="font-mono font-normal text-muted"> · {formatKm(km)}</span>}
+            </>
+          ) : (
+            <>
+              All days <span className="font-mono font-normal text-muted">· {visible.length} stops</span>
+            </>
+          )}
+        </span>
+      </div>
+      {visible.length === 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted">
+          {stops.length ? "No places on this day yet." : "Add places to your itinerary to see them on the map."}
+        </div>
+      )}
+      {selected && (
+        <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-pop sm:right-auto sm:w-[22rem]">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
             {selected.order}
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold">{selected.place.name}</div>
-            <div className="truncate text-xs text-muted">
-              Day {selected.dayNumber} {selected.item.startTime && `· ${selected.item.startTime}`} · {ITEM_TYPE_LABEL[selected.place.category]}
+            <div className="truncate text-[13px] text-muted">
+              Day {selected.dayNumber}
+              {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || ITEM_TYPE_LABEL[selected.place.category]}
               {selected.place.rating && (
                 <span className="ml-1 inline-flex items-center gap-0.5">
-                  <Star className="size-3 fill-gold text-gold" /> {selected.place.rating}
+                  <Star className="size-3 fill-gold text-gold" aria-hidden /> {selected.place.rating}
                 </span>
               )}
             </div>
-            <div className="truncate text-xs text-muted">{selected.place.address}</div>
+            <div className="hidden truncate font-mono text-xs text-ink-2 sm:block">
+              {Math.abs(selected.place.lat).toFixed(4)}° {selected.place.lat >= 0 ? "N" : "S"}, {Math.abs(selected.place.lng).toFixed(4)}° {selected.place.lng >= 0 ? "E" : "W"}
+            </div>
           </div>
           <a
             href={`https://www.openstreetmap.org/?mlat=${selected.place.lat}&mlon=${selected.place.lng}#map=16/${selected.place.lat}/${selected.place.lng}`}
             target="_blank"
             rel="noreferrer"
-            className="flex size-10 items-center justify-center rounded-full bg-primary-50 text-primary"
-            aria-label="Open in maps"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary hover:bg-primary hover:text-white"
+            aria-label={`Open ${selected.place.name} in OpenStreetMap`}
           >
             <Navigation className="size-4" />
           </a>
+          <button type="button" onClick={() => onSelect?.(selected.item)} aria-label="Close place details" className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink">
+            <X className="size-4" />
+          </button>
         </div>
-      ) : (
-        <p className="px-1 text-xs text-muted">{visible.length} stops · tap a marker or an itinerary item to see details.</p>
       )}
     </div>
   );
 }
 
 function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selectedId?: string | null; onSelect?: (i: ItemView) => void }) {
-  const W = 600;
-  const H = 440;
-  const pad = 60;
+  // Drawn at the box's real pixel size, so pins and labels stay the same size on a phone and a desktop.
+  const box = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 600, h: 440 });
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => {
+      const { width, height } = e.contentRect;
+      if (width > 0 && height > 0) setSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const W = size.w;
+  const H = size.h;
+  const pad = Math.min(64, Math.max(40, W * 0.08));
+  const top = pad + 28; // clear of the "Day N route" label
 
   // Equirectangular projection fitted to the visible stops' bounding box.
   const proj = useMemo(() => {
@@ -134,12 +156,12 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
     if (maxLng - minLng < minSpan) [minLng, maxLng] = [minLng - minSpan, maxLng + minSpan];
     const k = Math.cos(((minLat + maxLat) / 2) * (Math.PI / 180));
     const sx = (W - pad * 2) / ((maxLng - minLng) * k);
-    const sy = (H - pad * 2) / (maxLat - minLat);
+    const sy = (H - top - pad) / (maxLat - minLat);
     const s = Math.min(sx, sy);
     const ox = (W - (maxLng - minLng) * k * s) / 2;
-    const oy = (H - (maxLat - minLat) * s) / 2;
+    const oy = top + (H - top - pad - (maxLat - minLat) * s) / 2;
     return (lat: number, lng: number) => [ox + (lng - minLng) * k * s, oy + (maxLat - lat) * s] as const;
-  }, [stops]);
+  }, [stops, W, H, pad, top]);
 
   const byDay = useMemo(() => {
     const m = new Map<number, MapStop[]>();
@@ -148,23 +170,17 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
   }, [stops]);
 
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-line bg-[#eef1ea]">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Map of trip stops">
-        <defs>
-          <pattern id="mapgrid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M40 0H0V40" fill="none" stroke="#d9ded2" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width={W} height={H} fill="url(#mapgrid)" />
-        {/* soft decorative "land" contours */}
-        <path d="M-20 330 C 120 280, 200 380, 330 320 S 560 260, 640 300 L640 460 L-20 460Z" fill="#e3e9dc" />
-        <path d="M-20 90 C 80 40, 180 120, 300 80 S 520 20, 640 70 L640 -20 L-20 -20Z" fill="#dfe8ec" />
-        <g transform={`translate(${W - 44}, 40)`} opacity="0.55">
-          <circle r="16" fill="none" stroke="#6b7780" />
-          <path d="M0 -12 L4 0 L0 12 L-4 0Z" fill="#6b7780" />
-          <text y="-20" textAnchor="middle" fontSize="10" fill="#6b7780" fontWeight="700">
-            N
-          </text>
+    <div ref={box} className="absolute inset-0">
+      <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img" aria-label={`Map of ${stops.length} trip stops (simplified)`}>
+        {/* Atlas paper map: decorative contour lines and a river, then the routes and numbered pins. */}
+        {[0.25, 0.34, 0.86, 0.95].map((f, i) => {
+          const y = H * f;
+          return <path key={f} d={`M-40 ${y} C ${W * 0.2} ${y - 40 + i * 6}, ${W * 0.37} ${y + 40}, ${W * 0.57} ${y - 4} S ${W * 0.93} ${y - 60}, ${W + 40} ${y - 20}`} fill="none" stroke="var(--color-contour)" strokeWidth="2" />;
+        })}
+        <path d={`M${W * 0.72} -20 C ${W * 0.68} ${H * 0.27}, ${W * 0.76} ${H * 0.5}, ${W * 0.73} ${H * 0.73} S ${W * 0.8} ${H * 1.05}, ${W * 0.79} ${H + 40}`} fill="none" stroke="var(--color-water)" strokeWidth="14" strokeLinecap="round" opacity="0.8" />
+        <g transform={`translate(${W - 36}, 36)`} opacity="0.6">
+          <circle r="14" fill="none" stroke="var(--color-muted)" />
+          <path d="M0 -10 L3.5 0 L0 10 L-3.5 0Z" fill="var(--color-muted)" />
         </g>
 
         {proj &&
@@ -173,18 +189,18 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
               key={day}
               points={list.map((s) => proj(s.place.lat, s.place.lng).join(",")).join(" ")}
               fill="none"
-              stroke={DAY_COLORS[(day - 1) % DAY_COLORS.length]}
-              strokeWidth="3"
-              strokeDasharray="1 7"
+              stroke={dayColor(day)}
+              strokeWidth="4"
               strokeLinecap="round"
-              opacity="0.85"
+              strokeLinejoin="round"
+              opacity="0.9"
             />
           ))}
 
         {proj &&
           stops.map((s) => {
             const [x, y] = proj(s.place.lat, s.place.lng);
-            const color = DAY_COLORS[(s.dayNumber - 1) % DAY_COLORS.length];
+            const color = dayColor(s.dayNumber);
             const sel = s.item.id === selectedId;
             return (
               <g
@@ -195,26 +211,15 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
                 role="button"
                 aria-label={`${s.place.name}, day ${s.dayNumber}`}
               >
-                <circle r={sel ? 20 : 0} fill={color} opacity="0.18" />
-                <path d="M0 0 C -11 -14, -13 -18, -13 -24 A 13 13 0 1 1 13 -24 C 13 -18, 11 -14, 0 0Z" fill={color} stroke="#fff" strokeWidth={sel ? 3 : 2} transform={sel ? "scale(1.15)" : undefined} />
-                <text y={sel ? -24 : -20} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">
+                {sel && <circle r="21" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="4" />}
+                <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-surface)"} strokeWidth="2" />
+                <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
                   {s.order}
                 </text>
-                {sel && (
-                  <g transform="translate(0, 12)">
-                    <rect x={-Math.min(90, s.place.name.length * 3.6 + 10)} width={Math.min(180, s.place.name.length * 7.2 + 20)} height="22" rx="11" fill="#16232e" />
-                    <text y="15" textAnchor="middle" fontSize="11" fill="#fff" fontWeight="600">
-                      {s.place.name.length > 24 ? s.place.name.slice(0, 23) + "…" : s.place.name}
-                    </text>
-                  </g>
-                )}
               </g>
             );
           })}
       </svg>
-      {stops.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-muted">Add places to your itinerary to see them on the map.</div>
-      )}
     </div>
   );
 }
