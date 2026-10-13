@@ -37,12 +37,15 @@ export function TripMap({
   selectedId,
   onSelect,
   className,
+  flush,
 }: {
   trip: TripDetail;
   day: DayFilter;
   selectedId?: string | null;
   onSelect?: (item: ItemView) => void;
   className?: string;
+  /** Edge to edge (no border or rounded corners), for the full-height planner column. */
+  flush?: boolean;
 }) {
   const days = trip.days;
   const [tiles, setTiles] = useState(TILES_ENABLED);
@@ -64,13 +67,13 @@ export function TripMap({
   const km = shownDay ? dayStats(shownDay).km : 0;
 
   return (
-    <div className={cx("relative isolate overflow-hidden rounded-[var(--radius-card)] border border-line bg-map", className ?? "h-[440px]")}>
+    <div className={cx("relative isolate overflow-hidden bg-map", !flush && "rounded-[var(--radius-card)] border border-line", className ?? "h-[440px]")}>
       {tiles ? (
         <TileMap stops={visible} colors={COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
       ) : (
         <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
       )}
-      <div className="pointer-events-none absolute left-3 top-3 z-10 flex gap-2">
+      <div className={cx("pointer-events-none absolute z-10 flex gap-2", flush ? "left-4 top-4" : "left-3 top-3")}>
         <span className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold">
           {shownDay ? (
             <>
@@ -89,7 +92,7 @@ export function TripMap({
         </div>
       )}
       {selected && (
-        <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-pop sm:right-auto sm:w-[22rem]">
+        <div className={cx("absolute z-10 flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-pop sm:right-auto sm:w-[22rem]", flush ? "inset-x-4 bottom-4" : "inset-x-3 bottom-3")}>
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: dayColor(selected.dayNumber) }}>
             {selected.order}
           </span>

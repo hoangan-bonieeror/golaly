@@ -145,7 +145,7 @@ fs.mkdirSync(shots, { recursive: true });
   await step("11–13. another user discovers, saves and forks the trip", async () => {
     await login(C, "sarah@triply.dev");
     await C.goto(`${BASE}/explore`);
-    await C.getByLabel("Search").fill(stamp);
+    await C.getByLabel("Search", { exact: true }).fill(stamp);
     await C.getByRole("link", { name: new RegExp(tripTitle) }).first().click();
     await C.waitForURL(tripUrl);
     await C.getByRole("button", { name: "Save", exact: true }).click();
@@ -232,7 +232,7 @@ fs.mkdirSync(shots, { recursive: true });
     await C.getByRole("heading", { name: "An" }).waitFor();
     if (await C.getByText("Japan — 7 Days").count()) throw new Error("private trip on public profile");
     await C.goto(`${BASE}/explore`);
-    await C.getByLabel("Search").fill("Japan — 7");
+    await C.getByLabel("Search", { exact: true }).fill("Japan — 7");
     await C.waitForTimeout(800);
     if (await C.getByRole("link", { name: /Japan — 7 Days/ }).count()) throw new Error("private trip in search");
   });

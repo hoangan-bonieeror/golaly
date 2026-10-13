@@ -130,7 +130,7 @@ Google accounts are matched by Google's account id, then by **verified** email (
 
 ### Optional: catalog admin
 
-The demo account **an@triply.dev** is an admin; it sees **Admin** in the sidebar (and in Settings). To make another
+The demo account **an@triply.dev** is an admin; it sees **Admin** in the account menu (avatar, top right) and in Settings. To make another
 account an admin: `UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';` then sign in again.
 
 The admin screens read the database directly; starting a sync goes through Airflow, so run the pipeline profile

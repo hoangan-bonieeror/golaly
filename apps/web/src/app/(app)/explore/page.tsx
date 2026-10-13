@@ -36,6 +36,13 @@ function Explore() {
   const router = useRouter();
   const pathname = usePathname();
   const [q, setQ] = useState(params.get("q") ?? "");
+  // A new search from the navbar while already on Explore replaces the query.
+  const urlQ = params.get("q") ?? "";
+  const [seenQ, setSeenQ] = useState(urlQ);
+  if (urlQ !== seenQ) {
+    setSeenQ(urlQ);
+    setQ(urlQ);
+  }
   // The tab is in the URL so links like /explore?tab=places&dest=hoi-an open the place browser.
   const tab = params.get("tab");
   const cat: Cat = CATS.some(([, v]) => v === tab) ? (tab as Cat) : "all";

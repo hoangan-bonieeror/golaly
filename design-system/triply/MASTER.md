@@ -100,11 +100,23 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   `--shadow-pop` is only for floating layers (menus, sheets, the selected-stop card on the map).
 - Spacing on a 4/8px rhythm; section gaps 24/32/48.
 
+## App shell
+
+- **Desktop (≥768px): a 64px top navbar**, not a sidebar — the map needs the width. Logo ·
+  Home / Explore / Trips (active = `sand-2` fill) · global search (≥1024px; an icon below) ·
+  Create · notifications (count badge) · avatar menu (Profile, Saved, Settings, Admin, Log out).
+- **Phones:** 56px top bar + bottom tab bar (Home, Explore, Trips, Create, Alerts, Profile).
+- Content pages sit in a centred `max-w-6xl` column. The trip planner runs **edge to edge**
+  (`fullBleed` in `AppShell`). Admin keeps its own horizontal section nav.
+
 ## Trip planner (reference screen)
 
 - **Header:** back · route thumbnail (`RouteThumb`) · title · route, mono dates and
   "N places · N km" · visibility · presence ("Minh is editing Day 2") · avatars (jade ring = here now) · actions.
-- **Wide (≥1280px):** itinerary column + sticky map; one `DayBar` and one selection drive both.
+- **≥1024px:** the planner fills the window under the navbar: an itinerary column
+  (460px, 560px from 1280px) that scrolls on its own, and a full-height, borderless map.
+  One `DayBar` and one selection drive both. Description, "based on" and remix count sit at
+  the top of the itinerary column; members open in a "Travelers" panel from the avatars (`?tab=members`).
 - **Narrower:** a List / Map segmented control and the `DayBar` stick under the top bar.
 - **Stops:** numbered circle in the day colour (mono), title, meta; the selected stop is
   `primary-50` with a jade border, and the map shows a card for it.
