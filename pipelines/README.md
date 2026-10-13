@@ -207,7 +207,7 @@ Everything above can be driven from the app: sign in as an admin and open **Admi
 | **Runs** | Every run (scheduled, admin, CLI) with live progress over Socket.IO; a run page shows what it did, quality warnings, record-level errors and **Cancel** |
 | **Duplicates** | Pairs scored 0.6–0.85, side by side with the fields that differ; *merge* / *different places*, undo |
 | **Places** | Any place (hidden and closed too): edit name, address, phone, website, hours, category, position, visibility. Every edited field is **locked** against imports until you unlock it; history and merges (with undo) on the same page |
-| **Categories** | Source categories with no mapping (their records aren't published), existing mappings, TRIPLY's categories with counts. A new mapping applies on the area's next sync |
+| **Categories** | Source categories with no mapping (their records aren't published), existing mappings, TRIPLY's categories with counts. A new mapping applies on the area's next sync. The unmapped list is a summary (`catalog_unmapped_categories`) recounted by `catalog_scheduler` after syncs, or with **Recount** — counting live reads the jsonb of every unmapped record |
 
 How a run gets started:
 

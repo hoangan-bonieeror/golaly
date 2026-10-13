@@ -19,7 +19,7 @@ def test_dags_parse():
     assert sync.max_active_runs == 1
     assert bag.get_dag("catalog_bootstrap") is not None
     sched = bag.get_dag("catalog_scheduler")
-    assert {t.task_id for t in sched.tasks} == {"due_jobs", "start_syncs", "republish"} and sched.max_active_runs == 1
+    assert {t.task_id for t in sched.tasks} == {"due_jobs", "start_syncs", "republish", "recount_unmapped"} and sched.max_active_runs == 1
     assert {t.task_id for t in bag.get_dag("catalog_dry_run").tasks} == {"dry_run"}
     photos = bag.get_dag("catalog_photos")
     assert {t.task_id for t in photos.tasks} == {"queue_photos"} and set(photos.params.keys()) == {"area", "bbox", "only_due"}

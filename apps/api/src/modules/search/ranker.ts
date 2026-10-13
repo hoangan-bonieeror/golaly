@@ -147,16 +147,22 @@ export async function placeCandidates(prisma: PrismaService, q: string, conds: P
          ORDER BY p.name_norm COLLATE "C" LIMIT ${PREFIX_SCAN}) p
        WHERE ${exact} LIMIT ${PREFIX_CANDIDATES})`
     : Prisma.empty;
-  const rows = await prisma.$queryRaw<{ id: string; src: number }[]>`
-    (SELECT p.id::text AS id, 1 AS src FROM places p WHERE ${where(exact)} LIMIT ${TEXT_CANDIDATES + 1})
-    ${byPrefix}`;
-  if (rows.length) {
-    return { ids: [...new Set(rows.map((r) => r.id))], capped: rows.filter((r) => r.src === 1).length > TEXT_CANDIDATES, fuzzy: false };
-  }
-  if (!words.some((w) => w.plain.length >= FUZZY_MIN)) return { ids: [], capped: false, fuzzy: false };
-  const near = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT p.id::text AS id FROM places p WHERE ${where(textMatch(q, PLACE_COLUMNS, true)!)} LIMIT ${TEXT_CANDIDATES + 1}`;
-  return { ids: near.map((r) => r.id), capped: near.length > TEXT_CANDIDATES, fuzzy: true };
+  // These queries must use the trigram / name indexes. With a LIMIT and an optimistic guess of how many rows match,
+  // the planner sometimes prefers reading the table until it has enough — evaluating `<%` per row costs far more
+  // than it assumes, and a word that matches nothing then means reading every row. So, for these queries only:
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL enable_seqscan = off`;
+    const rows = await tx.$queryRaw<{ id: string; src: number }[]>`
+      (SELECT p.id::text AS id, 1 AS src FROM places p WHERE ${where(exact)} LIMIT ${TEXT_CANDIDATES + 1})
+      ${byPrefix}`;
+    if (rows.length) {
+      return { ids: [...new Set(rows.map((r) => r.id))], capped: rows.filter((r) => r.src === 1).length > TEXT_CANDIDATES, fuzzy: false };
+    }
+    if (!words.some((w) => w.plain.length >= FUZZY_MIN)) return { ids: [], capped: false, fuzzy: false };
+    const near = await tx.$queryRaw<{ id: string }[]>`
+      SELECT p.id::text AS id FROM places p WHERE ${where(textMatch(q, PLACE_COLUMNS, true)!)} LIMIT ${TEXT_CANDIDATES + 1}`;
+    return { ids: near.map((r) => r.id), capped: near.length > TEXT_CANDIDATES, fuzzy: true };
+  });
 }
 
 export class TrigramRanker {

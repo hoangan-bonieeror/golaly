@@ -190,3 +190,25 @@ def test_cli_jobs(settings, monkeypatch, capsys, clean_jobs):
     capsys.readouterr()
     assert cli.main(["jobs", "list"]) == 0
     assert json.loads(capsys.readouterr().out)[0]["last_status"] == "dry_run"
+
+
+@pytest.mark.integration
+def test_unmapped_categories_are_recounted_after_syncs(db_conn):
+    db_conn.execute("DELETE FROM catalog_stats")
+    db_conn.execute(
+        """INSERT INTO place_sources (id, provider, external_id, raw, normalized, content_hash, license, attribution, lat, lng)
+           VALUES (gen_random_uuid(), 'osm', 'recount-1', '{}', '{"category_candidates": ["amenity=recount_test"]}', 'h', 'ODbL', 'osm', 1, 1)
+           ON CONFLICT DO NOTHING"""
+    )
+    db_conn.commit()
+    assert jobs.refresh_unmapped_if_stale(db_conn) >= 1  # never counted → counts
+    row = db_conn.execute("SELECT records FROM catalog_unmapped_categories WHERE external_category = 'amenity=recount_test'").fetchone()
+    assert row["records"] == 1
+    assert jobs.refresh_unmapped_if_stale(db_conn) is None  # nothing synced since
+    run = db.start_run(db_conn, "test", {})
+    db.finish_run(db_conn, run, "succeeded", {})
+    assert jobs.refresh_unmapped_if_stale(db_conn) is not None  # a sync finished after the count
+    assert jobs.refresh_unmapped_if_stale(db_conn) is None
+    db_conn.execute("DELETE FROM place_sources WHERE external_id = 'recount-1'")
+    db_conn.execute("DELETE FROM sync_runs WHERE id = %s", [run])
+    db_conn.commit()

@@ -877,6 +877,25 @@ model SyncJob {
   @@map("sync_jobs")
 }
 
+/// Source categories with no mapping, counted in the background (catalog_refresh_unmapped()): counting them live
+/// reads the jsonb of millions of records.
+model CatalogUnmappedCategory {
+  provider         String
+  externalCategory String @map("external_category")
+  records          Int
+
+  @@id([provider, externalCategory])
+  @@map("catalog_unmapped_categories")
+}
+
+/// When each background catalog summary was last computed (key "unmapped_categories").
+model CatalogStat {
+  key         String   @id
+  refreshedAt DateTime @map("refreshed_at")
+
+  @@map("catalog_stats")
+}
+
 /// How far each partition of a run got (resume after a crash). Written with the batch it describes.
 model SyncRunCursor {
   runId        String   @map("run_id") @db.Uuid

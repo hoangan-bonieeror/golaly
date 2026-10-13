@@ -2,7 +2,8 @@
 
 catalog_sync       start → plan → extract_load (one mapped task per provider × partition) → finalize → finish
 catalog_bootstrap  taxonomy + adopt seed places → country/province boundaries
-catalog_scheduler  every 10 minutes: start the sync_jobs whose cron schedule is due; republish places an admin merged
+catalog_scheduler  every 10 minutes: start the sync_jobs whose cron schedule is due; republish places an admin merged;
+                   recount unmapped source categories after syncs
 catalog_dry_run    a sync in one rolled-back transaction: what a job would change (the admin's "Dry run" button)
 catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them.
                    Runs by itself after a sync (Asset triply://catalog/places) for the places that need it, or by hand.
@@ -248,8 +249,17 @@ def catalog_scheduler():
             conn.commit()
         return n
 
+    @task(execution_timeout=timedelta(minutes=30))
+    def recount_unmapped() -> int | None:
+        """Admin → Categories reads a summary; recount it after syncs (minutes on a big catalog)."""
+        from triply_catalog import db, jobs
+
+        with db.connect(_settings().database_url) as conn:
+            return jobs.refresh_unmapped_if_stale(conn)
+
     TriggerDagRunOperator.partial(task_id="start_syncs", trigger_dag_id="catalog_sync", wait_for_completion=False).expand(conf=due_jobs())
     republish()
+    recount_unmapped()
 
 
 @dag(

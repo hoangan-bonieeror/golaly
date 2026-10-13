@@ -15,6 +15,7 @@ import {
   Get,
   HttpCode,
   Injectable,
+  Logger,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -48,7 +49,7 @@ import {
   type SyncRunDetail,
   type SyncRunErrorView,
   type SyncRunSummary,
-  type UnmappedCategoryView,
+  type UnmappedCategoriesView,
 } from "@triply/shared";
 import { z } from "zod";
 import { ViewerId, requireUser } from "../../common/auth";
@@ -60,6 +61,7 @@ import { SearchIndexService } from "../search/search-index";
 import { AirflowClient, AirflowError } from "./airflow";
 
 const PLACE_SOURCES = ["overture", "osm", "fsq"];
+const UNMAPPED_STAT = "unmapped_categories";
 
 // No `_count` includes here or on places: Prisma turns them into a GROUP BY over the WHOLE related table
 // (2M place_sources), so counts are fetched separately for the rows on the page.
@@ -164,6 +166,8 @@ export class CatalogAdminService {
   }
 
   private areaCounts: { at: number; counts: Counts } | null = null;
+  private recounting: Promise<number> | null = null;
+  private readonly log = new Logger("CatalogAdmin");
 
   /**
    * Published places per area, each added to all its ancestors (a country = its own + its provinces' + …). One
@@ -707,17 +711,48 @@ export class CatalogAdminService {
     return rows.map((m) => ({ provider: m.provider, externalCategory: m.externalCategory, categoryKey: m.category.key }));
   }
 
-  /** The most common source categories that have no mapping (their records aren't published). */
-  async unmapped(provider?: string): Promise<UnmappedCategoryView[]> {
-    const rows = await this.prisma.$queryRaw<{ provider: string; ext: string; n: bigint }[]>`
-      SELECT provider, normalized->'category_candidates'->>0 AS ext, count(*) AS n
-      FROM place_sources
-      WHERE category_id IS NULL AND jsonb_array_length(coalesce(normalized->'category_candidates', '[]')) > 0
-        ${provider ? Prisma.sql`AND provider = ${provider}` : Prisma.empty}
-        -- Mapped since the last sync: those records get their category on the area's next run.
-        AND NOT EXISTS (SELECT 1 FROM category_maps m WHERE m.provider = place_sources.provider AND m.external_category = normalized->'category_candidates'->>0)
-      GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 200`;
-    return rows.map((r) => ({ provider: r.provider, externalCategory: r.ext, records: Number(r.n) }));
+  /**
+   * The most common source categories that have no mapping (their records aren't published), from the background
+   * summary (catalog_refresh_unmapped(): counting live reads the jsonb of millions of records). Categories mapped
+   * since the last count are left out; their records get the category on the area's next sync.
+   */
+  async unmapped(provider?: string): Promise<UnmappedCategoriesView> {
+    const [rows, stat, refreshing] = await Promise.all([
+      this.prisma.$queryRaw<{ provider: string; ext: string; n: number }[]>`
+        SELECT u.provider, u.external_category AS ext, u.records AS n FROM catalog_unmapped_categories u
+        WHERE ${provider ? Prisma.sql`u.provider = ${provider}` : Prisma.sql`TRUE`}
+          AND NOT EXISTS (SELECT 1 FROM category_maps m WHERE m.provider = u.provider AND m.external_category = u.external_category)
+        ORDER BY u.records DESC, u.external_category LIMIT 200`,
+      this.prisma.catalogStat.findUnique({ where: { key: UNMAPPED_STAT } }),
+      this.recountRunning(),
+    ]);
+    return {
+      items: rows.map((r) => ({ provider: r.provider, externalCategory: r.ext, records: Number(r.n) })),
+      refreshedAt: stat?.refreshedAt.toISOString() ?? null,
+      refreshing,
+    };
+  }
+
+  /** Whether a recount holds its lock (here, in another API instance, or in the pipeline's scheduler). */
+  private async recountRunning(): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const [{ free }] = await tx.$queryRaw<{ free: boolean }[]>`SELECT pg_try_advisory_xact_lock(hashtext('catalog_refresh_unmapped')) AS free`;
+      return !free; // a free lock is taken only for this tiny transaction
+    });
+  }
+
+  /** Start a recount in the background (minutes on a big catalog); the screen polls `refreshing`. */
+  recount(): { refreshing: true } {
+    if (!this.recounting) {
+      this.recounting = this.prisma
+        .$queryRaw<{ n: number }[]>`SELECT catalog_refresh_unmapped() AS n`
+        .then(([r]) => r?.n ?? 0, (e: Error) => {
+          this.log.warn(`unmapped-category recount failed: ${e.message}`);
+          return -1;
+        })
+        .finally(() => (this.recounting = null));
+    }
+    return { refreshing: true };
   }
 
   /** Map (or unmap) a source category. Records pick it up on the next sync of their area (they count as changed). */
@@ -733,14 +768,16 @@ export class CatalogAdminService {
       categoryId = cat.id;
       await this.prisma.categoryMap.upsert({ where: key, create: { provider: input.provider, externalCategory: input.externalCategory, categoryId }, update: { categoryId } });
     }
-    const [{ n }] = await this.prisma.$queryRaw<{ n: bigint }[]>`
-      SELECT count(*) AS n FROM place_sources WHERE provider = ${input.provider} AND normalized->'category_candidates' ? ${input.externalCategory}`;
+    // How many records it concerns, from the background summary (unknown for a category that was already mapped).
+    const counted = await this.prisma.catalogUnmappedCategory.findUnique({
+      where: { provider_externalCategory: { provider: input.provider, externalCategory: input.externalCategory } },
+    });
     // Audited against the category gaining (or, for a removal, losing) the mapping.
     const entity = categoryId ?? before?.categoryId;
     if (entity && categoryId !== (before?.categoryId ?? null)) {
       await this.audit.log(adminId, "catalog.category_map.changed", "category_map", entity, { ...input, previous: before?.categoryId ?? null });
     }
-    return { ...input, records: Number(n) };
+    return { ...input, records: counted?.records ?? null };
   }
 
 }
@@ -869,6 +906,12 @@ export class CatalogAdminController {
   @Get("category-maps")
   async maps(@Query("provider") provider?: string, @Query("unmapped") unmapped?: string) {
     return unmapped === "true" ? this.svc.unmapped(provider) : this.svc.categoryMaps(provider);
+  }
+
+  @Post("category-maps/recount")
+  @HttpCode(202)
+  recount() {
+    return this.svc.recount();
   }
 
   @Put("category-maps")

@@ -109,3 +109,23 @@ def job(conn: psycopg.Connection, ref: str) -> dict[str, Any]:
     if not row:
         raise LookupError(f"no job {ref!r}")
     return dict(row)
+
+
+def refresh_unmapped_if_stale(conn: psycopg.Connection) -> int | None:
+    """Recount unmapped source categories (catalog_unmapped_categories, read by Admin → Categories) when a sync has
+    finished since the last count, or when it was never counted. Returns the number of categories, -1 when another
+    recount holds the lock, None when the count is current. Takes minutes on a big catalog; that's why it runs here
+    in the background instead of on every visit of the admin screen."""
+    row = conn.execute(
+        """SELECT (SELECT max(finished_at) FROM sync_runs WHERE status IN ('succeeded', 'partial', 'needs_review', 'cancelled')) AS synced,
+                  (SELECT refreshed_at FROM catalog_stats WHERE key = 'unmapped_categories') AS counted,
+                  EXISTS (SELECT 1 FROM place_sources) AS has_sources"""
+    ).fetchone()
+    assert row
+    if not row["has_sources"] or (row["counted"] and (not row["synced"] or row["counted"] >= row["synced"])):
+        conn.commit()
+        return None
+    n = conn.execute("SELECT catalog_refresh_unmapped() AS n").fetchone()["n"]  # type: ignore[index]
+    conn.commit()
+    log.info("unmapped categories recounted: %s", n)
+    return int(n)

@@ -1,5 +1,5 @@
 /** Catalog admin (phase 3B): jobs, runs (Airflow mocked), duplicate review, place curation, category maps, realtime. */
-import type { AdminAreaView, AdminPlaceDetail, MergeCandidateView, Paged, SyncJobView, SyncRunDetail, SyncRunSummary } from "@triply/shared";
+import type { AdminAreaView, UnmappedCategoriesView, AdminPlaceDetail, MergeCandidateView, Paged, SyncJobView, SyncRunDetail, SyncRunSummary } from "@triply/shared";
 import { AirflowClient } from "../src/modules/admin/airflow";
 import { SyncRunListener } from "../src/modules/admin/admin.module";
 import { RealtimeService } from "../src/modules/realtime/realtime";
@@ -246,16 +246,30 @@ describe("categories", () => {
     await t.prisma.placeSource.create({
       data: { provider: "osm", externalId: `unmapped-${Date.now()}`, raw: {}, normalized: { category_candidates: ["amenity=zz_test"] }, contentHash: "y", license: "ODbL", attribution: "© OpenStreetMap contributors", lat: 1, lng: 1 },
     });
-    const unmapped = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as { externalCategory: string; records: number }[];
-    expect(unmapped.find((u) => u.externalCategory === "amenity=zz_test")?.records).toBe(1);
+    // The list is a background summary: not there until it's recounted.
+    type Unmapped = UnmappedCategoriesView;
+    const before = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as Unmapped;
+    expect(before.items.map((u) => u.externalCategory)).not.toContain("amenity=zz_test");
+    const recount = await an.post("/admin/category-maps/recount");
+    expect(recount.status).toBe(202);
+    expect(recount.body).toEqual({ refreshing: true });
+    let unmapped = before;
+    for (let i = 0; i < 50 && !unmapped.items.some((u) => u.externalCategory === "amenity=zz_test"); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      unmapped = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as Unmapped;
+    }
+    expect(unmapped.items.find((u) => u.externalCategory === "amenity=zz_test")?.records).toBe(1);
+    expect(unmapped.refreshing).toBe(false);
+    expect(Date.now() - Date.parse(unmapped.refreshedAt!)).toBeLessThan(60_000);
+    expect((await minh.post("/admin/category-maps/recount")).status).toBe(403);
 
     const res = await put(an, "/admin/category-maps", { provider: "osm", externalCategory: "amenity=zz_test", categoryKey: key });
     expect(res.status).toBe(200);
     expect(res.body.records).toBe(1);
     const maps = (await an.get("/admin/category-maps?provider=osm")).body as { externalCategory: string; categoryKey: string }[];
     expect(maps.find((m) => m.externalCategory === "amenity=zz_test")?.categoryKey).toBe(key);
-    const after = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as { externalCategory: string }[];
-    expect(after.map((u) => u.externalCategory)).not.toContain("amenity=zz_test");
+    const after = (await an.get("/admin/category-maps?unmapped=true&provider=osm")).body as Unmapped;
+    expect(after.items.map((u) => u.externalCategory)).not.toContain("amenity=zz_test"); // mapped since the count
     expect((await put(an, "/admin/category-maps", { provider: "osm", externalCategory: "amenity=zz_test", categoryKey: null })).status).toBe(200);
     expect((await put(an, "/admin/category-maps", { provider: "osm", externalCategory: "x", categoryKey: "nope" })).status).toBe(422);
   });

@@ -203,7 +203,8 @@ export class PlacesService {
     const rel = relevance(q.q, PLACE_COLUMNS);
     const order =
       sort === "distance"
-        ? Prisma.sql`dist ASC, p.name ASC`
+        ? // KNN order of the GIST index: the nearest come first without sorting everything in the radius.
+          Prisma.sql`p.location <-> ${point} ASC, p.name ASC`
         : sort === "rating"
           ? Prisma.sql`p.rating DESC NULLS LAST, p.quality_score DESC, dist ASC NULLS LAST, p.name ASC`
           : rel
@@ -318,12 +319,15 @@ export class PlacesService {
     });
     const tripWhere = { ...DISCOVERABLE, days: { some: { items: { some: { placeId } } } } };
     const [nearIds, trips, tripCount, photos] = await Promise.all([
+      // The 6 nearest by a KNN walk of the GIST index (`<->`), then cut at NEARBY_METRES. Collecting everything within
+      // the radius first and sorting it took seconds in dense cities (Tokyo: ~6,500 places within 1.5 km).
       this.prisma.$queryRaw<{ id: string; dist: number }[]>`
-        SELECT o.id::text AS id, ST_Distance(o.location, p.location) AS dist
-        FROM places p JOIN places o ON o.id <> p.id AND o.status = 'ACTIVE' AND o.merged_into_id IS NULL
-          AND ST_DWithin(o.location, p.location, ${NEARBY_METRES})
-        WHERE p.id = ${placeId}::uuid
-        ORDER BY dist ASC LIMIT 6`,
+        SELECT n.id, n.dist FROM places p CROSS JOIN LATERAL (
+          SELECT o.id::text AS id, ST_Distance(o.location, p.location) AS dist FROM places o
+          WHERE o.id <> p.id AND o.status = 'ACTIVE' AND o.merged_into_id IS NULL
+          ORDER BY o.location <-> p.location LIMIT 6) n
+        WHERE p.id = ${placeId}::uuid AND n.dist <= ${NEARBY_METRES}
+        ORDER BY n.dist`,
       this.prisma.trip.findMany({ where: tripWhere, orderBy: [{ saveCount: "desc" }, { updatedAt: "desc" }], take: 3, include: tripSummaryInclude(viewerId) }),
       this.prisma.trip.count({ where: tripWhere }),
       // Approved photos, plus the viewer's own while they wait for review.

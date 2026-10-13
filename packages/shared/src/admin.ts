@@ -265,6 +265,14 @@ export interface UnmappedCategoryView {
   records: number;
 }
 
+export interface UnmappedCategoriesView {
+  items: UnmappedCategoryView[];
+  /** When the background count last ran; null = never (press Recount, or it runs after the next sync). */
+  refreshedAt: string | null;
+  /** A recount is running now. */
+  refreshing: boolean;
+}
+
 export interface CategoryMapView {
   provider: string;
   externalCategory: string;

@@ -212,12 +212,20 @@ default settings. Median of 5 warm runs:
 | Admin: provinces / places / categories | 18,793 / 7,079 / 13,667 ms | 13 / 14 / 190 ms |
 | **Within budget** | **13 / 38** | **38 / 38** |
 
+On a real catalog (1.85M places from Overture + OpenStreetMap in Japan, France, China, Vietnam and Switzerland;
+Tokyo alone 148k) the same run found two things synthetic data couldn't show: a place page in a dense city (the
+"nearby" list sorted every place within 1.5 km — now a KNN walk of the GIST index: 383 → ~40 ms) and the unmapped
+categories screen (it read the jsonb of millions of OSM records: 21 s → a background summary read in ~15 ms,
+recounted by `catalog_scheduler` after syncs or with the Recount button). With those fixed, 38 / 38.
+
 What made the difference: indexes that match each list's ORDER BY (so the first page is read in order instead of
 sorting a province), `status` as an index column because Prisma's enum casts defeat partial-index predicates, counts
 as one index-only `GROUP BY` (cached for whole areas) instead of a count per row, no Prisma `_count` on big relations
 (it aggregates the whole related table), fuzzy matching through the indexable `<%` operator and only when nothing
 matches exactly, and ranking a broad text query on a bounded set of candidates (plus every place whose name starts
-with the query) — the total then shows as "1,500+".
+with the query) — the total then shows as "1,500+" — and keeping the planner on the indexes for those candidate
+queries (`SET LOCAL enable_seqscan = off`: it underestimates `<%`, and a typo matching nothing would otherwise read
+every row).
 
 ---
 
