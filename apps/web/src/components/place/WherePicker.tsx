@@ -4,6 +4,8 @@ import { normalizeSearch, type DestinationView, type GeoAreaOption } from "@trip
 import { ChevronDown, ChevronLeft, ChevronRight, Globe2, LocateFixed, MapPin, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Sheet, cx } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
+import type { Messages } from "@/i18n/types";
 
 export type WhereValue = { kind: "any" } | { kind: "near" } | { kind: "dest"; slug: string } | { kind: "area"; slug: string };
 
@@ -22,9 +24,8 @@ type Row = {
 type Section = { label: string | null; rows: Row[] };
 type Country = { key: string; name: string; area: GeoAreaOption | null; destinations: DestinationView[]; areas: GeoAreaOption[] };
 
-const KIND_SECTION: Record<"city" | "province" | "region", string> = { city: "Cities", province: "Provinces", region: "Regions" };
-const fmt = (n: number) => n.toLocaleString();
-const plural = (n: number, one: string, many = `${one}s`) => `${fmt(n)} ${n === 1 ? one : many}`;
+/** Row text needs the catalog and a number formatter; the row builders below are plain functions. */
+type Text = { w: Messages["explore"]["where"]; num: (n: number) => string };
 
 /** Countries, keyed by English name: from the imported boundaries, plus countries that only have hand-picked destinations. */
 function buildCountries(areas: GeoAreaOption[], destinations: DestinationView[]): Country[] {
@@ -50,37 +51,40 @@ function buildCountries(areas: GeoAreaOption[], destinations: DestinationView[])
     .sort((a, b) => (b.area?.placeCount ?? 0) - (a.area?.placeCount ?? 0) || a.name.localeCompare(b.name));
 }
 
-const destRow = (d: DestinationView, withCountry: boolean): Row => ({
+const destRow = ({ w }: Text, d: DestinationView, withCountry: boolean): Row => ({
   id: `dest:${d.slug}`,
   action: { pick: { kind: "dest", slug: d.slug } },
   title: d.name,
-  subtitle: `Destination${withCountry ? ` · ${d.country}` : ""} · around the centre`,
+  subtitle: w.destSubtitle(withCountry ? d.country : null),
   icon: "dest",
   haystack: normalizeSearch(`${d.name} ${d.country}`),
   weight: 1e9 + d.tripCount, // hand-picked places first
 });
 
-const areaRow = (a: GeoAreaOption, country: string | null): Row => {
-  const kind = a.kind === "city" ? "City" : a.kind === "province" ? "Province" : "Region";
+const areaRow = ({ w, num }: Text, a: GeoAreaOption, country: string | null): Row => {
+  const kind = w.kinds[a.kind === "city" || a.kind === "province" ? a.kind : "region"];
   const local = a.shortName !== a.displayName ? ` · ${a.shortName}` : "";
   return {
     id: `area:${a.slug}`,
     action: { pick: { kind: "area", slug: a.slug } },
     title: a.displayName,
-    subtitle: `${kind}${country ? `, ${country}` : ""}${local} · ${plural(a.placeCount, "place")}`,
+    subtitle: `${kind}${country ? `, ${country}` : ""}${local} · ${w.placeCount(a.placeCount, num(a.placeCount))}`,
     icon: "area",
     haystack: normalizeSearch(`${a.displayName} ${a.shortName} ${a.name} ${country ?? ""}`),
     weight: a.placeCount,
   };
 };
 
-const countryRow = (c: Country): Row => {
-  const parts = [c.destinations.length ? plural(c.destinations.length, "destination") : "", c.areas.length ? plural(c.areas.length, "area") : ""].filter(Boolean);
+const countryRow = ({ w, num }: Text, c: Country): Row => {
+  const parts = [
+    c.destinations.length ? w.destinationCount(c.destinations.length, num(c.destinations.length)) : "",
+    c.areas.length ? w.areaCount(c.areas.length, num(c.areas.length)) : "",
+  ].filter(Boolean);
   return {
     id: `country:${c.key}`,
     action: { open: c.key },
     title: c.name,
-    subtitle: parts.join(" · ") + (c.area ? ` · ${plural(c.area.placeCount, "place")}` : ""),
+    subtitle: parts.join(" · ") + (c.area ? ` · ${w.placeCount(c.area.placeCount, num(c.area.placeCount))}` : ""),
     icon: "country",
     haystack: normalizeSearch(`${c.name} ${c.area?.name ?? ""}`),
     weight: 2e9 + (c.area?.placeCount ?? 0),
@@ -120,6 +124,9 @@ export function WherePicker({
   destinations: DestinationView[];
   onChange: (v: WhereValue) => void;
 }) {
+  const t = useT();
+  const w = t.explore.where;
+  const f = useFormat();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState<string | null>(null);
@@ -148,31 +155,32 @@ export function WherePicker({
   };
 
   const sections: Section[] = useMemo(() => {
+    const tx: Text = { w, num: f.number };
     if (query.trim()) {
-      const all = countries.flatMap((c) => [countryRow(c), ...c.destinations.map((d) => destRow(d, true)), ...c.areas.map((a) => areaRow(a, c.name))]);
+      const all = countries.flatMap((c) => [countryRow(tx, c), ...c.destinations.map((d) => destRow(tx, d, true)), ...c.areas.map((a) => areaRow(tx, a, c.name))]);
       return [{ label: null, rows: searchRows(all, query) }];
     }
     const top: Row[] = [
-      { id: "any", action: { pick: { kind: "any" } }, title: "Anywhere", subtitle: "Every place, best rated first", icon: "any", haystack: "", weight: 0 },
-      { id: "near", action: { pick: { kind: "near" } }, title: "Near me", subtitle: "Uses your location", icon: "near", haystack: "", weight: 0 },
+      { id: "any", action: { pick: { kind: "any" } }, title: w.anywhere, subtitle: w.anywhereHint, icon: "any", haystack: "", weight: 0 },
+      { id: "near", action: { pick: { kind: "near" } }, title: w.nearMe, subtitle: w.nearMeHint, icon: "near", haystack: "", weight: 0 },
     ];
-    if (!current) return [{ label: null, rows: top }, { label: "Countries", rows: countries.map(countryRow) }];
+    if (!current) return [{ label: null, rows: top }, { label: w.countries, rows: countries.map((c) => countryRow(tx, c)) }];
     const out: Section[] = [];
     if (current.area) {
       out.push({
         label: null,
-        rows: [{ ...areaRow(current.area, null), title: `All of ${current.name}`, subtitle: plural(current.area.placeCount, "place"), icon: "country" }],
+        rows: [{ ...areaRow(tx, current.area, null), title: w.allOf(current.name), subtitle: w.placeCount(current.area.placeCount, f.number(current.area.placeCount)), icon: "country" }],
       });
     }
     if (current.destinations.length) {
-      out.push({ label: "Destinations", rows: [...current.destinations].sort((a, b) => b.tripCount - a.tripCount || a.name.localeCompare(b.name)).map((d) => destRow(d, false)) });
+      out.push({ label: w.destinations, rows: [...current.destinations].sort((a, b) => b.tripCount - a.tripCount || a.name.localeCompare(b.name)).map((d) => destRow(tx, d, false)) });
     }
     for (const kind of ["city", "province", "region"] as const) {
-      const rows = current.areas.filter((a) => a.kind === kind).map((a) => areaRow(a, null));
-      if (rows.length) out.push({ label: KIND_SECTION[kind], rows });
+      const rows = current.areas.filter((a) => a.kind === kind).map((a) => areaRow(tx, a, null));
+      if (rows.length) out.push({ label: w.sections[kind], rows });
     }
     return out;
-  }, [query, current, countries]);
+  }, [query, current, countries, w, f]);
 
   const flat = sections.flatMap((s) => s.rows);
   const selectedId = value.kind === "any" || value.kind === "near" ? value.kind : `${value.kind}:${value.slug}`;
@@ -228,11 +236,11 @@ export function WherePicker({
         <ChevronDown className="size-4 shrink-0 text-muted" aria-hidden />
       </button>
 
-      <Sheet open={open} onClose={() => setOpen(false)} title="Where to?">
+      <Sheet open={open} onClose={() => setOpen(false)} title={w.title}>
         <div className="sticky -top-5 z-10 -mx-5 -mt-1 bg-surface px-5 pb-3 pt-1 md:-top-6 md:-mx-6 md:px-6">
           {current && !query && (
             <button type="button" onClick={back} className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-lg pr-2 text-sm font-semibold text-primary hover:underline">
-              <ChevronLeft className="size-4" aria-hidden /> All countries
+              <ChevronLeft className="size-4" aria-hidden /> {w.allCountries}
             </button>
           )}
           <div className="relative">
@@ -240,7 +248,7 @@ export function WherePicker({
             <input
               ref={inputRef}
               role="combobox"
-              aria-label="Search countries, cities and provinces"
+              aria-label={w.searchLabel}
               aria-expanded="true"
               aria-controls={listId}
               aria-autocomplete="list"
@@ -251,7 +259,7 @@ export function WherePicker({
                 setActive(0);
               }}
               onKeyDown={onKeyDown}
-              placeholder={current ? `Search in ${current.name}` : "Search a country, city or province"}
+              placeholder={current ? w.searchIn(current.name) : w.searchPlaceholder}
               autoComplete="off"
               enterKeyHint="go"
               className="h-12 w-full rounded-xl border border-line bg-sand-2/60 pl-10 pr-11 text-[16px] text-ink placeholder:text-muted/80 focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -263,7 +271,7 @@ export function WherePicker({
                   setQuery("");
                   inputRef.current?.focus();
                 }}
-                aria-label="Clear search"
+                aria-label={w.clearSearch}
                 className="absolute right-1 top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-muted hover:text-ink"
               >
                 <X className="size-4" aria-hidden />
@@ -273,10 +281,10 @@ export function WherePicker({
           {current && !query && <p className="mt-3 font-display text-lg font-semibold">{current.name}</p>}
         </div>
 
-        <div ref={listRef} id={listId} role="listbox" aria-label={current && !query ? `Places in ${current.name}` : "Places"} className="min-h-[50dvh] space-y-4 md:min-h-[420px]">
+        <div ref={listRef} id={listId} role="listbox" aria-label={current && !query ? w.placesIn(current.name) : w.places} className="min-h-[50dvh] space-y-4 md:min-h-[420px]">
           {flat.length === 0 && (
             <p className="px-1 py-6 text-center text-sm text-ink-2" role="status">
-              Nothing matches “{query}”. Try another spelling — accents are optional.
+              {w.noMatch(query)}
             </p>
           )}
           {sections.map((s, si) =>
@@ -319,7 +327,7 @@ export function WherePicker({
                           <span className="block truncate text-sm text-muted">{r.subtitle}</span>
                         </span>
                         {"open" in r.action && <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />}
-                        {isSelected && <span className="sr-only">(selected)</span>}
+                        {isSelected && <span className="sr-only">{w.selected}</span>}
                       </li>
                     );
                   })}

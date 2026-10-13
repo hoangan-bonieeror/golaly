@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` follows the resolved theme on <html data-theme>, not the OS directly — the user can override it. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /* ─────────────────────────────────────────────────────────────
    TRIPLY design tokens — "Atlas"
    The map is the hero: warm paper canvas, ink text, a deep jade primary and a
@@ -35,10 +38,16 @@
   --color-success: #8fcab7; /* icons on dark (ink) surfaces only */
   --color-danger: #b3261e;
 
+  /* Text on filled primary / ink surfaces (flip in Atlas Night, where primary and ink turn light) */
+  --color-on-primary: #ffffff;
+  --color-on-ink: #fffdf8;
+  --color-line-strong: #b9ad99; /* dashed "add" targets */
+
   /* Map surface (SVG fallback map + empty states) */
   --color-map: #ece5d6;
   --color-contour: #ddd3c0;
   --color-water: #b9d3ca;
+  --color-pin-ring: #fffdf8;
 
   --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-be-vietnam), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -48,6 +57,50 @@
   /* Hairline + a soft ink shadow: depth comes from borders, shadows only for floating layers. */
   --shadow-card: 0 1px 0 rgb(31 26 22 / 0.04), 0 1px 2px rgb(31 26 22 / 0.06);
   --shadow-pop: 0 12px 32px -12px rgb(31 26 22 / 0.28), 0 0 0 1px rgb(31 26 22 / 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Atlas Night — same token names, re-tuned for a dark canvas (not inverted).
+   Every text pair re-verified: see the Atlas Night table in MASTER.md.
+   ───────────────────────────────────────────────────────────── */
+html {
+  color-scheme: light;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-sand: #15130f;
+  --color-sand-2: #2a251f;
+  --color-surface: #1e1b16;
+  --color-ink: #e9e2d4; /* 14.4 on bg */
+  --color-ink-2: #cbc2b2; /* 10.5 */
+  --color-muted: #a89e8f; /* 7.0 on bg, 5.8 on well */
+  --color-line: #3a342c;
+  --color-line-strong: #5a5147;
+  --color-primary: #7cc4b0; /* 9.2 on bg */
+  --color-primary-600: #9ad3c3;
+  --color-primary-50: #1b3430;
+  --color-on-primary: #15130f; /* 9.2 on primary */
+  --color-on-ink: #15130f;
+  --color-accent: #ff7a45;
+  --color-accent-50: #3b211a;
+  --color-accent-600: #c2461b; /* white 5.0 */
+  --color-accent-700: #ff8a5c; /* 8.0 on bg */
+  --color-gold: #e0a83e;
+  --color-gold-50: #352a14;
+  --color-gold-700: #e8bb63; /* 7.9 on gold-50 */
+  --color-danger: #ff8a80;
+  --color-map: #1b1915;
+  --color-contour: #2e2922;
+  --color-water: #24413a;
+  --color-pin-ring: #e9e2d4; /* day pins are dark-ish: a light ring keeps them visible */
+  --shadow-card: 0 1px 0 rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 14px 36px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(233 226 212 / 0.08);
+}
+
+/* Category / item-type tints are light pastels; on Atlas Night derive them from the pin colour. */
+[data-theme="dark"] .cat-tint {
+  background: color-mix(in srgb, var(--cat) 30%, var(--color-surface));
+  color: color-mix(in srgb, var(--cat) 30%, #ffffff);
 }
 
 html,
@@ -140,7 +193,7 @@ body {
   height: 28px;
   border-radius: 999px;
   background: var(--pin);
-  border: 2px solid var(--color-surface);
+  border: 2px solid var(--color-pin-ring);
   box-shadow: 0 1px 3px rgb(31 26 22 / 0.35);
   color: #fff;
   font: 600 12px/1 var(--font-mono);
@@ -150,7 +203,7 @@ body {
 .triply-pin.is-selected {
   transform: scale(1.2);
   z-index: 2;
-  box-shadow: 0 0 0 3px var(--color-surface), 0 0 0 6px var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-pin-ring), 0 0 0 6px var(--color-primary);
 }
 @media (prefers-reduced-motion: reduce) {
   .triply-pin {

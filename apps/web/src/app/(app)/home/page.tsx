@@ -7,7 +7,8 @@ import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
-import { Button, EmptyState, ErrorState, formatDateRange, SectionTitle, Skeleton, TabPanel, Tabs } from "@/components/ui";
+import { Button, EmptyState, ErrorState, SectionTitle, Skeleton, TabPanel, Tabs } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { useExplore, useFeed, useMe, useMyTrips } from "@/lib/api/queries";
 
 export default function HomePage() {
@@ -17,27 +18,29 @@ export default function HomePage() {
   const explore = useExplore();
   const mine = useMyTrips("all", !!me);
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = (mine.items ?? []).find((t) => !t.endDate || t.endDate >= today);
-  const recommended = (explore.data?.trips ?? []).filter((t) => !t.myRole).slice(0, 4);
+  const upcoming = (mine.items ?? []).find((x) => !x.endDate || x.endDate >= today);
+  const recommended = (explore.data?.trips ?? []).filter((x) => !x.myRole).slice(0, 4);
   const trending = (explore.data?.destinations ?? []).slice(0, 6);
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
+  const t = useT();
+  const greeting = t.home.greeting[partOfDay()];
+  const empty = mode === "following" ? t.home.emptyFollowing : t.home.emptyForYou;
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0 space-y-8">
         <header>
           <p className="text-sm text-muted">
-            {greeting()}
-            {me ? `, ${me.displayName}` : ""}
+            {me ? t.home.greetingName(greeting, me.displayName) : greeting}
           </p>
-          <h1 className="font-display text-3xl font-semibold md:text-4xl">Where to next?</h1>
+          <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.home.title}</h1>
         </header>
 
         {upcoming && <ContinuePlanning trip={upcoming} />}
         {!me && (
           <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-ink-2">Plan trips with friends and remix itineraries from real travelers.</p>
-            <Button href="/register">Get started</Button>
+            <p className="flex-1 text-sm text-ink-2">{t.home.guestPitch}</p>
+            <Button href="/register">{t.home.getStarted}</Button>
           </div>
         )}
 
@@ -45,11 +48,11 @@ export default function HomePage() {
           <SectionTitle
             action={
               <Link href="/explore" className="text-sm font-semibold text-primary">
-                See all
+                {t.common.seeAll}
               </Link>
             }
           >
-            Trending destinations
+            {t.home.trendingDestinations}
           </SectionTitle>
           <div className="scrollbar-none -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
             {explore.isLoading
@@ -59,15 +62,15 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 className="sr-only">Feed</h2>
+          <h2 className="sr-only">{t.home.feed}</h2>
           <Tabs
             id="feed-tabs"
-            label="Feed"
+            label={t.home.feed}
             value={mode}
             onChange={setMode}
             tabs={[
-              { value: "for-you", label: "For You" },
-              { value: "following", label: "Following" },
+              { value: "for-you", label: t.home.forYou },
+              { value: "following", label: t.home.following },
             ]}
             className="mb-5"
           />
@@ -79,9 +82,9 @@ export default function HomePage() {
             ) : posts.length === 0 ? (
               <EmptyState
                 icon={<Users className="size-7" />}
-                title={mode === "following" ? "Nothing here yet" : "Share your first journey."}
-                body={mode === "following" ? "Follow travelers whose trips you love and their stories will show up here." : "Posts from travelers will appear here."}
-                action={<Button href={mode === "following" ? "/explore" : "/posts/new"}>{mode === "following" ? "Find travelers" : "New post"}</Button>}
+                title={empty.title}
+                body={empty.body}
+                action={<Button href={mode === "following" ? "/explore" : "/posts/new"}>{empty.action}</Button>}
               />
             ) : (
               posts.map((p, i) => (
@@ -89,11 +92,11 @@ export default function HomePage() {
                   <PostCard post={p} />
                   {i === 0 && recommended.length > 0 && (
                     <section className="lg:hidden">
-                      <SectionTitle>Recommended trips</SectionTitle>
+                      <SectionTitle>{t.home.recommendedTrips}</SectionTitle>
                       <div className="scrollbar-none -mx-4 flex gap-4 overflow-x-auto px-4 pb-1">
-                        {recommended.map((t) => (
-                          <div key={t.id} className="w-64 shrink-0">
-                            <TripCard trip={t} compact />
+                        {recommended.map((r) => (
+                          <div key={r.id} className="w-64 shrink-0">
+                            <TripCard trip={r} compact />
                           </div>
                         ))}
                       </div>
@@ -104,7 +107,7 @@ export default function HomePage() {
             )}
             {feed.hasNextPage && (
               <Button variant="secondary" className="w-full" onClick={() => feed.fetchNextPage()} disabled={feed.isFetchingNextPage}>
-                {feed.isFetchingNextPage ? "Loading…" : "Load more"}
+                {feed.isFetchingNextPage ? t.common.loading : t.common.loadMore}
               </Button>
             )}
           </TabPanel>
@@ -113,20 +116,20 @@ export default function HomePage() {
 
       <aside className="hidden space-y-8 lg:block">
         <section>
-          <SectionTitle>Recommended trips</SectionTitle>
+          <SectionTitle>{t.home.recommendedTrips}</SectionTitle>
           <div className="space-y-5">
-            {explore.isLoading ? <Skeleton className="aspect-[4/3]" /> : recommended.slice(0, 3).map((t) => <TripCard key={t.id} trip={t} compact />)}
+            {explore.isLoading ? <Skeleton className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact />)}
           </div>
         </section>
         <section>
           <SectionTitle
             action={
               <Link href="/explore" className="text-sm font-semibold text-primary">
-                All
+                {t.home.all}
               </Link>
             }
           >
-            Trending
+            {t.home.trending}
           </SectionTitle>
           <div className="grid grid-cols-3 gap-2.5">
             {trending.map((d) => (
@@ -140,6 +143,8 @@ export default function HomePage() {
 }
 
 function ContinuePlanning({ trip }: { trip: TripSummary }) {
+  const t = useT();
+  const f = useFormat();
   return (
     <Link
       href={`/trips/${trip.id}`}
@@ -147,10 +152,10 @@ function ContinuePlanning({ trip }: { trip: TripSummary }) {
     >
       <span className="size-16 shrink-0 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${trip.cover[0]}, ${trip.cover[1]})` }} />
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold uppercase tracking-wide text-accent-700">Continue planning</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-accent-700">{t.home.continuePlanning}</div>
         <div className="truncate font-semibold">{trip.title}</div>
         <div className="truncate text-sm text-muted">
-          {trip.route || "Destination TBD"} · {formatDateRange(trip.startDate ?? undefined, trip.endDate ?? undefined)} · {trip.stats.travelers} travelers
+          {trip.route || t.home.destinationTbd} · {f.dateRange(trip.startDate, trip.endDate)} · {t.format.travelers(trip.stats.travelers)}
         </div>
       </div>
       <ArrowRight className="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
@@ -158,7 +163,7 @@ function ContinuePlanning({ trip }: { trip: TripSummary }) {
   );
 }
 
-function greeting() {
+function partOfDay() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }

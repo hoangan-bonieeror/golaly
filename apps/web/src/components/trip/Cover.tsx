@@ -1,8 +1,11 @@
+"use client";
+
 /**
  * Generated "postcard" cover art — an original TRIPLY visual motif used in
  * place of user photos in the prototype. Deterministic per seed, so every
  * trip/post keeps its own look. When a photo was uploaded, it's layered on top.
  */
+import { useId } from "react";
 import type { ImageView } from "@triply/shared";
 import { cx } from "@/lib/utils";
 
@@ -52,7 +55,9 @@ export function Cover({
 }) {
   const r = rng(seed);
   const [a, b] = palette;
-  const gid = `g${seed.replace(/[^a-z0-9]/gi, "").slice(0, 10)}`;
+  // Unique per instance: the same trip can appear twice on a page (feed + sidebar), and a gradient whose
+  // first definition sits in a hidden (display:none) copy doesn't paint anywhere.
+  const gid = `g${useId().replace(/[^a-z0-9]/gi, "")}`;
   const sunX = 80 + r() * 240;
   const sunY = 95 + r() * 40;
   const water = r() > 0.55;

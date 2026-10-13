@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { FollowListItem, Me, PostView, ProfileView, TripSummary, UpdateProfileInput } from "@triply/shared";
+import { isLocale, type FollowListItem, type Me, type PostView, type ProfileView, type TripSummary, type UpdateProfileInput } from "@triply/shared";
 import { verifyPassword } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import {
@@ -51,6 +51,7 @@ export class UsersService {
       hasPassword: !!u.passwordHash,
       providers: u.oauthAccounts.map((a) => a.provider),
       isAdmin: u.role === "ADMIN",
+      locale: isLocale(u.profile?.locale) ? u.profile.locale : null,
     };
   }
 
@@ -161,7 +162,7 @@ export class UsersService {
       const existing = await this.prisma.follow.findUnique({ where: { followerId_followingId: { followerId: viewerId, followingId: target.id } } });
       if (!existing) {
         await this.prisma.follow.create({ data: { followerId: viewerId, followingId: target.id } });
-        await this.notifications.notify([target.id], viewerId, "FOLLOW", "started following you");
+        await this.notifications.notify([target.id], viewerId, "FOLLOW", { k: "follow" });
       }
     } else {
       await this.prisma.follow.deleteMany({ where: { followerId: viewerId, followingId: target.id } });

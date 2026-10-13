@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { Chip, SectionTitle, Skeleton } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { useCategories, usePlaceBrowse } from "@/lib/api/queries";
 import { groupMeta } from "./categoryMeta";
 
 /** Destination page: what's around, by kind of place, with a way into the full browser. */
 export function AroundDestination({ slug, name }: { slug: string; name: string }) {
+  const t = useT();
+  const f = useFormat();
   const [group, setGroup] = useState<string | undefined>();
   const categories = useCategories().data ?? [];
   const browse = usePlaceBrowse({ destination: slug, group, limit: 6 });
@@ -23,15 +26,15 @@ export function AroundDestination({ slug, name }: { slug: string; name: string }
       <SectionTitle
         action={
           <Link href={all} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">
-            See all{meta ? ` ${meta.total}` : ""}
+            {t.explore.destination.seeAll(meta ? f.number(meta.total) : null)}
           </Link>
         }
       >
-        Around {name}
+        {t.explore.destination.around(name)}
       </SectionTitle>
-      <div role="group" aria-label="Kind of place" className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
+      <div role="group" aria-label={t.explore.browser.kindOfPlace} className="scrollbar-none -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1">
         <Chip active={!group} onClick={() => setGroup(undefined)} className="shrink-0">
-          All
+          {t.explore.browser.all}
         </Chip>
         {groups.map((g) => {
           const Icon = groupMeta(g.key).icon;

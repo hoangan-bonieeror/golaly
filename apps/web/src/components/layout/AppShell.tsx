@@ -7,11 +7,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { useMe, useUnreadCount } from "@/lib/api/queries";
 import { useNotificationStream } from "@/lib/realtime";
+import { useT } from "@/i18n/client";
 import { useSession } from "@/lib/session";
 import { Avatar, Button, PageLoader, cx } from "../ui";
 import { CreateSheet } from "./CreateSheet";
 import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
+import { LanguageSwitch, ThemeSwitch } from "./Preferences";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 
 const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
@@ -24,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const me = meQuery.data ?? null;
   const unread = useUnreadCount(!!me).data ?? 0;
   const [createOpen, setCreateOpen] = useState(false);
+  const t = useT();
   useNotificationStream(me?.id);
 
   // Pages that only make sense for a signed-in user. Trips, posts, profiles and
@@ -43,20 +46,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <a
         href="#main"
-        className="sr-only z-[60] rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-[60] rounded-xl bg-ink px-4 py-2 text-sm font-semibold text-on-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
-        Skip to content
+        {t.common.skipToContent}
       </a>
       {/* Desktop navbar: the three places people go, global search, then create · alerts · account. */}
       <header className="sticky top-0 z-40 hidden h-16 items-center gap-5 border-b border-line bg-surface/95 px-6 backdrop-blur md:flex">
-        <Link href="/home" aria-label="TRIPLY home" className="shrink-0 rounded-xl">
+        <Link href="/home" aria-label={t.nav.homeLink} className="shrink-0 rounded-xl">
           <Logo />
         </Link>
-        <nav aria-label="Main" className="flex shrink-0 gap-1">
+        <nav aria-label={t.nav.mainNav} className="flex shrink-0 gap-1">
           {[
-            { href: "/home", label: "Home" },
-            { href: "/explore", label: "Explore" },
-            { href: "/trips", label: "Trips" },
+            { href: "/home", label: t.nav.home },
+            { href: "/explore", label: t.nav.explore },
+            { href: "/trips", label: t.nav.trips },
           ].map(({ href, label }) => (
             <Link
               key={href}
@@ -71,23 +74,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <NavSearch />
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {/* Below 1024px the search field doesn't fit; Explore has it. */}
-          <Link href="/explore" aria-label="Search TRIPLY" className="flex size-10 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:bg-sand-2 lg:hidden">
+          <Link href="/explore" aria-label={t.nav.searchLabel} className="flex size-10 items-center justify-center rounded-xl border border-line bg-surface text-ink-2 hover:bg-sand-2 lg:hidden">
             <Search className="size-[18px]" aria-hidden />
           </Link>
           {me ? (
             <>
               <Button onClick={() => setCreateOpen(true)}>
-                <PlusCircle className="size-4" aria-hidden /> Create
+                <PlusCircle className="size-4" aria-hidden /> {t.nav.create}
               </Button>
               <Link
                 href="/notifications"
-                aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+                aria-label={unread ? t.nav.notificationsUnread(unread) : t.nav.notifications}
                 aria-current={isActive("/notifications") ? "page" : undefined}
                 className={cx("relative flex size-10 items-center justify-center rounded-xl border border-line text-ink-2 hover:bg-sand-2 hover:text-ink", isActive("/notifications") ? "bg-sand-2" : "bg-surface")}
               >
                 <Bell className="size-[18px]" aria-hidden />
                 {!!unread && (
-                  <span aria-hidden className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-accent-700 px-1.5 text-center font-mono text-[11px] font-semibold leading-5 text-white ring-2 ring-surface">
+                  <span aria-hidden className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-accent-600 px-1.5 text-center font-mono text-[11px] font-semibold leading-5 text-white ring-2 ring-surface">
                     {unread > 99 ? "99+" : unread}
                   </span>
                 )}
@@ -97,9 +100,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             <>
               <Button href={`/login?next=${encodeURIComponent(pathname)}`} variant="secondary">
-                Log in
+                {t.common.logIn}
               </Button>
-              <Button href="/register">Sign up</Button>
+              <Button href="/register">{t.common.signUp}</Button>
             </>
           )}
         </div>
@@ -110,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/home">
           <Logo />
         </Link>
-        <Link href="/saved" aria-label="Saved" className="flex size-10 items-center justify-center rounded-xl text-ink-2">
+        <Link href="/saved" aria-label={t.nav.saved} className="flex size-10 items-center justify-center rounded-xl text-ink-2">
           <Bookmark className="size-5" />
         </Link>
       </header>
@@ -130,30 +133,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile bottom nav: Home · Explore · Trips · Create · Notifications · Profile */}
       <nav
-        aria-label="Tab bar"
+        aria-label={t.nav.tabBar}
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
         {[
-          { href: "/home", label: "Home", icon: Home },
-          { href: "/explore", label: "Explore", icon: Compass },
-          { href: "/trips", label: "Trips", icon: Luggage },
+          { href: "/home", label: t.nav.home, icon: Home },
+          { href: "/explore", label: t.nav.explore, icon: Compass },
+          { href: "/trips", label: t.nav.trips, icon: Luggage },
         ].map(({ href, label, icon: Icon }) => (
           <MobileTab key={href} href={href} label={label} active={isActive(href)}>
             <Icon className="size-[22px]" strokeWidth={isActive(href) ? 2.4 : 1.8} />
           </MobileTab>
         ))}
-        <button onClick={() => (me ? setCreateOpen(true) : router.push("/login"))} className="flex flex-col items-center justify-center py-2" aria-label="Create">
-          <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-white shadow-md">
+        <button onClick={() => (me ? setCreateOpen(true) : router.push("/login"))} className="flex flex-col items-center justify-center py-2" aria-label={t.nav.create}>
+          <span className="flex size-10 items-center justify-center rounded-2xl bg-primary text-on-primary shadow-md">
             <PlusCircle className="size-5" />
           </span>
         </button>
-        <MobileTab href="/notifications" label="Alerts" a11yLabel={unread ? `Notifications, ${unread} unread` : "Notifications"} active={isActive("/notifications")}>
+        <MobileTab href="/notifications" label={t.nav.alerts} a11yLabel={unread ? t.nav.notificationsUnread(unread) : t.nav.notifications} active={isActive("/notifications")}>
           <span className="relative">
             <Bell className="size-[22px]" strokeWidth={isActive("/notifications") ? 2.4 : 1.8} />
             {!!unread && <span className="absolute -right-1.5 -top-1 size-2.5 rounded-full bg-accent ring-2 ring-surface" />}
           </span>
         </MobileTab>
-        <MobileTab href={profileHref} label="Profile" active={isActive("/u/")}>
+        <MobileTab href={profileHref} label={t.nav.profile} active={isActive("/u/")}>
           {me ? <Avatar user={me} size={24} /> : <UserRound className="size-[22px]" />}
         </MobileTab>
       </nav>
@@ -180,6 +183,7 @@ function MobileTab({ href, label, a11yLabel, active, children }: { href: string;
 
 /** Global search: jumps to Explore with the query (Explore shows trips, places, people and destinations). */
 function NavSearch() {
+  const t = useT();
   const router = useRouter();
   const [q, setQ] = useState("");
   return (
@@ -195,8 +199,8 @@ function NavSearch() {
       <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
       <input
         type="search"
-        aria-label="Search TRIPLY"
-        placeholder="Search places, trips and people"
+        aria-label={t.nav.searchLabel}
+        placeholder={t.nav.searchPlaceholder}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         maxLength={100}
@@ -215,6 +219,7 @@ function AccountMenu({ me, profileHref, isActive }: { me: Me; profileHref: strin
   const router = useRouter();
   const pathname = usePathname();
   const { logout } = useSession();
+  const t = useT();
   // Close on navigation, outside click and Escape (focus returns to the avatar).
   const [seenPath, setSeenPath] = useState(pathname);
   if (seenPath !== pathname) {
@@ -238,10 +243,10 @@ function AccountMenu({ me, profileHref, isActive }: { me: Me; profileHref: strin
     };
   }, [open]);
   const links = [
-    { href: profileHref, label: "Profile", icon: UserRound },
-    { href: "/saved", label: "Saved", icon: Bookmark },
-    { href: "/settings", label: "Settings", icon: Settings },
-    ...(me.isAdmin ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : []),
+    { href: profileHref, label: t.nav.profile, icon: UserRound },
+    { href: "/saved", label: t.nav.saved, icon: Bookmark },
+    { href: "/settings", label: t.nav.settings, icon: Settings },
+    ...(me.isAdmin ? [{ href: "/admin", label: t.nav.admin, icon: ShieldCheck }] : []),
   ];
   const item = "flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2.5 text-sm text-ink-2 hover:bg-sand-2 hover:text-ink";
   return (
@@ -249,7 +254,7 @@ function AccountMenu({ me, profileHref, isActive }: { me: Me; profileHref: strin
       <button
         ref={button}
         type="button"
-        aria-label={`Account: ${me.displayName}`}
+        aria-label={t.nav.account(me.displayName)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((o) => !o)}
@@ -259,18 +264,28 @@ function AccountMenu({ me, profileHref, isActive }: { me: Me; profileHref: strin
         <ChevronDown className="size-4" aria-hidden />
       </button>
       {open && (
-        <div id={panelId} className="animate-rise absolute right-0 top-full z-50 mt-2 w-60 rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
+        <div id={panelId} className="animate-rise absolute right-0 top-full z-50 mt-2 w-72 rounded-2xl border border-line bg-surface p-1.5 shadow-pop">
           <div className="border-b border-line px-2.5 pb-2.5 pt-1.5">
             <div className="truncate text-sm font-semibold">{me.displayName}</div>
             <div className="truncate font-mono text-xs text-muted">@{me.username}</div>
           </div>
-          <nav aria-label="Account" className="pt-1.5">
+          <nav aria-label={t.nav.accountNav} className="pt-1.5">
             {links.map(({ href, label, icon: Icon }) => (
               <Link key={label} href={href} aria-current={isActive(href) ? "page" : undefined} className={cx(item, isActive(href) && "bg-sand-2 text-ink")}>
                 <Icon className="size-4" aria-hidden /> {label}
               </Link>
             ))}
           </nav>
+          <div className="mt-1.5 space-y-2.5 border-t border-line px-1 pb-1 pt-2.5">
+            <div>
+              <div className="mb-1 px-1.5 text-xs font-semibold text-muted">{t.nav.theme.label}</div>
+              <ThemeSwitch compact />
+            </div>
+            <div>
+              <div className="mb-1 px-1.5 text-xs font-semibold text-muted">{t.nav.language.label}</div>
+              <LanguageSwitch compact />
+            </div>
+          </div>
           <div className="mt-1.5 border-t border-line pt-1.5">
             <button
               type="button"
@@ -281,7 +296,7 @@ function AccountMenu({ me, profileHref, isActive }: { me: Me; profileHref: strin
                 router.push("/login");
               }}
             >
-              <LogOut className="size-4" aria-hidden /> Log out
+              <LogOut className="size-4" aria-hidden /> {t.common.logOut}
             </button>
           </div>
         </div>

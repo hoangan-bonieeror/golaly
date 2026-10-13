@@ -5,9 +5,11 @@ import { MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, Field, inputCls } from "@/components/ui";
+import { useT } from "@/i18n/client";
 import { api, ApiError } from "@/lib/api/client";
 
 export default function ForgotPassword() {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string>();
@@ -19,16 +21,16 @@ export default function ForgotPassword() {
         <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary-50 text-primary">
           <MailCheck className="size-7" />
         </div>
-        <h1 className="font-display text-3xl font-semibold">Check your inbox</h1>
+        <h1 className="font-display text-3xl font-semibold">{t.auth.forgot.sentTitle}</h1>
         {/* Same message whether or not the account exists — avoids account enumeration. */}
-        <p className="mt-2 text-sm text-muted">If an account exists for {email}, we&apos;ve sent a reset link. It expires in 30 minutes.</p>
+        <p className="mt-2 text-sm text-muted">{t.auth.forgot.sentBody(email)}</p>
         {process.env.NODE_ENV !== "production" && (
           <p className="mt-4 rounded-xl bg-sand-2 px-3 py-2 text-xs text-ink-2">
             Dev: emails are written to <code>apps/api/storage/outbox</code>.
           </p>
         )}
         <Button href="/login" variant="secondary" className="mt-8">
-          Back to log in
+          {t.auth.backToLogin}
         </Button>
       </div>
     );
@@ -38,13 +40,13 @@ export default function ForgotPassword() {
       onSubmit={async (e) => {
         e.preventDefault();
         const parsed = emailSchema.safeParse(email);
-        if (!parsed.success) return setError("Enter a valid email address.");
+        if (!parsed.success) return setError(t.auth.forgot.invalidEmail);
         setBusy(true);
         try {
           await api.post("/auth/forgot-password", { email: parsed.data });
           setSent(true);
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+          setError(err instanceof ApiError ? err.message : t.common.errors.generic);
         } finally {
           setBusy(false);
         }
@@ -53,18 +55,18 @@ export default function ForgotPassword() {
       noValidate
     >
       <div>
-        <h1 className="font-display text-3xl font-semibold">Reset password</h1>
-        <p className="mt-1 text-sm text-muted">We&apos;ll email you a secure link.</p>
+        <h1 className="font-display text-3xl font-semibold">{t.auth.forgot.title}</h1>
+        <p className="mt-1 text-sm text-muted">{t.auth.forgot.subtitle}</p>
       </div>
-      <Field label="Email" error={error}>
+      <Field label={t.auth.email} error={error}>
         <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
       <Button size="lg" className="w-full" type="submit" disabled={busy}>
-        Send reset link
+        {t.auth.forgot.send}
       </Button>
       <p className="text-center text-sm">
         <Link href="/login" className="inline-block py-2.5 font-semibold text-primary hover:underline">
-          Back to log in
+          {t.auth.backToLogin}
         </Link>
       </p>
     </form>

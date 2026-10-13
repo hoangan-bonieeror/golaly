@@ -1,4 +1,6 @@
 import { BedDouble, Bus, Coffee, Flag, Landmark, MapPin, Martini, Mountain, ShoppingBag, Sparkles, UtensilsCrossed } from "lucide-react";
+import type { Locale } from "@triply/shared";
+import { CATALOGS, INTL_LOCALE } from "@/i18n/catalog";
 import { cx } from "../ui";
 
 /**
@@ -28,34 +30,40 @@ export function CategoryIcon({ categoryKey, size = "md", className }: { category
   const box = { sm: "size-8 rounded-lg", md: "size-10 rounded-xl", lg: "size-14 rounded-2xl" }[size];
   const icon = { sm: "size-4", md: "size-5", lg: "size-7" }[size];
   return (
-    <span className={cx("flex shrink-0 items-center justify-center", box, m.bg, m.fg, className)} aria-hidden>
+    <span className={cx("cat-tint flex shrink-0 items-center justify-center", box, m.bg, m.fg, className)} style={{ "--cat": m.pin } as React.CSSProperties} aria-hidden>
       <Icon className={icon} />
     </span>
   );
 }
 
-export function formatDistance(m: number | undefined) {
+/** "350 m", "1.2 km" ("1,2 km" in Vietnamese). Pure: pass the interface language. */
+export function formatDistance(m: number | undefined, locale: Locale = "en") {
   if (m === undefined) return null;
   if (m < 950) return `${Math.max(10, Math.round(m / 10) * 10)} m`;
-  return `${(m / 1000).toFixed(m < 9500 ? 1 : 0)} km`;
+  const digits = m < 9500 ? 1 : 0;
+  return `${(m / 1000).toLocaleString(INTL_LOCALE[locale], { minimumFractionDigits: digits, maximumFractionDigits: digits })} km`;
 }
 
-const DAYS: Record<string, string> = { Mo: "Mon", Tu: "Tue", We: "Wed", Th: "Thu", Fr: "Fri", Sa: "Sat", Su: "Sun", PH: "Public holidays" };
+const DAY = "Mo|Tu|We|Th|Fr|Sa|Su|PH";
 /**
  * Human-readable OpenStreetMap opening_hours, one line per rule ("Mo-Fr 08:00-17:00; Sa 09:00-12:00"
- * → ["Mon–Fri 08:00–17:00", "Sat 09:00–12:00"]). Unusual syntax is shown as-is rather than guessed at.
+ * → ["Mon–Fri 08:00–17:00", "Sat 09:00–12:00"], or "Th 2–Th 6 08:00–17:00" in Vietnamese). Times stay
+ * 24-hour. Unusual syntax is shown as-is rather than guessed at. Pure: pass the interface language.
  */
-export function formatOpeningHours(raw: string): string[] {
-  if (raw.trim() === "24/7") return ["Open 24 hours, every day"];
+export function formatOpeningHours(raw: string, locale: Locale = "en"): string[] {
+  const h = CATALOGS[locale].explore.hours;
+  const day = (d: string) => h.days[d as keyof typeof h.days];
+  if (raw.trim() === "24/7") return [h.always];
   return raw
     .split(";")
     .map((r) => r.trim())
     .filter(Boolean)
     .map((r) =>
       r
-        .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g, (d) => DAYS[d])
+        // One pass for day names and day ranges, so a translated name ("Th 2") is never matched again.
+        .replace(new RegExp(`\\b(${DAY})(?:-(${DAY}))?\\b`, "g"), (_, a: string, b?: string) => (b ? `${day(a)}–${day(b)}` : day(a)))
         .replace(/(\d{2}:\d{2})-(\d{2}:\d{2})/g, "$1–$2")
         .replace(/([A-Z][a-z]{2})-([A-Z][a-z]{2})/g, "$1–$2")
-        .replace(/\boff\b/g, "closed"),
+        .replace(/\boff\b/g, h.closed),
     );
 }

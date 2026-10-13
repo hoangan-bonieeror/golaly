@@ -420,11 +420,11 @@ const comments: Comment[] = [
 ];
 
 const notifications: Notification[] = [
-  { id: seedId("n1"), userId: u("an"), actorId: u("minh"), type: "TRIP_ITEM_ADDED", tripId: t("japan"), text: "added “teamLab Planets” to Day 2 of Japan — 7 Days", createdAt: ago(5) },
-  { id: seedId("n2"), userId: u("an"), actorId: u("sarah"), type: "FOLLOW", text: "started following you", createdAt: ago(26) },
-  { id: seedId("n3"), userId: u("an"), actorId: u("linh"), type: "COMMENT", postId: seedId("post:california"), text: "commented on Highway 1 in five days", createdAt: ago(39), readAt: ago(30) },
-  { id: seedId("n4"), userId: u("minh"), actorId: u("an"), type: "TRIP_MEMBER_ROLE_CHANGED", tripId: t("japan"), text: "made you an Editor on Japan — 7 Days", createdAt: ago(380) },
-  { id: seedId("n5"), userId: u("sarah"), actorId: u("an"), type: "TRIP_INVITE", tripId: t("japan"), invitationToken: invitations[0].token, text: "invited you to view Japan — 7 Days", createdAt: ago(2) },
+  { id: seedId("n1"), userId: u("an"), actorId: u("minh"), type: "TRIP_ITEM_ADDED", tripId: t("japan"), message: { k: "item_added", item: "teamLab Planets", day: 2, trip: "Japan — 7 Days" }, createdAt: ago(5) },
+  { id: seedId("n2"), userId: u("an"), actorId: u("sarah"), type: "FOLLOW", message: { k: "follow" }, createdAt: ago(26) },
+  { id: seedId("n3"), userId: u("an"), actorId: u("linh"), type: "COMMENT", postId: seedId("post:california"), message: { k: "comment", post: "Highway 1 in five days" }, createdAt: ago(39), readAt: ago(30) },
+  { id: seedId("n4"), userId: u("minh"), actorId: u("an"), type: "TRIP_MEMBER_ROLE_CHANGED", tripId: t("japan"), message: { k: "role_changed", role: "EDITOR", trip: "Japan — 7 Days" }, createdAt: ago(380) },
+  { id: seedId("n5"), userId: u("sarah"), actorId: u("an"), type: "TRIP_INVITE", tripId: t("japan"), invitationToken: invitations[0].token, message: { k: "invited", role: "VIEWER", trip: "Japan — 7 Days" }, createdAt: ago(2) },
 ];
 
 export function createSeed(): DB {

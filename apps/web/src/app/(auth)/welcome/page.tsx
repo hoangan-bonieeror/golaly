@@ -1,21 +1,23 @@
 import { Compass, GitFork, Users } from "lucide-react";
 import { Button } from "@/components/ui";
+import { getMessages } from "@/i18n/server";
 
-export default function Welcome() {
+export default async function Welcome() {
+  const t = await getMessages();
   return (
     <div className="animate-rise">
       <h1 className="font-display text-4xl font-semibold leading-tight">
-        Plan together.
+        {t.common.tagline.plan}
         <br />
-        Discover together.
+        {t.common.tagline.discover}
         <br />
-        <span className="text-accent-700">Travel together.</span>
+        <span className="text-accent-700">{t.common.tagline.travel}</span>
       </h1>
       <ul className="mt-8 space-y-4 text-[15px] text-ink-2">
         {[
-          { icon: Compass, text: "Find real itineraries from travelers who've been there." },
-          { icon: GitFork, text: "Remix any public trip into your own editable plan." },
-          { icon: Users, text: "Invite friends as editors or viewers — you stay in control." },
+          { icon: Compass, text: t.auth.welcome.discover },
+          { icon: GitFork, text: t.auth.welcome.remix },
+          { icon: Users, text: t.auth.welcome.invite },
         ].map(({ icon: Icon, text }) => (
           <li key={text} className="flex gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary">
@@ -27,10 +29,10 @@ export default function Welcome() {
       </ul>
       <div className="mt-10 grid gap-3">
         <Button href="/register" size="lg">
-          Get started
+          {t.auth.welcome.getStarted}
         </Button>
         <Button href="/login" size="lg" variant="secondary">
-          Log in
+          {t.common.logIn}
         </Button>
       </div>
     </div>

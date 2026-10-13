@@ -1,6 +1,6 @@
 "use client";
 
-import { ROLE_LABEL, VISIBILITY_LABEL, type ItemView, type TripSummary } from "@triply/shared";
+import type { ItemView, TripSummary } from "@triply/shared";
 import { ArrowLeft, Bookmark, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -14,7 +14,8 @@ import { ForkSheet } from "@/components/trip/ForkSheet";
 import { InviteSheet } from "@/components/trip/InviteSheet";
 import { MembersPanel } from "@/components/trip/MembersPanel";
 import { RouteThumb } from "@/components/trip/RouteThumb";
-import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, cx, formatCount, formatDateRange } from "@/components/ui";
+import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, cx } from "@/components/ui";
+import { useFormat, useI18n } from "@/i18n/client";
 import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe, useTrip } from "@/lib/api/queries";
 import { useMediaQuery } from "@/lib/hooks";
@@ -43,9 +44,12 @@ function TripPlanner() {
   const search = useSearchParams();
   const router = useRouter();
   const me = useMe().data;
+  const { m: t, locale } = useI18n();
+  const f = useFormat();
+  const p = t.trips.planner;
   const q = useTrip(id);
   const trip = q.data;
-  useDocumentTitle(trip?.title ?? (q.isError ? "Trip not available" : null));
+  useDocumentTitle(trip?.title ?? (q.isError ? p.notAvailable : null));
   const { live, presence, reportActivity } = useTripRealtime(id, me?.id, !!trip?.myRole);
   const share = useShare();
   const wide = useMediaQuery("(min-width: 1024px)");
@@ -75,7 +79,7 @@ function TripPlanner() {
 
   const save = useAction((on: boolean) => (on ? api.post<TripSummary>(`/trips/${id}/save`) : api.delete<TripSummary>(`/trips/${id}/save`)), {
     invalidate: [keys.trip(id), ["trips"]],
-    success: (r) => (r.savedByMe ? "Saved to your trips" : "Removed from saved"),
+    success: (r) => (r.savedByMe ? t.trips.save.added : t.trips.save.removed),
   });
 
   if (q.isLoading) return <PageLoader />;
@@ -86,9 +90,9 @@ function TripPlanner() {
         <EmptyState
           level="h1"
           icon={<Lock className="size-7" />}
-          title="This trip is private."
-          body={me ? "Only people the owner has invited can see it. Ask them for an invite link." : "Log in if you were invited to this trip."}
-          action={me ? <Button href="/explore">Explore public trips</Button> : <Button href={`/login?next=/trips/${id}`}>Log in</Button>}
+          title={p.privateTitle}
+          body={me ? p.privateBodyMember : p.privateBodyGuest}
+          action={me ? <Button href="/explore">{p.explorePublic}</Button> : <Button href={`/login?next=/trips/${id}`}>{t.common.logIn}</Button>}
         />
         </div>
       );
@@ -124,18 +128,18 @@ function TripPlanner() {
   };
 
   // Presence: who else has this trip open, and whether one of them is editing a day.
-  const nameOf = (userId: string) => trip.members.find((m) => m.user.id === userId)?.user.displayName.split(" ")[0] ?? "Someone";
-  const others = presence.filter((p) => p.userId !== me?.id);
-  const onlineIds = new Set(presence.map((p) => p.userId));
-  const editing = others.find((p) => p.editingDay !== null);
+  const nameOf = (userId: string) => trip.members.find((m) => m.user.id === userId)?.user.displayName.split(" ")[0] ?? p.someone;
+  const others = presence.filter((x) => x.userId !== me?.id);
+  const onlineIds = new Set(presence.map((x) => x.userId));
+  const editing = others.find((x) => x.editingDay !== null);
   const presenceText = editing
-    ? `${nameOf(editing.userId)} is editing Day ${editing.editingDay}`
+    ? p.presence.editing(nameOf(editing.userId), editing.editingDay!)
     : others.length === 1
-      ? `${nameOf(others[0].userId)} is here too`
+      ? p.presence.hereToo(nameOf(others[0].userId))
       : others.length > 1
-        ? `${others.length} others are here`
+        ? p.presence.others(others.length)
         : live
-          ? "Live"
+          ? p.presence.live
           : null;
   const shareable = trip.visibility !== "PRIVATE";
   const bottomBar = canAdd;
@@ -146,27 +150,27 @@ function TripPlanner() {
       {/* Header: one row, as in the Atlas planner — the plan starts right under it. */}
       <header className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-4 py-4 md:px-7 md:py-5">
         <div className="flex min-w-0 flex-1 basis-[22rem] items-center gap-4 md:gap-5">
-          <IconButton label="Back" onClick={() => router.back()} className="size-11 shrink-0 border border-line bg-surface text-ink">
+          <IconButton label={t.common.back} onClick={() => router.back()} className="size-11 shrink-0 border border-line bg-surface text-ink">
             <ArrowLeft className="size-[18px]" />
           </IconButton>
           <RouteThumb trip={trip} className="hidden shrink-0 sm:block" />
           <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-extrabold leading-tight md:text-[32px]">{trip.title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-x-[18px] gap-y-1 text-sm text-ink-2">
-              <span>{trip.route || "Destination TBD"}</span>
-              {(trip.startDate || trip.endDate) && <span className="font-mono text-[13px]">{formatDateRange(trip.startDate ?? undefined, trip.endDate ?? undefined)}</span>}
+              <span>{trip.route || t.trips.destinationTbd}</span>
+              {(trip.startDate || trip.endDate) && <span className="font-mono text-[13px]">{f.dateRange(trip.startDate, trip.endDate)}</span>}
               <span className="font-mono text-[13px]">
                 <span className="hidden sm:inline">
-                  {s.days} {s.days === 1 ? "day" : "days"} ·{" "}
+                  {t.format.days(s.days)} ·{" "}
                 </span>
-                {s.places} {s.places === 1 ? "place" : "places"}
-                {totalKm > 0 && ` · ${formatKm(totalKm)}`}
+                {t.format.places(s.places)}
+                {totalKm > 0 && ` · ${formatKm(totalKm, locale)}`}
               </span>
               <span className="inline-flex items-center gap-1">
-                <VisIcon className="size-3.5" aria-hidden /> {VISIBILITY_LABEL[trip.visibility].label}
+                <VisIcon className="size-3.5" aria-hidden /> {t.labels.visibility[trip.visibility].label}
               </span>
               {presenceText && (
-                <span className="inline-flex items-center gap-1.5 font-semibold text-primary" role="status" title="Changes from your crew appear instantly">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-primary" role="status" title={p.presence.hint}>
                   <span aria-hidden className="size-2 rounded-full bg-primary" /> {presenceText}
                 </span>
               )}
@@ -177,18 +181,21 @@ function TripPlanner() {
         <div className="flex flex-wrap items-center gap-2">
           {trip.myRole ? (
             <>
-              <Badge tone={trip.myRole === "OWNER" ? "accent" : trip.myRole === "EDITOR" ? "primary" : "neutral"}>You · {ROLE_LABEL[trip.myRole]}</Badge>
+              {/* Phones: the role is in the travelers panel; the header keeps one row of actions. */}
+              <span className="hidden sm:contents">
+                <Badge tone={trip.myRole === "OWNER" ? "accent" : trip.myRole === "EDITOR" ? "primary" : "neutral"}>{p.youAre(t.labels.role[trip.myRole])}</Badge>
+              </span>
               {/* The avatars open the travelers panel (roles, invites, leave). */}
               <button
                 type="button"
                 onClick={() => go(view, true)}
-                aria-label={`Travelers: ${trip.members.length}. Manage members`}
+                aria-label={p.manageMembers(trip.members.length)}
                 className="mr-1 flex items-center rounded-full p-0.5 hover:bg-sand-2"
               >
                 {trip.members.slice(0, 5).map((m, i) => (
                   <span
                     key={m.user.id}
-                    title={`${m.user.displayName}${onlineIds.has(m.user.id) ? " · here now" : ""}`}
+                    title={p.memberTitle(m.user.displayName, onlineIds.has(m.user.id))}
                     className={cx("rounded-full ring-2", i > 0 && "-ml-2", onlineIds.has(m.user.id) && m.user.id !== me?.id ? "ring-primary" : "ring-surface", i >= 3 && "hidden sm:block")}
                   >
                     <Avatar user={m.user} size={32} />
@@ -206,44 +213,44 @@ function TripPlanner() {
             <Link href={`/u/${trip.owner.username}`} className="mr-1 flex items-center gap-2 rounded-xl py-1 pr-2 text-sm hover:bg-sand-2">
               <Avatar user={trip.owner} size={32} />
               <span>
-                by <span className="font-semibold">{trip.owner.displayName}</span>
+                {p.by.before} <span className="font-semibold">{trip.owner.displayName}</span>{p.by.after && ` ${p.by.after}`}
               </span>
             </Link>
           )}
           {may("trip.edit_details") && (
             <Button href={`/trips/${trip.id}/settings`} variant="secondary" className="h-11 w-11 px-0 sm:w-auto sm:px-[18px]">
-              <PenLine className="size-4" aria-hidden /> <span className="sr-only sm:not-sr-only">Edit</span>
+              <PenLine className="size-4" aria-hidden /> <span className="sr-only sm:not-sr-only">{t.common.edit}</span>
             </Button>
           )}
           {me && !trip.myRole && shareable && (
             <Button variant="secondary" className="h-11" onClick={() => save.run(!trip.savedByMe)} disabled={save.isPending} aria-pressed={trip.savedByMe}>
-              <Bookmark className={cx("size-4", trip.savedByMe && "fill-accent text-accent")} /> {trip.savedByMe ? "Saved" : "Save"}
+              <Bookmark className={cx("size-4", trip.savedByMe && "fill-accent text-accent")} /> {trip.savedByMe ? t.common.saved : t.common.save}
             </Button>
           )}
           {shareable && (
             <Button variant="secondary" className={cx("h-11 px-[18px]", bottomBar && "hidden md:inline-flex")} onClick={() => share(`/trips/${trip.id}`, trip.title)}>
-              <Share2 className="size-4" /> Share
+              <Share2 className="size-4" /> {t.common.share}
             </Button>
           )}
           {may("members.invite") && (
             <Button className="h-11 w-11 px-0 sm:w-auto sm:px-[18px]" onClick={() => setInviteOpen(true)}>
-              <UserPlus className="size-4" aria-hidden /> <span className="sr-only sm:not-sr-only">Invite</span>
+              <UserPlus className="size-4" aria-hidden /> <span className="sr-only sm:not-sr-only">{t.common.invite}</span>
             </Button>
           )}
           {may("trip.fork") && (
             <Button variant="accent" className="h-11" onClick={() => setForkOpen(true)}>
-              <GitFork className="size-4" /> Use this trip
+              <GitFork className="size-4" /> {t.trips.useThisTrip}
             </Button>
           )}
           {!me && trip.visibility === "PUBLIC" && trip.allowFork && (
             <Button variant="accent" className="h-11" href={`/login?next=/trips/${trip.id}`}>
-              <GitFork className="size-4" /> Log in to remix
+              <GitFork className="size-4" /> {p.logInToRemix}
             </Button>
           )}
           {/* Phones reach settings through Edit (same page); this saves a row in the header. */}
           {may("trip.change_visibility") && (
             <span className="hidden sm:contents">
-              <IconButton label="Trip settings" onClick={() => router.push(`/trips/${trip.id}/settings`)} className="size-11 border border-line bg-surface">
+              <IconButton label={p.tripSettings} onClick={() => router.push(`/trips/${trip.id}/settings`)} className="size-11 border border-line bg-surface">
                 <Settings className="size-4" />
               </IconButton>
             </span>
@@ -254,11 +261,11 @@ function TripPlanner() {
       {/* Plan: from 1024px the planner fills the window — the itinerary column scrolls on its own
           beside a map that always shows in full. Below that, a List / Map switch. */}
       <div className="lg:flex lg:min-h-0 lg:flex-1">
-        <section aria-label="Itinerary" className="min-w-0 lg:w-[460px] lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-line xl:w-[560px]">
+        <section aria-label={p.itinerary} className="min-w-0 lg:w-[460px] lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-line xl:w-[560px]">
           <div ref={planTop} className="scroll-mt-14 md:scroll-mt-16" />
           {/* Stays under the top bar so the day (and List / Map) is always one tap away. */}
           <div className="sticky top-14 z-20 space-y-3 border-b border-line bg-surface/95 px-4 py-3.5 backdrop-blur md:top-16 md:px-5 lg:top-0">
-            <div role="group" aria-label="Show plan as" className="grid grid-cols-2 gap-1 rounded-xl bg-sand-2 p-1 lg:hidden">
+            <div role="group" aria-label={p.showPlanAs} className="grid grid-cols-2 gap-1 rounded-xl bg-sand-2 p-1 lg:hidden">
               {(["list", "map"] as const).map((v) => (
                 <button
                   key={v}
@@ -268,7 +275,7 @@ function TripPlanner() {
                   className={cx("flex h-10 items-center justify-center gap-1.5 rounded-[9px] text-sm font-semibold", view === v ? "bg-surface text-ink shadow-card" : "text-ink-2 hover:text-ink")}
                 >
                   {v === "list" ? <ListChecks className="size-4" aria-hidden /> : <MapIcon className="size-4" aria-hidden />}
-                  {v === "list" ? "List" : "Map"}
+                  {v === "list" ? p.list : p.map}
                 </button>
               ))}
             </div>
@@ -284,7 +291,7 @@ function TripPlanner() {
                     <p className="flex items-center gap-2 text-sm text-ink-2">
                       <GitFork className="size-4 shrink-0 text-accent-700" aria-hidden />
                       <span>
-                        Based on{" "}
+                        {p.basedOn.before}{" "}
                         {trip.forkedFrom.tripId ? (
                           <Link href={`/trips/${trip.forkedFrom.tripId}`} className="font-semibold text-ink hover:underline">
                             {trip.forkedFrom.title}
@@ -292,21 +299,22 @@ function TripPlanner() {
                         ) : (
                           <b>{trip.forkedFrom.title}</b>
                         )}{" "}
-                        by{" "}
+                        {p.basedOn.by}{" "}
                         <Link href={`/u/${trip.forkedFrom.ownerUsername}`} className="font-semibold text-ink hover:underline">
                           @{trip.forkedFrom.ownerUsername}
                         </Link>
+                        {p.basedOn.after && ` ${p.basedOn.after}`}
                       </span>
                     </p>
                   )}
                   {trip.visibility === "PUBLIC" && trip.forkCount > 0 && (
                     <p className="flex items-center gap-2 font-mono text-[13px] text-muted">
-                      <GitFork className="size-3.5" aria-hidden /> remixed {formatCount(trip.forkCount)}×
+                      <GitFork className="size-3.5" aria-hidden /> {p.remixed(f.count(trip.forkCount))}
                     </p>
                   )}
                   {trip.myRole === "VIEWER" && (
                     <p className="flex items-center gap-2 rounded-xl bg-sand-2 px-4 py-3 text-sm text-ink-2">
-                      <Eye className="size-4 shrink-0" /> You can view this trip. Ask {trip.owner.displayName} if you&apos;d like to help edit it.
+                      <Eye className="size-4 shrink-0" /> {p.viewerNote(trip.owner.displayName)}
                     </p>
                   )}
                 </div>
@@ -337,17 +345,17 @@ function TripPlanner() {
       {bottomBar && (
         <div className="fixed inset-x-0 bottom-[calc(3.6rem+env(safe-area-inset-bottom))] z-30 flex gap-2.5 border-t border-line bg-sand/95 px-4 py-3 backdrop-blur md:hidden">
           <Button size="lg" className="h-12 flex-1" onClick={() => setSheet({ open: true, dayId: addDayId() })}>
-            <Plus className="size-5" /> Add a place
+            <Plus className="size-5" /> {p.addPlace}
           </Button>
           {shareable && (
             <Button size="lg" variant="secondary" className="h-12 px-4" onClick={() => share(`/trips/${trip.id}`, trip.title)}>
-              <Share2 className="size-4" /> Share
+              <Share2 className="size-4" /> {t.common.share}
             </Button>
           )}
         </div>
       )}
 
-      <Sheet open={membersOpen} onClose={() => go(view)} title="Travelers" wide>
+      <Sheet open={membersOpen} onClose={() => go(view)} title={p.travelers} wide>
         <MembersPanel trip={trip} />
       </Sheet>
       {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} item={sheet.item} />}

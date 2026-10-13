@@ -5,6 +5,7 @@
  * Keys are centralised so mutations and realtime events can invalidate precisely.
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { localizeMessage } from "@triply/shared";
 import type {
   CategoryView,
   GeoAreaOption,
@@ -28,7 +29,7 @@ import type {
   TripTarget,
 } from "@triply/shared";
 import { useToast } from "../toast";
-import { api, ApiError, qs } from "./client";
+import { api, ApiError, currentRequestLocale, qs } from "./client";
 
 export const keys = {
   me: ["me"] as const,
@@ -174,7 +175,7 @@ export function useAction<TArgs, TResult>(
       if (msg) toast(msg);
     },
     onError: (e) => {
-      if (!opts.silentErrors) toast(e instanceof ApiError ? e.message : "Something went wrong. Please try again.", "error");
+      if (!opts.silentErrors) toast(e instanceof ApiError ? e.message : localizeMessage("Something went wrong. Please try again.", currentRequestLocale()), "error");
     },
   });
   return {

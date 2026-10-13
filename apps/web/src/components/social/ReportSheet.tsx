@@ -3,34 +3,28 @@
 import type { ReportReason, ReportTarget } from "@triply/shared";
 import { useState } from "react";
 import { api } from "@/lib/api/client";
+import { useT } from "@/i18n/client";
 import { useAction } from "@/lib/api/queries";
 import { Button, Sheet, cx } from "../ui";
 
-const REASONS: { value: ReportReason; label: string }[] = [
-  { value: "SPAM", label: "Spam" },
-  { value: "HARASSMENT", label: "Harassment" },
-  { value: "INAPPROPRIATE", label: "Inappropriate content" },
-  { value: "MISLEADING", label: "Misleading information" },
-  { value: "OTHER", label: "Other" },
-];
-
-const TARGET_LABEL: Record<ReportTarget, string> = { POST: "post", COMMENT: "comment", USER: "user", TRIP: "trip", PLACE_PHOTO: "photo" };
+const REASONS: ReportReason[] = ["SPAM", "HARASSMENT", "INAPPROPRIATE", "MISLEADING", "OTHER"];
 
 export function ReportSheet({ open, onClose, target, targetId }: { open: boolean; onClose: () => void; target: ReportTarget; targetId: string }) {
   const [reason, setReason] = useState<ReportReason>();
-  const report = useAction((r: ReportReason) => api.post("/reports", { target, targetId, reason: r }), { success: "Thanks — our team will review this." });
+  const t = useT();
+  const report = useAction((r: ReportReason) => api.post("/reports", { target, targetId, reason: r }), { success: t.social.report.thanks });
   return (
-    <Sheet open={open} onClose={onClose} title={`Report ${TARGET_LABEL[target]}`}>
+    <Sheet open={open} onClose={onClose} title={t.social.report.title[target]}>
       <div className="space-y-2" role="radiogroup">
         {REASONS.map((r) => (
           <button
-            key={r.value}
+            key={r}
             role="radio"
-            aria-checked={reason === r.value}
-            onClick={() => setReason(r.value)}
-            className={cx("w-full rounded-xl border px-4 py-3 text-left text-sm font-medium", reason === r.value ? "border-ink bg-sand-2" : "border-line hover:border-ink-2")}
+            aria-checked={reason === r}
+            onClick={() => setReason(r)}
+            className={cx("w-full rounded-xl border px-4 py-3 text-left text-sm font-medium", reason === r ? "border-ink bg-sand-2" : "border-line hover:border-ink-2")}
           >
-            {r.label}
+            {t.social.report.reasons[r]}
           </button>
         ))}
       </div>
@@ -43,7 +37,7 @@ export function ReportSheet({ open, onClose, target, targetId }: { open: boolean
           onClose();
         }}
       >
-        Submit report
+        {t.social.report.submit}
       </Button>
     </Sheet>
   );

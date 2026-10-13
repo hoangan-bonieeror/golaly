@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
+import { titleFor } from "@/i18n/server";
 
 // Per-route <title> (pages are client components, so metadata lives in this server layout).
-export const metadata: Metadata = { title: "Trip invitation" };
+export const generateMetadata = titleFor("invitation");
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

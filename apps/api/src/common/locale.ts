@@ -1,11 +1,12 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { isLocale, LOCALE_HEADER, localeFromAcceptLanguage, type Locale } from "@triply/shared";
 import type { NextFunction, Request, Response } from "express";
 
 /**
  * Which language place names are shown in, per request. The web sends the device's languages (the browser's
  * Accept-Language) or the viewer's choice from Settings; presenters read it without every service passing it on.
  */
-const store = new AsyncLocalStorage<{ langs: string[] }>();
+const store = new AsyncLocalStorage<{ langs: string[]; ui: Locale }>();
 
 /** "en-GB,en;q=0.9,vi;q=0.8" → ["en-gb", "en", "vi"]: by preference, each tag followed by its base language. */
 export function parseAcceptLanguage(header: string | undefined | null): string[] {
@@ -29,7 +30,16 @@ export function parseAcceptLanguage(header: string | undefined | null): string[]
 
 export function localeMiddleware(req: Request, res: Response, next: NextFunction) {
   res.vary("Accept-Language");
-  store.run({ langs: parseAcceptLanguage(req.headers["accept-language"]) }, next);
+  res.vary(LOCALE_HEADER);
+  // Interface language: the web sends the app's choice; other clients fall back to Accept-Language.
+  const header = req.headers[LOCALE_HEADER];
+  const ui = isLocale(header) ? header : localeFromAcceptLanguage(req.headers["accept-language"]);
+  store.run({ langs: parseAcceptLanguage(req.headers["accept-language"]), ui }, next);
+}
+
+/** The interface language of the current request (messages, notification text). */
+export function requestLocale(): Locale {
+  return store.getStore()?.ui ?? "en";
 }
 
 export function preferredLanguages(): string[] {

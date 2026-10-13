@@ -1,15 +1,19 @@
 /**
- * Which language place names are shown in. Default: the device's languages (the browser sends them as
- * Accept-Language). Settings can pin one, or ask for local names only (what's written on the signs).
- * Kept per device in localStorage — it's a display preference, like the device language it overrides.
+ * Which language place names are shown in. Default: the interface language (the API client falls back to it).
+ * Settings can pin one, or ask for local names only (what's written on the signs).
+ * Kept per device in localStorage — it's a display preference.
  */
 const KEY = "triply.placeNames";
 
+/**
+ * The choices, in display order. "" = same as the app language. Labels live in the catalog
+ * (`t.settings.placeNames.options[labelKey]`).
+ */
 export const PLACE_NAME_OPTIONS = [
-  { value: "", label: "Match my device" },
-  { value: "en", label: "English" },
-  { value: "vi", label: "Tiếng Việt" },
-  { value: "local", label: "Local names (as on the signs)" },
+  { value: "", labelKey: "app" },
+  { value: "en", labelKey: "en" },
+  { value: "vi", labelKey: "vi" },
+  { value: "local", labelKey: "local" },
 ] as const;
 
 export type PlaceNameChoice = (typeof PLACE_NAME_OPTIONS)[number]["value"];

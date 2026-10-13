@@ -12,7 +12,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { groupMeta, groupOf } from "../place/categoryMeta";
 import { cx } from "../ui";
-import { MAP_STYLE_URL } from "./TileMap";
+import { useT } from "@/i18n/client";
+import { useTheme } from "@/lib/theme";
+import { mapStyleFor } from "./TileMap";
 
 const TILES_ENABLED = process.env.NEXT_PUBLIC_MAP_STYLE_URL !== "off";
 
@@ -29,8 +31,12 @@ export interface PlacesMapProps {
 
 export function PlacesMap(props: PlacesMapProps) {
   const [tiles, setTiles] = useState(TILES_ENABLED);
-  return tiles ? <TilePlacesMap {...props} onFail={() => setTiles(false)} /> : <SvgPlacesMap {...props} />;
+  const { theme } = useTheme();
+  return tiles ? <TilePlacesMap key={theme} styleUrl={mapStyleFor(theme)} {...props} onFail={() => setTiles(false)} /> : <SvgPlacesMap {...props} />;
 }
+
+/** Primary colour as a literal for MapLibre paint (CSS variables don't reach WebGL). */
+const theme0 = () => getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim() || "#1f5e52";
 
 function circle(lat: number, lng: number, km: number) {
   const pts: [number, number][] = [];
@@ -41,7 +47,8 @@ function circle(lat: number, lng: number, km: number) {
   return { type: "Feature" as const, properties: {}, geometry: { type: "Polygon" as const, coordinates: [pts] } };
 }
 
-function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className, label = "Map of places", onFail }: PlacesMapProps & { onFail: () => void }) {
+function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className, label, onFail, styleUrl }: PlacesMapProps & { onFail: () => void; styleUrl: string }) {
+  const t = useT();
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef(new Map<string, { marker: Marker; node: HTMLButtonElement }>());
@@ -63,7 +70,7 @@ function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className,
       if (!maplibregl.getWorkerUrl()?.includes("/maplibre/")) maplibregl.setWorkerUrl(new URL("/maplibre/maplibre-gl-worker.mjs", window.location.origin).href);
       let m: MapLibreMap;
       try {
-        m = new maplibregl.Map({ container: el.current, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, attributionControl: { compact: true }, cooperativeGestures: true });
+        m = new maplibregl.Map({ container: el.current, style: styleUrl, center: [0, 20], zoom: 1, attributionControl: { compact: true }, cooperativeGestures: true });
       } catch {
         return latest.current.onFail();
       }
@@ -77,8 +84,8 @@ function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className,
         loaded = true;
         clearTimeout(failTimer);
         m.addSource("area", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-        m.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": "#1f5e52", "fill-opacity": 0.06 } });
-        m.addLayer({ id: "area-line", type: "line", source: "area", paint: { "line-color": "#1f5e52", "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.6 } });
+        m.addLayer({ id: "area-fill", type: "fill", source: "area", paint: { "fill-color": theme0(), "fill-opacity": 0.06 } });
+        m.addLayer({ id: "area-line", type: "line", source: "area", paint: { "line-color": theme0(), "line-width": 1.5, "line-dasharray": [2, 2], "line-opacity": 0.6 } });
         setReady(true);
       });
     })();
@@ -143,11 +150,13 @@ function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className,
     markers.current.forEach(({ node }, id) => node.classList.toggle("is-selected", id === activeId || id === focusId));
   }, [activeId, focusId]);
 
-  return <div ref={el} className={cx("h-[420px] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-map", className)} role="region" aria-label={label} />;
+  return <div ref={el} className={cx("h-[420px] w-full overflow-hidden rounded-[var(--radius-card)] border border-line bg-map", className)} role="region" aria-label={label ?? t.explore.map.label} />;
 }
 
 /** Offline fallback: an equirectangular projection of the points (no tiles, no WebGL). */
-function SvgPlacesMap({ places, center, radiusKm, activeId, focusId, className, label = "Map of places" }: PlacesMapProps) {
+function SvgPlacesMap({ places, center, radiusKm, activeId, focusId, className, label: labelProp }: PlacesMapProps) {
+  const t = useT();
+  const label = labelProp ?? t.explore.map.label;
   const router = useRouter();
   const W = 600;
   const H = 420;
@@ -165,15 +174,15 @@ function SvgPlacesMap({ places, center, radiusKm, activeId, focusId, className, 
   const px = (lng: number) => W / 2 + (lng - cx0) * k * scale;
   const py = (lat: number) => H / 2 - (lat - cy0) * scale;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} overflow="hidden" className={cx("h-[420px] w-full rounded-[var(--radius-card)] border border-line bg-map", className)} role="img" aria-label={`${label} (simplified)`}>
+    <svg viewBox={`0 0 ${W} ${H}`} overflow="hidden" className={cx("h-[420px] w-full rounded-[var(--radius-card)] border border-line bg-map", className)} role="img" aria-label={t.explore.map.simplified(label)}>
       <defs>
         <pattern id="pm-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-          <path d="M40 0H0V40" fill="none" stroke="#ddd3c0" strokeWidth="1" />
+          <path d="M40 0H0V40" fill="none" stroke="var(--color-contour)" strokeWidth="1" />
         </pattern>
       </defs>
       <rect width={W} height={H} fill="url(#pm-grid)" />
       {center && radiusKm && (
-        <circle cx={px(center.lng)} cy={py(center.lat)} r={(radiusKm / 111.32) * scale} fill="#1f5e52" fillOpacity={0.06} stroke="#1f5e52" strokeOpacity={0.6} strokeDasharray="6 6" />
+        <circle cx={px(center.lng)} cy={py(center.lat)} r={(radiusKm / 111.32) * scale} fill="var(--color-primary)" fillOpacity={0.08} stroke="var(--color-primary)" strokeOpacity={0.6} strokeDasharray="6 6" />
       )}
       {places.map((p, i) => {
         const on = p.id === activeId || p.id === focusId;
@@ -185,7 +194,7 @@ function SvgPlacesMap({ places, center, radiusKm, activeId, focusId, className, 
             onClick={() => router.push(`/places/${p.id}`)}
           >
             <title>{p.name}</title>
-            <circle r={on ? 15 : 12} fill={groupMeta(groupOf(p.categoryKey)).pin} stroke="#fffdf8" strokeWidth={2.5} />
+            <circle r={on ? 15 : 12} fill={groupMeta(groupOf(p.categoryKey)).pin} stroke="var(--color-pin-ring)" strokeWidth={2.5} />
             <text textAnchor="middle" dy="4" fontSize="11" fontWeight="700" fill="#fff">
               {p.id === focusId ? "★" : i + 1}
             </text>

@@ -3,7 +3,8 @@
 import type { NotificationView } from "@triply/shared";
 import { Bell, Bookmark, GitFork, Heart, MessageCircle, PencilLine, Plus, ShieldCheck, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Avatar, Button, EmptyState, ErrorState, Skeleton, cx, timeAgo } from "@/components/ui";
+import { Avatar, Button, EmptyState, ErrorState, Skeleton, cx } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useNotifications } from "@/lib/api/queries";
 
@@ -21,6 +22,8 @@ const ICON: Record<NotificationView["type"], React.ElementType> = {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const t = useT();
+  const f = useFormat();
   const q = useNotifications();
   const list = q.data?.pages.flatMap((p) => p.items) ?? [];
   const unread = list.filter((n) => !n.readAt).length;
@@ -38,12 +41,12 @@ export default function NotificationsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold md:text-4xl">Notifications</h1>
-          <p className="text-sm text-muted">{q.isLoading ? " " : unread ? `${unread} unread` : "All read"}</p>
+          <h1 className="whitespace-nowrap font-display text-3xl font-semibold md:text-4xl">{t.social.notifications.title}</h1>
+          <p className="text-sm text-muted">{q.isLoading ? " " : unread ? t.social.notifications.unread(unread) : t.social.notifications.allRead}</p>
         </div>
         {unread > 0 && (
           <Button variant="secondary" size="sm" onClick={() => markAll.run(undefined)} disabled={markAll.isPending}>
-            Mark all as read
+            {t.social.notifications.markAllRead}
           </Button>
         )}
       </header>
@@ -53,7 +56,7 @@ export default function NotificationsPage() {
       ) : q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : list.length === 0 ? (
-        <EmptyState icon={<Bell className="size-7" />} title="You're all caught up." />
+        <EmptyState icon={<Bell className="size-7" />} title={t.social.notifications.empty} />
       ) : (
         <ul className="overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
           {list.map((n) => {
@@ -70,18 +73,18 @@ export default function NotificationsPage() {
                 >
                   <span className="relative">
                     <Avatar user={n.actor} size={42} />
-                    <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-ink text-white ring-2 ring-surface">
+                    <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-ink text-on-ink ring-2 ring-surface">
                       <Icon className="size-3" />
                     </span>
                   </span>
                   <span className="min-w-0 flex-1 text-[15px] leading-snug">
-                    <b>{n.actor?.displayName ?? "Someone"}</b> {n.text}
-                    <span className="mt-0.5 block text-xs text-muted">{timeAgo(n.createdAt)}</span>
+                    <b>{n.actor?.displayName ?? t.social.notifications.someone}</b> {n.text}
+                    <span className="mt-0.5 block text-xs text-muted">{f.timeAgo(n.createdAt)}</span>
                     {n.type === "TRIP_INVITE" && n.invitationId && !n.readAt && (
-                      <span className="mt-2 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white">View invitation</span>
+                      <span className="mt-2 inline-flex rounded-full bg-primary px-3 py-1 text-xs font-semibold text-on-primary">{t.social.notifications.viewInvitation}</span>
                     )}
                   </span>
-                  {!n.readAt && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-accent" aria-label="Unread" />}
+                  {!n.readAt && <span className="mt-2 size-2.5 shrink-0 rounded-full bg-accent" aria-label={t.social.notifications.unreadDot} />}
                 </button>
               </li>
             );
@@ -90,7 +93,7 @@ export default function NotificationsPage() {
       )}
       {q.hasNextPage && (
         <Button variant="secondary" className="w-full" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
-          Load more
+          {t.common.loadMore}
         </Button>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { VISIBILITY_LABEL, updateTripSchema, type MediaView, type TripDetail, type TripSummary, type TripVisibility } from "@triply/shared";
+import { localizeMessage, updateTripSchema, type MediaView, type TripDetail, type TripSummary, type TripVisibility } from "@triply/shared";
 import { ArrowLeft, Globe2, ImagePlus, Link2, Lock, ShieldAlert, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { Cover } from "@/components/trip/Cover";
 import { DestinationPicker } from "@/components/trip/DestinationPicker";
 import { Button, EmptyState, ErrorState, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
+import { useI18n } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useTrip } from "@/lib/api/queries";
 
@@ -26,6 +27,9 @@ export default function TripSettingsPage() {
 function TripSettings({ trip }: { trip: TripDetail }) {
   const id = trip.id;
   const router = useRouter();
+  const { m: t, locale } = useI18n();
+  const st = t.trips.settings;
+  const fields = t.trips.fields;
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -45,17 +49,17 @@ function TripSettings({ trip }: { trip: TripDetail }) {
 
 
   const invalidate = [keys.trip(id), ["trips"], ["explore"], ["search"], ["profile"], ["feed"]];
-  const save = useAction((body: object) => api.patch<TripSummary>(`/trips/${id}`, body), { invalidate, success: "Trip updated" });
-  const remove = useAction(() => api.delete(`/trips/${id}`), { invalidate: [["trips"]], success: "Trip deleted" });
-  const upload = useAction((file: File) => api.upload<MediaView>("/media", file), { success: "Cover uploaded — save to apply" });
+  const save = useAction((body: object) => api.patch<TripSummary>(`/trips/${id}`, body), { invalidate, success: st.updated });
+  const remove = useAction(() => api.delete(`/trips/${id}`), { invalidate: [["trips"]], success: st.deleted });
+  const upload = useAction((file: File) => api.upload<MediaView>("/media", file), { success: st.coverUploaded });
 
   if (!trip.permissions.includes("trip.edit_details"))
     return (
       <EmptyState
         icon={<ShieldAlert className="size-7" />}
-        title="Only the owner can change trip settings"
-        body="Editors can still add and edit itinerary items."
-        action={<Button href={`/trips/${id}`}>Back to trip</Button>}
+        title={st.ownerOnlyTitle}
+        body={st.ownerOnlyBody}
+        action={<Button href={`/trips/${id}`}>{st.backToTrip}</Button>}
       />
     );
 
@@ -71,7 +75,7 @@ function TripSettings({ trip }: { trip: TripDetail }) {
     const parsed = updateTripSchema.safeParse(body);
     if (!parsed.success) {
       const f: Record<string, string> = {};
-      for (const i of parsed.error.issues) f[String(i.path[0])] ??= i.message;
+      for (const i of parsed.error.issues) f[String(i.path[0])] ??= localizeMessage(i.message, locale);
       return setErrors(f);
     }
     setErrors({});
@@ -83,42 +87,42 @@ function TripSettings({ trip }: { trip: TripDetail }) {
   return (
     <form onSubmit={submit} className="mx-auto max-w-2xl space-y-8" noValidate>
       <header className="flex items-center gap-3">
-        <Link href={`/trips/${id}`} className="flex size-10 items-center justify-center rounded-full hover:bg-sand-2" aria-label="Back to trip">
+        <Link href={`/trips/${id}`} className="flex size-10 items-center justify-center rounded-full hover:bg-sand-2" aria-label={st.backToTrip}>
           <ArrowLeft className="size-5" />
         </Link>
-        <h1 className="font-display text-3xl font-semibold">Trip settings</h1>
+        <h1 className="font-display text-3xl font-semibold">{st.title}</h1>
       </header>
 
       <section className="space-y-5 rounded-[var(--radius-card)] border border-line bg-surface p-5">
-        <Field label="Trip name" error={errors.title}>
+        <Field label={fields.tripName} error={errors.title}>
           <input className={inputCls} value={form.title} maxLength={120} onChange={(e) => set("title", e.target.value)} />
         </Field>
-        <Field label="Description">
+        <Field label={st.description}>
           <textarea className={cx(inputCls, "h-24 py-2.5")} maxLength={2000} value={form.description} onChange={(e) => set("description", e.target.value)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Start date">
+          <Field label={fields.startDate}>
             <input className={inputCls} type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
           </Field>
-          <Field label="End date" error={errors.endDate}>
+          <Field label={fields.endDate} error={errors.endDate}>
             <input className={inputCls} type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => set("endDate", e.target.value)} />
           </Field>
         </div>
-        <Field label="Destinations" group>
+        <Field label={fields.destinations} group>
           <DestinationPicker value={form.destinationIds} onChange={(v) => set("destinationIds", v)} />
         </Field>
-        <Field label="Estimated budget per person (USD)" hint="Optional — shown on the trip page.">
-          <input className={inputCls} inputMode="numeric" value={form.estimatedBudget} onChange={(e) => set("estimatedBudget", e.target.value.replace(/\D/g, "").slice(0, 7))} placeholder="e.g. 1500" />
+        <Field label={st.budget} hint={st.budgetHint}>
+          <input className={inputCls} inputMode="numeric" value={form.estimatedBudget} onChange={(e) => set("estimatedBudget", e.target.value.replace(/\D/g, "").slice(0, 7))} placeholder={st.budgetPlaceholder} />
         </Field>
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-ink-2">Cover image</span>
+          <span className="mb-1.5 block text-sm font-medium text-ink-2">{st.cover}</span>
           <div className="flex items-center gap-3">
             <Cover palette={trip.cover} imageUrl={cover?.url ?? trip.coverUrl} seed={trip.id} className="h-16 w-24 rounded-xl" rounded={false} />
             <input
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
-              aria-label="Upload a cover photo"
+              aria-label={st.uploadCover}
               tabIndex={-1}
               className="sr-only"
               onChange={async (e) => {
@@ -130,15 +134,15 @@ function TripSettings({ trip }: { trip: TripDetail }) {
               }}
             />
             <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
-              <ImagePlus className="size-4" /> {upload.isPending ? "Uploading…" : "Change cover"}
+              <ImagePlus className="size-4" /> {upload.isPending ? st.uploading : st.changeCover}
             </Button>
           </div>
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-display text-xl font-semibold">Who can see this trip</h2>
-        <div className="grid gap-2.5" role="radiogroup" aria-label="Visibility">
+        <h2 className="font-display text-xl font-semibold">{st.whoCanSee}</h2>
+        <div className="grid gap-2.5" role="radiogroup" aria-label={st.visibility}>
           {(["PRIVATE", "LINK_ONLY", "PUBLIC"] as TripVisibility[]).map((v) => {
             const Icon = VIS_ICON[v];
             const on = form.visibility === v;
@@ -151,12 +155,12 @@ function TripSettings({ trip }: { trip: TripDetail }) {
                 onClick={() => set("visibility", v)}
                 className={cx("flex items-center gap-4 rounded-2xl border bg-surface p-4 text-left", on ? "border-primary ring-2 ring-primary/15" : "border-line hover:border-ink-2")}
               >
-                <span className={cx("flex size-10 items-center justify-center rounded-xl", on ? "bg-primary text-white" : "bg-sand-2 text-ink-2")}>
+                <span className={cx("flex size-10 items-center justify-center rounded-xl", on ? "bg-primary text-on-primary" : "bg-sand-2 text-ink-2")}>
                   <Icon className="size-5" />
                 </span>
                 <span>
-                  <span className="block font-semibold">{VISIBILITY_LABEL[v].label}</span>
-                  <span className="block text-sm text-muted">{VISIBILITY_LABEL[v].hint}</span>
+                  <span className="block font-semibold">{t.labels.visibility[v].label}</span>
+                  <span className="block text-sm text-muted">{t.labels.visibility[v].hint}</span>
                 </span>
               </button>
             );
@@ -164,42 +168,43 @@ function TripSettings({ trip }: { trip: TripDetail }) {
         </div>
         {form.visibility !== "PRIVATE" && (
           <p className="rounded-xl bg-sand-2 px-3 py-2 text-xs text-ink-2">
-            Visitors see the itinerary, places and you as the creator. The member list, invite links and pending invitations stay private.
+            {st.publicNote}
           </p>
         )}
       </section>
 
       <section className="divide-y divide-line rounded-[var(--radius-card)] border border-line bg-surface">
-        <Toggle label="Allow comments" hint="People can comment on posts about this trip." checked={form.allowComments} onChange={(v) => set("allowComments", v)} />
-        <Toggle label="Allow Fork / Remix" hint="Others can copy this public trip into their own plan. You'll be credited." checked={form.allowFork} onChange={(v) => set("allowFork", v)} />
+        <Toggle label={st.allowComments} hint={st.allowCommentsHint} checked={form.allowComments} onChange={(v) => set("allowComments", v)} />
+        <Toggle label={st.allowFork} hint={st.allowForkHint} checked={form.allowFork} onChange={(v) => set("allowFork", v)} />
       </section>
 
       <div className="flex gap-3">
         <Button type="button" variant="secondary" size="lg" href={`/trips/${id}`}>
-          Cancel
+          {t.common.cancel}
         </Button>
         <Button type="submit" size="lg" className="flex-1" disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save changes"}
+          {save.isPending ? t.common.saving : t.common.saveChanges}
         </Button>
       </div>
 
       {trip.permissions.includes("trip.delete") && (
         <section className="rounded-[var(--radius-card)] border border-accent/30 bg-accent-50/50 p-5">
-          <h2 className="font-semibold text-danger">Delete trip</h2>
-          <p className="mt-1 text-sm text-ink-2">Removes the trip for every member and cancels pending invites. Remixes others made stay intact.</p>
+          <h2 className="font-semibold text-danger">{st.deleteTrip}</h2>
+          <p className="mt-1 text-sm text-ink-2">{st.deleteBody}</p>
           <Button type="button" variant="danger" className="mt-3" onClick={() => setConfirmDelete(true)}>
-            <Trash2 className="size-4" /> Delete trip
+            <Trash2 className="size-4" /> {st.deleteTrip}
           </Button>
         </section>
       )}
 
-      <Sheet open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete this trip?">
+      <Sheet open={confirmDelete} onClose={() => setConfirmDelete(false)} title={st.deleteTitle}>
         <p className="text-sm text-ink-2">
-          <b>{trip.title}</b> will be removed for all members.
+          {st.deleteConfirm.before && `${st.deleteConfirm.before} `}
+          <b>{trip.title}</b> {st.deleteConfirm.after}
         </p>
         <div className="mt-6 flex gap-3">
           <Button type="button" variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)}>
-            Keep trip
+            {st.keepTrip}
           </Button>
           <Button
             type="button"
@@ -209,7 +214,7 @@ function TripSettings({ trip }: { trip: TripDetail }) {
               if (await remove.run(undefined)) router.push("/trips");
             }}
           >
-            Delete
+            {t.common.delete}
           </Button>
         </div>
       </Sheet>

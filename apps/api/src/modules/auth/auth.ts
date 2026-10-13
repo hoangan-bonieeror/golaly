@@ -1,7 +1,10 @@
+import { requestLocale } from "../../common/locale";
+import { mails } from "../mail/templates";
 import { Body, Controller, HttpCode, Injectable, Post, Req, Res } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Throttle } from "@nestjs/throttler";
 import {
+  isLocale,
   changePasswordSchema,
   forgotPasswordSchema,
   loginSchema,
@@ -76,11 +79,9 @@ export class AuthService {
   async sendVerification(userId: string, email: string) {
     const token = randomToken();
     await this.prisma.emailVerificationToken.create({ data: { userId, email, tokenHash: sha256(token), expiresAt: new Date(Date.now() + VERIFY_TTL_MS) } });
-    await this.mail.send({
-      to: email,
-      subject: "Confirm your TRIPLY email",
-      text: `Welcome to TRIPLY! Confirm this is your email address by opening this link within 48 hours:\n\n${env.WEB_ORIGIN}/verify-email?token=${token}\n\nIf you didn't create an account, you can ignore this email.`,
-    });
+    const profile = await this.prisma.userProfile.findUnique({ where: { userId }, select: { locale: true } });
+    const locale = isLocale(profile?.locale) ? profile.locale : requestLocale();
+    await this.mail.send({ to: email, ...mails.verifyEmail(locale, `${env.WEB_ORIGIN}/verify-email?token=${token}`) });
   }
 
   async resendVerification(userId: string) {
@@ -207,15 +208,12 @@ export class AuthService {
 
   /** Same response whether or not the account exists — no account enumeration. */
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null }, select: { id: true } });
+    const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null }, select: { id: true, profile: { select: { locale: true } } } });
     if (!user) return;
     const token = randomToken();
     await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) } });
-    await this.mail.send({
-      to: email,
-      subject: "Reset your TRIPLY password",
-      text: `Someone asked to reset your TRIPLY password. If it was you, open this link within 30 minutes:\n\n${env.WEB_ORIGIN}/reset-password?token=${token}\n\nIf it wasn't you, you can ignore this email.`,
-    });
+    const locale = isLocale(user.profile?.locale) ? user.profile.locale : requestLocale();
+    await this.mail.send({ to: email, ...mails.resetPassword(locale, `${env.WEB_ORIGIN}/reset-password?token=${token}`) });
   }
 
   async resetPassword(token: string, password: string) {

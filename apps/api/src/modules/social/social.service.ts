@@ -120,7 +120,7 @@ export class SocialService {
       if (r.count) await tx.post.update({ where: { id: postId }, data: { likeCount: on ? { increment: r.count } : { decrement: r.count } } });
       return r.count > 0;
     });
-    if (on && changed) await this.notifications.notify([post.userId], viewerId, "LIKE", `liked your post ${post.title}`, { postId });
+    if (on && changed) await this.notifications.notify([post.userId], viewerId, "LIKE", { k: "like", post: post.title }, { postId });
     return this.get(postId, viewerId);
   }
 
@@ -164,7 +164,7 @@ export class SocialService {
       this.prisma.postComment.create({ data: { postId, userId: viewerId, body }, include: commentInclude }),
       this.prisma.post.update({ where: { id: postId }, data: { commentCount: { increment: 1 } } }),
     ]);
-    await this.notifications.notify([post.userId], viewerId, "COMMENT", `commented on ${post.title}`, { postId });
+    await this.notifications.notify([post.userId], viewerId, "COMMENT", { k: "comment", post: post.title }, { postId });
     return toCommentView(c, viewerId, post.userId);
   }
 

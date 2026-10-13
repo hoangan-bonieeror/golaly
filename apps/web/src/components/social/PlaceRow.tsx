@@ -5,6 +5,7 @@ import { Bookmark, Star } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { useAction, useMe } from "@/lib/api/queries";
+import { useI18n, useT } from "@/i18n/client";
 import { AddToTripButton } from "../place/AddToTripSheet";
 import { CategoryIcon, formatDistance } from "../place/categoryMeta";
 import { cx } from "../ui";
@@ -15,11 +16,13 @@ import { cx } from "../ui";
  */
 export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; index?: number; active?: boolean; onHover?: (id: string | null) => void }) {
   const me = useMe().data;
+  const t = useT();
+  const { locale } = useI18n();
   const save = useAction((on: boolean) => (on ? api.post<PlaceView>(`/places/${place.id}/save`) : api.delete<PlaceView>(`/places/${place.id}/save`)), {
     invalidate: [["places"], ["explore"], ["search"], ["destination"]],
-    success: (r) => (r.savedByMe ? "Place saved" : "Removed from saved"),
+    success: (r) => (r.savedByMe ? t.social.place.saved : t.social.place.unsaved),
   });
-  const distance = formatDistance(place.distanceM);
+  const distance = formatDistance(place.distanceM, locale);
   return (
     <div
       className={cx(
@@ -47,7 +50,7 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
           <CategoryIcon categoryKey={place.categoryKey} />
         )}
         {index !== undefined && (
-          <span className="absolute -left-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white" aria-hidden>
+          <span className="absolute -left-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-on-ink" aria-hidden>
             {index}
           </span>
         )}
@@ -66,18 +69,18 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
             {place.rating && (
               <span className="inline-flex items-center gap-0.5">
                 <Star className="size-3 fill-gold text-gold" aria-hidden />
-                <span className="sr-only">Rated </span>
+                <span className="sr-only">{t.social.place.rated}</span>
                 {place.rating}
               </span>
             )}
-            {distance && <span>{distance} away</span>}
+            {distance && <span>{t.social.place.away(distance)}</span>}
           </div>
         )}
       </div>
       <div className="relative z-10 flex shrink-0 items-center gap-1">
         {me && (
           <button
-            aria-label={place.savedByMe ? `Remove ${place.name} from saved` : `Save ${place.name}`}
+            aria-label={place.savedByMe ? t.social.place.unsave(place.name) : t.social.place.save(place.name)}
             aria-pressed={place.savedByMe}
             disabled={save.isPending}
             onClick={() => save.run(!place.savedByMe)}

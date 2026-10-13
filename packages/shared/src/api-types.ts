@@ -1,3 +1,4 @@
+import type { Locale } from "./i18n";
 /**
  * Response shapes returned by /api/v1 — the contract between apps/api and apps/web.
  * Everything here is already filtered for the requesting viewer: private data
@@ -36,6 +37,8 @@ export interface Me extends UserSummary {
   providers: string[];
   /** Can moderate place photos (users.role = ADMIN). */
   isAdmin: boolean;
+  /** Interface language chosen in the app (null = never chosen; the device language is used). */
+  locale: Locale | null;
 }
 
 export interface ProfileView {
@@ -325,6 +328,7 @@ export interface CommentView {
 export interface NotificationView {
   id: string;
   type: NotificationType;
+  /** The sentence after the actor's name, in the reader's language. */
   text: string;
   actor: UserSummary | null;
   tripId: string | null;

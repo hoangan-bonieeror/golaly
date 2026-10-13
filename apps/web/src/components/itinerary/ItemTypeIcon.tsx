@@ -16,7 +16,7 @@ export function ItemTypeIcon({ type, size = "md" }: { type: ItineraryItemType; s
   const m = TYPE_META[type];
   const Icon = m.icon;
   return (
-    <span className={cx("flex shrink-0 items-center justify-center rounded-xl", m.bg, m.fg, size === "sm" ? "size-8" : "size-10")}>
+    <span style={{ "--cat": m.dot } as React.CSSProperties} className={cx("cat-tint flex shrink-0 items-center justify-center rounded-xl", m.bg, m.fg, size === "sm" ? "size-8" : "size-10")}>
       <Icon className={size === "sm" ? "size-4" : "size-5"} />
     </span>
   );

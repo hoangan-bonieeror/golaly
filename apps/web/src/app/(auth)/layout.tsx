@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { Cover } from "@/components/trip/Cover";
 import { Logo } from "@/components/layout/Logo";
+import { LanguageSwitch, ThemeSwitch } from "@/components/layout/Preferences";
+import { getMessages } from "@/i18n/server";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const t = await getMessages();
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
       <aside className="relative hidden lg:block">
@@ -12,10 +15,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               <Logo light />
             </Link>
             <div className="max-w-md">
-              <p className="font-display text-4xl font-semibold leading-tight">
-                Real trips from real travelers — ready for you to make your own.
-              </p>
-              <p className="mt-4 text-white/85">Discover a route, remix it in one tap, and plan it with friends.</p>
+              <p className="font-display text-4xl font-semibold leading-tight">{t.auth.layout.heroTitle}</p>
+              <p className="mt-4 text-white/85">{t.auth.layout.heroBody}</p>
             </div>
           </div>
         </Cover>
@@ -25,6 +26,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Logo />
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">{children}</div>
+        {/* Logged-out visitors can switch language and theme too. */}
+        <div role="group" aria-label={t.auth.layout.preferences} className="mx-auto mt-8 grid w-full max-w-sm gap-2">
+          <LanguageSwitch compact />
+          <ThemeSwitch compact />
+        </div>
       </main>
     </div>
   );

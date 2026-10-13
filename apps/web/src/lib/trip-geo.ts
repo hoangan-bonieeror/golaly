@@ -1,4 +1,5 @@
-import type { DayView, ItemView, PlaceView } from "@triply/shared";
+import type { DayView, ItemView, Locale, PlaceView } from "@triply/shared";
+import { INTL_LOCALE, type Messages } from "@/i18n/catalog";
 
 /**
  * Atlas day palette: each day of a trip gets one colour, used for its chip, pins and route.
@@ -41,20 +42,21 @@ export function estimateLeg(a: Pick<PlaceView, "lat" | "lng">, b: Pick<PlaceView
   return { mode: "Fly", km: straight, minutes: Math.round((straight / 750) * 60 + 120) };
 }
 
-export function formatKm(km: number) {
-  if (km < 1) return `${Math.max(10, Math.round((km * 1000) / 10) * 10)} m`;
-  if (km < 10) return `${km.toFixed(1)} km`;
-  return `${Math.round(km).toLocaleString("en")} km`;
+/** Distance for display, with the language's decimal separator ("4.9 km" / "4,9 km"). */
+export function formatKm(km: number, locale: Locale) {
+  const n = (v: number, digits = 0) => v.toLocaleString(INTL_LOCALE[locale], { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  if (km < 1) return `${n(Math.max(10, Math.round((km * 1000) / 10) * 10))} m`;
+  if (km < 10) return `${n(km, 1)} km`;
+  return `${n(Math.round(km))} km`;
 }
 
-export function formatMinutes(min: number) {
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m ? `${h} h ${m} min` : `${h} h`;
+export function formatMinutes(min: number, t: Messages) {
+  if (min < 60) return t.format.minutes(min);
+  return t.format.hoursMinutes(Math.floor(min / 60), min % 60);
 }
 
-export const legLabel = (leg: Leg) => `${leg.mode} ≈ ${formatMinutes(leg.minutes)} · ${formatKm(leg.km)}`;
+/** "Transit ≈ 21 min · 4.9 km" in the given language (no hooks: callers pass the catalog and locale). */
+export const legLabel = (leg: Leg, t: Messages, locale: Locale) => t.trips.map.leg(t.labels.legMode[leg.mode], formatMinutes(leg.minutes, t), formatKm(leg.km, locale));
 
 /** Legs keyed by the id of the item they lead *to*; only between consecutive items that both have a place. */
 export function dayLegs(items: ItemView[]) {

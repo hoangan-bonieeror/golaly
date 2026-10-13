@@ -30,7 +30,7 @@ export function RouteThumb({ trip, width = 88, height = 64, className }: { trip:
       <path d={`M-4 ${height * 0.25} C ${width * 0.35} ${height * 0.05}, ${width * 0.6} ${height * 0.4}, ${width + 4} ${height * 0.18}`} fill="none" stroke="var(--color-contour)" strokeWidth="1.5" />
       {dots.length > 1 && <path d={path} fill="none" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
       {dots.map((d, i) => (
-        <circle key={i} cx={d.x} cy={d.y} r={dots.length > 12 ? 2.5 : 3.5} fill={dayColor(d.day)} stroke="var(--color-surface)" strokeWidth="1.2" />
+        <circle key={i} cx={d.x} cy={d.y} r={dots.length > 12 ? 2.5 : 3.5} fill={dayColor(d.day)} stroke="var(--color-pin-ring)" strokeWidth="1.2" />
       ))}
     </svg>
   );

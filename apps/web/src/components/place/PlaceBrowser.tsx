@@ -7,17 +7,14 @@ import { useId, useState } from "react";
 import { PlacesMap } from "@/components/map/PlacesMap";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { Chip, EmptyState, ErrorState, LoadMore, Skeleton, cx, inputCls } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { useCategories, useDestinations, useGeoAreas, usePlaceBrowse } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { groupMeta } from "./categoryMeta";
 import { WherePicker, type WhereValue } from "./WherePicker";
 
 const RADII = [2, 5, 10, 25] as const;
-const SORTS = [
-  ["recommended", "Recommended"],
-  ["distance", "Nearest first"],
-  ["rating", "Top rated"],
-] as const;
+const SORTS = ["recommended", "distance", "rating"] as const;
 
 /**
  * Explore → Places: where (a destination, the device's location or anywhere), how far, which kind of
@@ -28,6 +25,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
+  const t = useT();
+  const b = t.explore.browser;
+  const f = useFormat();
   const categories = useCategories().data ?? [];
   const destinations = useDestinations().data ?? [];
   const areas = useGeoAreas().data ?? [];
@@ -64,7 +64,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
   const activeGroup: CategoryView | undefined = categories.find((g) => g.key === group);
 
   const locate = () => {
-    if (!("geolocation" in navigator)) return toast("This browser can't share its location. Pick a destination instead.", "error");
+    if (!("geolocation" in navigator)) return toast(b.noGeolocation, "error");
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -74,7 +74,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
       },
       (err) => {
         setLocating(false);
-        toast(err.code === err.PERMISSION_DENIED ? "Location access is off. Allow it in your browser, or pick a destination." : "Couldn't find your location. Try again or pick a destination.", "error");
+        toast(err.code === err.PERMISSION_DENIED ? b.locationDenied : b.locationFailed, "error");
       },
       { enableHighAccuracy: false, timeout: 10_000, maximumAge: 5 * 60_000 },
     );
@@ -84,14 +84,14 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
   const whereLabel = (() => {
     if (dest) {
       const d = destinations.find((x) => x.slug === dest);
-      return d ? `${d.name}, ${d.country}` : (meta?.center?.label ?? "Destination");
+      return d ? `${d.name}, ${d.country}` : (meta?.center?.label ?? b.destination);
     }
     if (area) {
       const a = areas.find((x) => x.slug === area);
       const country = a?.kind === "country" ? null : areas.find((x) => x.slug === a?.parentSlug);
-      return a ? (country ? `${a.displayName}, ${country.displayName}` : `All of ${a.displayName}`) : (meta?.center?.label ?? "Area");
+      return a ? (country ? `${a.displayName}, ${country.displayName}` : b.allOf(a.displayName)) : (meta?.center?.label ?? b.area);
     }
-    return near ? "Near me" : "Anywhere";
+    return near ? b.nearMe : b.anywhere;
   })();
   const pickWhere = (v: WhereValue) => {
     if (v.kind === "near") return locate();
@@ -105,7 +105,13 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
     });
   };
   const summary = meta
-    ? `${meta.total.toLocaleString()}${meta.totalIsEstimate ? "+" : ""} place${meta.total === 1 ? "" : "s"}${meta.area ? ` in ${meta.center?.label ?? meta.area.name}` : meta.center ? ` within ${meta.radiusKm} km of ${meta.center.label}` : ""}${activeGroup ? ` · ${category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label}` : ""}`
+    ? b.summary({
+        count: `${f.number(meta.total)}${meta.totalIsEstimate ? "+" : ""}`,
+        n: meta.total,
+        area: meta.area ? (meta.center?.label ?? meta.area.name) : undefined,
+        within: !meta.area && meta.center && meta.radiusKm != null ? { km: meta.radiusKm, label: meta.center.label } : undefined,
+        kind: activeGroup ? (category ? activeGroup.children?.find((c) => c.key === category)?.label : activeGroup.label) : undefined,
+      })
     : "";
 
   return (
@@ -114,7 +120,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <div className="block min-w-[240px] flex-1 sm:max-w-sm">
           <span id={whereId} className="mb-1.5 block text-sm font-medium text-ink-2">
-            Where
+            {b.where}
           </span>
           <div role="group" aria-labelledby={whereId}>
             <WherePicker value={whereValue} label={whereLabel} areas={areas} destinations={destinations} onChange={pickWhere} />
@@ -127,10 +133,10 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink-2 hover:border-ink-2 disabled:opacity-60"
         >
           <LocateFixed className={cx("size-4", locating && "animate-pulse")} aria-hidden />
-          {locating ? "Locating…" : "Near me"}
+          {locating ? b.locating : b.nearMe}
         </button>
         {hasPoint && (
-          <div role="group" aria-label="Distance" className="flex items-center gap-1.5">
+          <div role="group" aria-label={b.distance} className="flex items-center gap-1.5">
             {RADII.map((r) => (
               <Chip key={r} active={(meta?.radiusKm ?? radius) === r} onClick={() => set({ r: String(r) })} className="h-9 px-3">
                 {r} km
@@ -139,11 +145,11 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           </div>
         )}
         <label className="block w-full sm:ml-auto sm:w-auto">
-          <span className="mb-1.5 block text-sm font-medium text-ink-2">Sort</span>
+          <span className="mb-1.5 block text-sm font-medium text-ink-2">{b.sort}</span>
           <select className={cx(inputCls, "pr-8 sm:w-44")} value={hasPoint || sort !== "distance" ? sort : "recommended"} onChange={(e) => set({ sort: e.target.value === "recommended" ? undefined : e.target.value })}>
-            {SORTS.map(([v, label]) => (
+            {SORTS.map((v) => (
               <option key={v} value={v} disabled={v === "distance" && !hasPoint}>
-                {label}
+                {b.sorts[v]}
               </option>
             ))}
           </select>
@@ -152,9 +158,9 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
 
       {/* What kind of place */}
       <div className="space-y-2">
-        <div role="group" aria-label="Kind of place" className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        <div role="group" aria-label={b.kindOfPlace} className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
           <Chip active={!group} onClick={() => set({ group: undefined, cat: undefined })} className="shrink-0">
-            All
+            {b.all}
           </Chip>
           {groups.map((g) => {
             const Icon = groupMeta(g.key).icon;
@@ -162,7 +168,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
               <Chip key={g.key} active={group === g.key} onClick={() => set({ group: group === g.key ? undefined : g.key, cat: undefined })} className="shrink-0">
                 <Icon className="size-4" aria-hidden />
                 {g.label}
-                <span className={cx("text-xs font-medium", group === g.key ? "text-white/80" : "text-muted")}>{facet.get(g.key) ?? 0}
+                <span className={cx("text-xs font-medium", group === g.key ? "text-on-ink/80" : "text-muted")}>{facet.get(g.key) ?? 0}
                   {meta?.totalIsEstimate ? "+" : ""}
                 </span>
               </Chip>
@@ -170,7 +176,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
           })}
         </div>
         {activeGroup?.children && activeGroup.children.length > 0 && (
-          <div role="group" aria-label={`Kinds of ${activeGroup.label.toLowerCase()}`} className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          <div role="group" aria-label={b.kindsOf(activeGroup.label)} className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
             {activeGroup.children.map((c) => (
               <button
                 key={c.key}
@@ -179,7 +185,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
                 onClick={() => set({ cat: category === c.key ? undefined : c.key })}
                 className={cx(
                   "h-11 shrink-0 rounded-full px-3 text-sm font-medium transition-colors",
-                  category === c.key ? "bg-primary text-white" : "bg-sand-2 text-ink-2 hover:bg-line",
+                  category === c.key ? "bg-primary text-on-primary" : "bg-sand-2 text-ink-2 hover:bg-line",
                 )}
               >
                 {c.label}
@@ -193,17 +199,17 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
         <p className="text-sm text-ink-2" aria-live="polite">
           {summary}
         </p>
-        <div className="flex rounded-full border border-line bg-surface p-0.5 lg:hidden" role="group" aria-label="Show as">
+        <div className="flex rounded-full border border-line bg-surface p-0.5 lg:hidden" role="group" aria-label={b.showAs}>
           {(["list", "map"] as const).map((v) => (
             <button
               key={v}
               type="button"
               aria-pressed={view === v}
               onClick={() => setView(v)}
-              className={cx("inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold", view === v ? "bg-ink text-white" : "text-ink-2")}
+              className={cx("inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold", view === v ? "bg-ink text-on-ink" : "text-ink-2")}
             >
               {v === "list" ? <List className="size-4" aria-hidden /> : <MapIcon className="size-4" aria-hidden />}
-              {v === "list" ? "List" : "Map"}
+              {v === "list" ? b.list : b.map}
             </button>
           ))}
         </div>
@@ -215,14 +221,14 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
         <EmptyState
           icon={<SearchX className="size-7" />}
           level="h3"
-          title="No places match"
-          body={hasPoint ? "Try a wider distance, another kind of place, or clear the filters." : "Try another kind of place, another spelling, or clear the filters."}
+          title={b.noMatchTitle}
+          body={hasPoint ? b.noMatchBodyPoint : b.noMatchBody}
           action={
             <div className="flex flex-wrap justify-center gap-2">
               {hasPoint && (meta.radiusKm ?? 0) < 25 && (
-                <Chip onClick={() => set({ r: String(RADII.find((r) => r > (meta.radiusKm ?? 0)) ?? 25) })}>Search wider</Chip>
+                <Chip onClick={() => set({ r: String(RADII.find((r) => r > (meta.radiusKm ?? 0)) ?? 25) })}>{b.searchWider}</Chip>
               )}
-              {(group || category) && <Chip onClick={() => set({ group: undefined, cat: undefined })}>Clear filters</Chip>}
+              {(group || category) && <Chip onClick={() => set({ group: undefined, cat: undefined })}>{b.clearFilters}</Chip>}
             </div>
           }
         />
@@ -234,7 +240,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
             {/* Previous results stay visible (dimmed) while new filters load, so the page doesn't jump. */}
             <ol
               className={cx("grid gap-2.5 transition-opacity sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2", browse.isPlaceholderData && "opacity-50")}
-              aria-label="Places"
+              aria-label={b.places}
               aria-busy={browse.isPlaceholderData}
             >
               {items.map((p, i) => (
@@ -243,14 +249,14 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
                 </li>
               ))}
             </ol>
-            <LoadMore hasMore={browse.hasNextPage} loading={browse.isFetchingNextPage} onClick={() => browse.fetchNextPage()} label="More places" />
+            <LoadMore hasMore={browse.hasNextPage} loading={browse.isFetchingNextPage} onClick={() => browse.fetchNextPage()} label={b.morePlaces} />
           </div>
           <div className={cx(view === "list" && "hidden lg:block")}>
             <div className="lg:sticky lg:top-20">
-              <PlacesMap places={items} center={meta?.center} radiusKm={meta?.radiusKm} activeId={hovered} label="Map of these places" />
+              <PlacesMap places={items} center={meta?.center} radiusKm={meta?.radiusKm} activeId={hovered} label={b.mapLabel} />
               {!hasPoint && !area && (
                 <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-                  <MapPinned className="size-3.5" aria-hidden /> Pick a destination, a province or city, or use “Near me” to see what’s around.
+                  <MapPinned className="size-3.5" aria-hidden /> {b.pickHint}
                 </p>
               )}
             </div>

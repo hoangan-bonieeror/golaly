@@ -1,3 +1,4 @@
+import { LOCALES } from "./i18n";
 /**
  * Zod schemas shared by the API (request validation) and the web app (forms).
  * One definition → same rules on both sides (spec §41).
@@ -51,6 +52,7 @@ export const updateProfileSchema = z
     travelerType: travelerTypeSchema.nullable(),
     interests: z.array(interestSchema).max(8),
     avatarMediaId: uuid.nullable(),
+    locale: z.enum(LOCALES),
   })
   .partial();
 

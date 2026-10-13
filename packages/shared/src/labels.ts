@@ -10,6 +10,17 @@ export const ITEM_TYPE_LABEL: Record<ItineraryItemType, string> = {
   NOTE: "Note",
 };
 
+/** Vietnamese item-type names, for API text built in the reader's language (the web has its own catalog). */
+export const ITEM_TYPE_LABEL_VI: Record<ItineraryItemType, string> = {
+  PLACE: "Địa điểm",
+  RESTAURANT: "Nhà hàng",
+  HOTEL: "Khách sạn",
+  FLIGHT: "Chuyến bay",
+  TRANSPORTATION: "Di chuyển",
+  ACTIVITY: "Hoạt động",
+  NOTE: "Ghi chú",
+};
+
 export const ROLE_LABEL: Record<TripRole, string> = {
   OWNER: "Owner",
   EDITOR: "Editor",

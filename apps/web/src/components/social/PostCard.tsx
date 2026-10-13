@@ -4,21 +4,23 @@ import type { PostView } from "@triply/shared";
 import { Bookmark, CalendarDays, Heart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useFormat, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { useAction, useMe } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { Cover } from "../trip/Cover";
-import { Avatar, Button, cx, formatCount, timeAgo } from "../ui";
+import { Avatar, Button, cx } from "../ui";
 
 export function useShare() {
   const toast = useToast();
+  const t = useT();
   return async (path: string, title?: string) => {
     const url = typeof window !== "undefined" ? window.location.origin + path : path;
     try {
       if (navigator.share && /Mobi/i.test(navigator.userAgent)) await navigator.share({ url, title });
       else {
         await navigator.clipboard.writeText(url);
-        toast("Link copied");
+        toast(t.common.linkCopied);
       }
     } catch {
       /* user cancelled share sheet */
@@ -28,11 +30,12 @@ export function useShare() {
 
 /** Like / save toggles for a post, refreshing every list it may appear in. */
 export function usePostActions(post: PostView) {
+  const t = useT();
   const invalidate = [["feed"], ["post", post.id], ["posts"], ["profile"], ["destination"]];
   const like = useAction((on: boolean) => (on ? api.post<PostView>(`/posts/${post.id}/like`) : api.delete<PostView>(`/posts/${post.id}/like`)), { invalidate });
   const save = useAction((on: boolean) => (on ? api.post<PostView>(`/posts/${post.id}/save`) : api.delete<PostView>(`/posts/${post.id}/save`)), {
     invalidate,
-    success: (r) => (r.savedByMe ? "Post saved" : "Removed from saved"),
+    success: (r) => (r.savedByMe ? t.social.post.saved : t.social.post.unsaved),
   });
   return { like, save };
 }
@@ -41,6 +44,8 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
   const H = level;
   const me = useMe().data;
   const router = useRouter();
+  const t = useT();
+  const f = useFormat();
   const share = useShare();
   const { like, save } = usePostActions(post);
   const trip = post.trip;
@@ -50,7 +55,7 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
   return (
     <article className="animate-rise overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface shadow-card">
       <header className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/u/${post.author.username}`} aria-label={`${post.author.displayName}'s profile`} tabIndex={-1}>
+        <Link href={`/u/${post.author.username}`} aria-label={t.social.post.profileOf(post.author.displayName)} tabIndex={-1}>
           <Avatar user={post.author} size={38} />
         </Link>
         <div className="min-w-0 flex-1 leading-tight">
@@ -58,7 +63,7 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
             {post.author.displayName}
           </Link>
           <div className="truncate text-xs text-muted">
-            {post.destination ? `${post.destination.name}, ${post.destination.country}` : "Travel story"} · {timeAgo(post.createdAt)}
+            {post.destination ? `${post.destination.name}, ${post.destination.country}` : t.social.post.travelStory} · {f.timeAgo(post.createdAt)}
           </div>
         </div>
       </header>
@@ -83,10 +88,10 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
         {trip && (
           <div className="mb-2 flex flex-wrap gap-2 text-xs font-semibold text-ink-2">
             <span className="flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1">
-              <CalendarDays className="size-3.5" /> {trip.stats.days} days
+              <CalendarDays className="size-3.5" /> {t.format.days(trip.stats.days)}
             </span>
             <span className="flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1">
-              <MapPin className="size-3.5" /> {trip.stats.places} places
+              <MapPin className="size-3.5" /> {t.format.places(trip.stats.places)}
             </span>
           </div>
         )}
@@ -97,23 +102,23 @@ export function PostCard({ post, level = "h3" }: { post: PostView; level?: "h2" 
       </div>
 
       <footer className="flex items-center gap-1 px-2 py-2">
-        <ActionBtn label={post.likedByMe ? "Unlike" : "Like"} onClick={() => requireLogin(() => like.run(!post.likedByMe))} active={post.likedByMe}>
+        <ActionBtn label={post.likedByMe ? t.social.post.unlike : t.social.post.like} onClick={() => requireLogin(() => like.run(!post.likedByMe))} active={post.likedByMe}>
           <Heart className={cx("size-5", post.likedByMe && "fill-accent text-accent")} />
-          {formatCount(post.likeCount)}
+          {f.count(post.likeCount)}
         </ActionBtn>
-        <ActionBtn label="Comments" href={`/posts/${post.id}#comments`}>
+        <ActionBtn label={t.social.post.comments} href={`/posts/${post.id}#comments`}>
           <MessageCircle className="size-5" />
-          {formatCount(post.commentCount)}
+          {f.count(post.commentCount)}
         </ActionBtn>
-        <ActionBtn label={post.savedByMe ? "Unsave" : "Save"} onClick={() => requireLogin(() => save.run(!post.savedByMe))} active={post.savedByMe}>
+        <ActionBtn label={post.savedByMe ? t.social.post.unsave : t.social.post.save} onClick={() => requireLogin(() => save.run(!post.savedByMe))} active={post.savedByMe}>
           <Bookmark className={cx("size-5", post.savedByMe && "fill-ink")} />
         </ActionBtn>
-        <ActionBtn label="Share" onClick={() => share(`/posts/${post.id}`, post.title)}>
+        <ActionBtn label={t.common.share} onClick={() => share(`/posts/${post.id}`, post.title)}>
           <Share2 className="size-5" />
         </ActionBtn>
         {trip && (
           <Button href={`/trips/${trip.id}`} variant="secondary" size="sm" className="ml-auto mr-2">
-            View trip
+            {t.social.post.viewTrip}
           </Button>
         )}
       </footer>

@@ -1,3 +1,4 @@
+import type { NotificationMessage } from "./i18n";
 /**
  * TRIPLY shared domain types.
  * These mirror the planned PostgreSQL/Prisma schema (spec §24–26) so the
@@ -178,7 +179,8 @@ export interface Notification {
   tripId?: UUID;
   postId?: UUID;
   invitationToken?: string; // only ever shown to the invitee
-  text: string;
+  /** What it says, as data — each reader sees it in their own language (see notificationText). */
+  message: NotificationMessage;
   readAt?: ISODateTime;
   createdAt: ISODateTime;
 }

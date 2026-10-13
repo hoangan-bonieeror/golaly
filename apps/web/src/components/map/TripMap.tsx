@@ -1,10 +1,13 @@
 "use client";
 
-import { ITEM_TYPE_LABEL, type ItemView, type PlaceView, type TripDetail } from "@triply/shared";
+import type { ItemView, PlaceView, TripDetail } from "@triply/shared";
 import { Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n, useT } from "@/i18n/client";
+import { useTheme } from "@/lib/theme";
 import { DAY_COLORS, dayColor, dayStats, formatKm } from "@/lib/trip-geo";
+import { mapStyleFor } from "./TileMap";
 import type { DayFilter } from "../trip/DayBar";
 import { cx } from "../ui";
 
@@ -49,6 +52,9 @@ export function TripMap({
 }) {
   const days = trip.days;
   const [tiles, setTiles] = useState(TILES_ENABLED);
+  const { theme } = useTheme();
+  const { m: t, locale } = useI18n();
+  const tm = t.trips.map;
 
   const stops: MapStop[] = useMemo(() => {
     const out: MapStop[] = [];
@@ -69,7 +75,7 @@ export function TripMap({
   return (
     <div className={cx("relative isolate overflow-hidden bg-map", !flush && "rounded-[var(--radius-card)] border border-line", className ?? "h-[440px]")}>
       {tiles ? (
-        <TileMap stops={visible} colors={COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
+        <TileMap key={theme} styleUrl={mapStyleFor(theme)} stops={visible} colors={COLORS} selectedId={selectedId} onSelect={onSelect} onFail={() => setTiles(false)} />
       ) : (
         <MapCanvas stops={visible} selectedId={selectedId} onSelect={onSelect} />
       )}
@@ -77,18 +83,19 @@ export function TripMap({
         <span className="rounded-[10px] border border-line bg-surface px-3 py-1.5 text-[13px] font-semibold">
           {shownDay ? (
             <>
-              Day {shownDay.dayNumber} route{km > 0 && <span className="font-mono font-normal text-muted"> · {formatKm(km)}</span>}
+              {tm.dayRoute(shownDay.dayNumber)}
+              {km > 0 && <span className="font-mono font-normal text-muted"> · {formatKm(km, locale)}</span>}
             </>
           ) : (
             <>
-              All days <span className="font-mono font-normal text-muted">· {visible.length} stops</span>
+              {tm.allDays} <span className="font-mono font-normal text-muted">· {t.format.stops(visible.length)}</span>
             </>
           )}
         </span>
       </div>
       {visible.length === 0 && (
         <div className="absolute inset-0 z-10 flex items-center justify-center p-6 text-center text-sm text-muted">
-          {stops.length ? "No places on this day yet." : "Add places to your itinerary to see them on the map."}
+          {stops.length ? tm.noPlacesDay : tm.noPlaces}
         </div>
       )}
       {selected && (
@@ -99,8 +106,8 @@ export function TripMap({
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold">{selected.place.name}</div>
             <div className="truncate text-[13px] text-muted">
-              Day {selected.dayNumber}
-              {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || ITEM_TYPE_LABEL[selected.place.category]}
+              {t.trips.day(selected.dayNumber)}
+              {selected.item.startTime && <span className="font-mono"> · {selected.item.startTime}</span>} · {selected.place.categoryLabel || t.labels.itemType[selected.place.category]}
               {selected.place.rating && (
                 <span className="ml-1 inline-flex items-center gap-0.5">
                   <Star className="size-3 fill-gold text-gold" aria-hidden /> {selected.place.rating}
@@ -108,19 +115,19 @@ export function TripMap({
               )}
             </div>
             <div className="hidden truncate font-mono text-xs text-ink-2 sm:block">
-              {Math.abs(selected.place.lat).toFixed(4)}° {selected.place.lat >= 0 ? "N" : "S"}, {Math.abs(selected.place.lng).toFixed(4)}° {selected.place.lng >= 0 ? "E" : "W"}
+              {Math.abs(selected.place.lat).toFixed(4)}° {selected.place.lat >= 0 ? tm.north : tm.south}, {Math.abs(selected.place.lng).toFixed(4)}° {selected.place.lng >= 0 ? tm.east : tm.west}
             </div>
           </div>
           <a
             href={`https://www.openstreetmap.org/?mlat=${selected.place.lat}&mlon=${selected.place.lng}#map=16/${selected.place.lat}/${selected.place.lng}`}
             target="_blank"
             rel="noreferrer"
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary hover:bg-primary hover:text-white"
-            aria-label={`Open ${selected.place.name} in OpenStreetMap`}
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary hover:bg-primary hover:text-on-primary"
+            aria-label={tm.openInOsm(selected.place.name)}
           >
             <Navigation className="size-4" />
           </a>
-          <button type="button" onClick={() => onSelect?.(selected.item)} aria-label="Close place details" className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink">
+          <button type="button" onClick={() => onSelect?.(selected.item)} aria-label={tm.closeDetails} className="-mr-1 flex size-10 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-sand-2 hover:text-ink">
             <X className="size-4" />
           </button>
         </div>
@@ -131,6 +138,7 @@ export function TripMap({
 
 function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selectedId?: string | null; onSelect?: (i: ItemView) => void }) {
   // Drawn at the box's real pixel size, so pins and labels stay the same size on a phone and a desktop.
+  const t = useT();
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 600, h: 440 });
   useEffect(() => {
@@ -174,7 +182,7 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
 
   return (
     <div ref={box} className="absolute inset-0">
-      <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img" aria-label={`Map of ${stops.length} trip stops (simplified)`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full" role="img" aria-label={t.trips.map.simplified(stops.length)}>
         {/* Atlas paper map: decorative contour lines and a river, then the routes and numbered pins. */}
         {[0.25, 0.34, 0.86, 0.95].map((f, i) => {
           const y = H * f;
@@ -212,10 +220,10 @@ function MapCanvas({ stops, selectedId, onSelect }: { stops: MapStop[]; selected
                 onClick={() => onSelect?.(s.item)}
                 className="cursor-pointer"
                 role="button"
-                aria-label={`${s.place.name}, day ${s.dayNumber}`}
+                aria-label={t.trips.map.pin(s.place.name, s.dayNumber)}
               >
                 {sel && <circle r="21" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="4" />}
-                <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-surface)"} strokeWidth="2" />
+                <circle r={sel ? 15 : 14} fill={color} stroke={sel ? "none" : "var(--color-pin-ring)"} strokeWidth="2" />
                 <text y="4.5" textAnchor="middle" fontSize="13" fontWeight="600" fontFamily="var(--font-mono)" fill="#fff">
                   {s.order}
                 </text>

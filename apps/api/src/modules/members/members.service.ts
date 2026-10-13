@@ -1,3 +1,6 @@
+import { isLocale } from "@triply/shared";
+import { requestLocale } from "../../common/locale";
+import { mails } from "../mail/templates";
 import { Injectable } from "@nestjs/common";
 import type { CreatedInvitation, CreateInvitationInput, InvitationLookup, MemberView, TripRole } from "@triply/shared";
 import { randomToken, sha256 } from "../../common/crypto";
@@ -55,17 +58,16 @@ export class MembersService {
         // Only notify an account that has proven it owns the address.
         const invitee = await tx.user.findFirst({ where: { email: input.email, deletedAt: null, emailVerifiedAt: { not: null } }, select: { id: true } });
         if (invitee)
-          await this.notifications.notify([invitee.id], viewerId, "TRIP_INVITE", `invited you to ${input.role === "EDITOR" ? "edit" : "view"} ${trip.title}`, { tripId, invitationId: created.id }, tx);
+          await this.notifications.notify([invitee.id], viewerId, "TRIP_INVITE", { k: "invited", role: input.role, trip: trip.title }, { tripId, invitationId: created.id }, tx);
       }
       return created;
     });
     if (input.email) {
       const inviter = toUserSummary(inv.inviter);
-      await this.mail.send({
-        to: input.email,
-        subject: `${inviter.displayName} invited you to “${trip.title}” on TRIPLY`,
-        text: `${inviter.displayName} invited you to ${input.role === "EDITOR" ? "help plan" : "view"} “${trip.title}”.\n\nOpen the invitation (valid for 7 days):\n${url}\n`,
-      });
+      // Written in the invitee's language when they already have an account, else in the inviter's.
+      const invitee = await this.prisma.user.findFirst({ where: { email: input.email, deletedAt: null }, select: { profile: { select: { locale: true } } } });
+      const locale = isLocale(invitee?.profile?.locale) ? invitee.profile.locale : requestLocale();
+      await this.mail.send({ to: input.email, ...mails.invitation(locale, { inviter: inviter.displayName, trip: trip.title, role: input.role, url }) });
     }
     return {
       id: inv.id,
@@ -162,7 +164,7 @@ export class MembersService {
       if (!existing) {
         await tx.tripMember.create({ data: { tripId: inv.tripId, userId: viewerId, role: inv.role } });
         await this.audit.log(viewerId, "trip.member.joined", "trip", inv.tripId, { invitationId: inv.id, role: inv.role }, tx);
-        await this.notifications.notify([inv.trip.ownerId], viewerId, "TRIP_INVITE", `joined ${inv.trip.title} as ${inv.role === "EDITOR" ? "an Editor" : "a Viewer"}`, { tripId: inv.tripId }, tx);
+        await this.notifications.notify([inv.trip.ownerId], viewerId, "TRIP_INVITE", { k: "joined", role: inv.role as "EDITOR" | "VIEWER", trip: inv.trip.title }, { tripId: inv.tripId }, tx);
       }
       // Email invites are single-use; link invites stay valid until they expire or are revoked.
       if (inv.email) await tx.tripInvitation.update({ where: { id: inv.id }, data: { acceptedAt: new Date() } });
@@ -192,7 +194,7 @@ export class MembersService {
       await this.prisma.transaction(async (tx) => {
         await tx.tripMember.update({ where: { tripId_userId: { tripId, userId } }, data: { role } });
         await this.audit.log(viewerId, "trip.member.role_changed", "trip", tripId, { userId, from: m.role, to: role }, tx);
-        await this.notifications.notify([userId], viewerId, "TRIP_MEMBER_ROLE_CHANGED", `made you ${role === "EDITOR" ? "an Editor" : "a Viewer"} on ${trip.title}`, { tripId }, tx);
+        await this.notifications.notify([userId], viewerId, "TRIP_MEMBER_ROLE_CHANGED", { k: "role_changed", role, trip: trip.title }, { tripId }, tx);
       });
       this.realtime.trip(tripId, viewerId, "trip.member.role_changed", userId);
     }

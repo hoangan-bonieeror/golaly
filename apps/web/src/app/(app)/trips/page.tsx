@@ -4,6 +4,7 @@ import { Luggage, Plus } from "lucide-react";
 import { useState } from "react";
 import { TripCard } from "@/components/trip/TripCard";
 import { Button, Chip, EmptyState, ErrorState, LoadMore, Skeleton } from "@/components/ui";
+import { useT } from "@/i18n/client";
 import { useMyTrips } from "@/lib/api/queries";
 
 type Filter = "all" | "mine" | "shared" | "past";
@@ -11,30 +12,25 @@ type Filter = "all" | "mine" | "shared" | "past";
 export default function TripsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const trips = useMyTrips(filter);
+  const t = useT();
+  const l = t.trips.list;
 
   return (
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-semibold md:text-4xl">Trips</h1>
-          <p className="text-sm text-muted">Trips you own and trips you&apos;ve been invited to.</p>
+          <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.nav.trips}</h1>
+          <p className="text-sm text-muted">{l.subtitle}</p>
         </div>
         <Button href="/trips/new" className="hidden sm:inline-flex">
-          <Plus className="size-4" /> New trip
+          <Plus className="size-4" /> {l.newTrip}
         </Button>
       </header>
 
       <div className="scrollbar-none -mx-4 flex gap-2 overflow-x-auto px-4">
-        {(
-          [
-            ["all", "All"],
-            ["mine", "Created by me"],
-            ["shared", "Shared with me"],
-            ["past", "Past"],
-          ] as const
-        ).map(([v, l]) => (
+        {(["all", "mine", "shared", "past"] as const).map((v) => (
           <Chip key={v} active={filter === v} onClick={() => setFilter(v)} className="shrink-0">
-            {l}
+            {l.filters[v]}
           </Chip>
         ))}
       </div>
@@ -50,13 +46,13 @@ export default function TripsPage() {
       ) : !trips.items?.length ? (
         <EmptyState
           icon={<Luggage className="size-7" />}
-          title="Your next adventure starts here."
-          body={filter === "all" ? "Create a trip from scratch or remix one from Explore." : "No trips match this filter."}
+          title={l.emptyTitle}
+          body={filter === "all" ? l.emptyBody : l.emptyFiltered}
           action={
             <div className="flex gap-2">
-              <Button href="/trips/new">Create trip</Button>
+              <Button href="/trips/new">{l.createTrip}</Button>
               <Button href="/explore" variant="secondary">
-                Explore trips
+                {l.exploreTrips}
               </Button>
             </div>
           }
@@ -64,11 +60,11 @@ export default function TripsPage() {
       ) : (
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.items.map((t) => (
-              <TripCard key={t.id} trip={t} showRole level="h2" />
+            {trips.items.map((trip) => (
+              <TripCard key={trip.id} trip={trip} showRole level="h2" />
             ))}
           </div>
-          <LoadMore hasMore={trips.hasNextPage} loading={trips.isFetchingNextPage} onClick={() => trips.fetchNextPage()} label="Show more trips" />
+          <LoadMore hasMore={trips.hasNextPage} loading={trips.isFetchingNextPage} onClick={() => trips.fetchNextPage()} label={l.showMore} />
         </>
       )}
     </div>

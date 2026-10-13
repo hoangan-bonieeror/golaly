@@ -1,15 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Bricolage_Grotesque, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "@/components/layout/Toaster";
+import { getLocale, getMessages } from "@/i18n/server";
+import { THEME_SCRIPT } from "@/lib/theme";
 import { Providers } from "./providers";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: { default: "TRIPLY — Plan together. Discover together. Travel together.", template: "%s · TRIPLY" },
-  description: "A social travel planning platform that turns real travelers' trips into reusable, collaborative travel plans.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = (await getMessages()).titles;
+  return { title: { default: t.default, template: "%s · TRIPLY" }, description: t.description };
+}
 
-export const viewport: Viewport = { themeColor: "#f3efe6", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3efe6" },
+    { media: "(prefers-color-scheme: dark)", color: "#15130f" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+};
 
 // Atlas type: Be Vietnam Pro for UI (static font, so weights are explicit), Bricolage Grotesque
 // for display (variable, optical size), JetBrains Mono for times and distances.
@@ -17,11 +26,16 @@ const sans = Be_Vietnam_Pro({ weight: ["400", "500", "600", "700"], subsets: ["l
 const display = Bricolage_Grotesque({ subsets: ["latin", "latin-ext", "vietnamese"], axes: ["opsz"], display: "swap", variable: "--font-bricolage" });
 const mono = JetBrains_Mono({ subsets: ["latin", "latin-ext", "vietnamese"], display: "swap", variable: "--font-jetbrains" });
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
   return (
-    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
+    // data-theme is set by THEME_SCRIPT before paint, so the server markup can't know it.
+    <html lang={locale} suppressHydrationWarning className={`${sans.variable} ${display.variable} ${mono.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
-        <Providers>
+        <Providers locale={locale}>
           {children}
           <Toaster />
         </Providers>

@@ -118,7 +118,7 @@ export class ItineraryService {
       const siblings = await tx.itineraryItem.findMany({ where: { dayId } });
       await this.writeOrder(tx, orderByTime(siblings));
       await this.touch(tx, trip.id);
-      await this.notifications.notify(this.access.memberIds(trip), viewerId, "TRIP_ITEM_ADDED", `added “${created.title}” to Day ${day.dayNumber} of ${trip.title}`, { tripId: trip.id }, tx);
+      await this.notifications.notify(this.access.memberIds(trip), viewerId, "TRIP_ITEM_ADDED", { k: "item_added", item: created.title, day: day.dayNumber, trip: trip.title }, { tripId: trip.id }, tx);
       return created;
     });
     this.realtime.trip(trip.id, viewerId, "trip.item.created", item.id);
@@ -143,7 +143,7 @@ export class ItineraryService {
         await this.writeOrder(tx, orderByTime(siblings));
       }
       await this.touch(tx, trip.id);
-      await this.notifications.notify(this.access.memberIds(trip), viewerId, "TRIP_ITEM_UPDATED", `updated “${updated.title}” in ${trip.title}`, { tripId: trip.id }, tx);
+      await this.notifications.notify(this.access.memberIds(trip), viewerId, "TRIP_ITEM_UPDATED", { k: "item_updated", item: updated.title, trip: trip.title }, { tripId: trip.id }, tx);
     });
     this.realtime.trip(trip.id, viewerId, "trip.item.updated", itemId);
     return this.itemView(itemId, viewerId);

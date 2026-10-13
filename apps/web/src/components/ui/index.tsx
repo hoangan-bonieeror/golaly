@@ -3,6 +3,7 @@
 import { AlertTriangle, Compass, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { cloneElement, isValidElement, useEffect, useId, useRef } from "react";
+import { useT } from "@/i18n/client";
 import { cx } from "@/lib/utils";
 
 export { cx, formatCount, formatDateRange, timeAgo } from "@/lib/utils";
@@ -11,8 +12,8 @@ export { cx, formatCount, formatDateRange, timeAgo } from "@/lib/utils";
 // ── Button ───────────────────────────────────────────────────────────────
 type Variant = "primary" | "secondary" | "ghost" | "accent" | "danger";
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-600",
-  accent: "bg-accent-600 text-white hover:bg-accent-700",
+  primary: "bg-primary text-on-primary hover:bg-primary-600",
+  accent: "bg-accent-600 text-white hover:brightness-110",
   secondary: "bg-surface text-ink border border-line hover:bg-sand-2",
   ghost: "text-ink-2 hover:bg-sand-2",
   danger: "bg-surface text-danger border border-line hover:bg-accent-50",
@@ -95,7 +96,7 @@ export function Chip({ active, children, className, ...rest }: React.ButtonHTMLA
       className={cx(
         "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors",
         hit,
-        active ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink-2 hover:border-ink-2",
+        active ? "border-ink bg-ink text-on-ink" : "border-line bg-surface text-ink-2 hover:border-ink-2",
         className,
       )}
       {...rest}
@@ -123,6 +124,7 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([typ
  * Shift+Tab stay inside the dialog, Escape closes it, and focus returns to whatever opened it.
  */
 export function Sheet({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   // Parents usually pass an inline onClose; keep the effect from re-running (and stealing focus) on every render.
@@ -135,7 +137,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
     const opener = document.activeElement as HTMLElement | null;
     const panel = ref.current;
     const focusables = () => [...(panel?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => el.offsetParent !== null || el === document.activeElement);
-    const first = panel?.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]),select,textarea") ?? focusables().find((el) => el.getAttribute("aria-label") !== "Close") ?? focusables()[0];
+    const first = panel?.querySelector<HTMLElement>("input:not([type=hidden]):not([disabled]),select,textarea") ?? focusables().find((el) => !el.hasAttribute("data-sheet-close")) ?? focusables()[0];
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -167,7 +169,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center">
-      <div aria-hidden className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div aria-hidden className="absolute inset-0 bg-black/40 backdrop-blur-[2px] dark:bg-black/60" onClick={onClose} />
       <div
         ref={ref}
         role="dialog"
@@ -183,7 +185,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
           <h2 id={titleId} className="font-display text-xl font-semibold">
             {title}
           </h2>
-          <IconButton label="Close" onClick={onClose} className="-mr-2">
+          <IconButton label={t.common.close} data-sheet-close onClick={onClose} className="-mr-2">
             <X className="size-5" />
           </IconButton>
         </div>
@@ -321,12 +323,13 @@ export function SectionTitle({ children, action }: { children: React.ReactNode; 
 
 
 // ── Pagination ───────────────────────────────────────────────────────────
-export function LoadMore({ hasMore, loading, onClick, label = "Load more" }: { hasMore?: boolean; loading?: boolean; onClick: () => void; label?: string }) {
+export function LoadMore({ hasMore, loading, onClick, label }: { hasMore?: boolean; loading?: boolean; onClick: () => void; label?: string }) {
+  const t = useT();
   if (!hasMore) return null;
   return (
     <div className="flex justify-center pt-2">
       <Button variant="secondary" onClick={onClick} disabled={loading} aria-busy={loading}>
-        {loading ? "Loading…" : label}
+        {loading ? t.common.loading : (label ?? t.common.loadMore)}
       </Button>
     </div>
   );
@@ -337,9 +340,10 @@ export function Skeleton({ className }: { className?: string }) {
   return <div className={cx("animate-pulse rounded-2xl bg-sand-2", className)} aria-hidden />;
 }
 
-export function PageLoader({ label = "Loading" }: { label?: string }) {
+export function PageLoader({ label }: { label?: string }) {
+  const t = useT();
   return (
-    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label={label}>
+    <div className="flex min-h-[40vh] items-center justify-center" role="status" aria-label={label ?? t.common.loading}>
       <span className="size-8 animate-spin rounded-full border-[3px] border-line border-t-primary" />
     </div>
   );
@@ -348,25 +352,17 @@ export function PageLoader({ label = "Loading" }: { label?: string }) {
 /** Friendly full-panel error for failed queries (spec §40). */
 /** `page` = the error replaces the whole page, so its title is the page's h1. */
 export function ErrorState({ error, onRetry, page }: { error: unknown; onRetry?: () => void; page?: boolean }) {
+  const common = useT().common;
+  const t = common.errors;
   const status = (error as { status?: number })?.status;
-  const message = (error as { message?: string })?.message ?? "Something went wrong. Please try again.";
+  const message = (error as { message?: string })?.message ?? t.generic;
   return (
     <EmptyState
       level={page ? "h1" : "h2"}
       icon={status === 403 ? <Lock className="size-7" /> : status === 404 ? <Compass className="size-7" /> : <AlertTriangle className="size-7" />}
-      title={status === 404 ? "We couldn't find that" : status === 403 ? message : status === 0 ? "You're offline" : "We couldn't load this"}
-      body={
-        status === 403
-          ? undefined
-          : status === 404
-            ? "It may have been deleted or the link is wrong."
-            : status === 0
-              ? message
-              : message === "Something went wrong. Please try again." || !message
-                ? "Our server had a hiccup. Your data is safe — try again in a moment."
-                : message
-      }
-      action={onRetry && status !== 403 && status !== 404 ? <Button onClick={onRetry}>Try again</Button> : <Button href="/home">Go home</Button>}
+      title={status === 404 ? t.notFound : status === 403 ? message : status === 0 ? t.offlineTitle : t.loadFailed}
+      body={status === 403 ? undefined : status === 404 ? t.notFoundBodyLink : status === 0 ? message : message === t.generic || !message ? t.serverHiccup : message}
+      action={onRetry && status !== 403 && status !== 404 ? <Button onClick={onRetry}>{common.retry}</Button> : <Button href="/home">{t.goHome}</Button>}
     />
   );
 }

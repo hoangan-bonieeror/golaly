@@ -1,0 +1,26 @@
+import type { Messages } from "../types";
+
+export const titles: Messages["titles"] = {
+  default: "TRIPLY — Cùng lên kế hoạch. Cùng khám phá. Cùng lên đường.",
+  description: "Nền tảng lên kế hoạch du lịch kết nối, biến chuyến đi thật của người đi trước thành kế hoạch bạn có thể dùng lại và cùng nhau chỉnh sửa.",
+  home: "Trang chủ",
+  explore: "Khám phá",
+  trips: "Chuyến đi",
+  newTrip: "Chuyến đi mới",
+  tripSettings: "Cài đặt chuyến đi",
+  saved: "Đã lưu",
+  notifications: "Thông báo",
+  settings: "Cài đặt",
+  newPost: "Bài viết mới",
+  places: "Địa điểm",
+  invitation: "Lời mời tham gia chuyến đi",
+  login: "Đăng nhập",
+  register: "Tạo tài khoản",
+  forgotPassword: "Quên mật khẩu",
+  resetPassword: "Chọn mật khẩu mới",
+  verifyEmail: "Xác nhận email của bạn",
+  welcome: "Chào mừng",
+  onboarding: "Chào mừng bạn",
+  admin: "Quản trị",
+  notFound: "Không tìm thấy",
+};

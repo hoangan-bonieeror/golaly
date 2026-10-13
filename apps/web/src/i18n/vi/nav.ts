@@ -1,0 +1,37 @@
+import type { Messages } from "../types";
+
+export const nav: Messages["nav"] = {
+  home: "Trang chủ",
+  explore: "Khám phá",
+  trips: "Chuyến đi",
+  saved: "Đã lưu",
+  notifications: "Thông báo",
+  notificationsUnread: (n) => `Thông báo, ${n} chưa đọc`,
+  alerts: "Thông báo",
+  profile: "Cá nhân",
+  settings: "Cài đặt",
+  admin: "Quản trị",
+  create: "Tạo",
+  homeLink: "Trang chủ TRIPLY",
+  mainNav: "Điều hướng chính",
+  tabBar: "Thanh điều hướng",
+  searchLabel: "Tìm trên TRIPLY",
+  searchPlaceholder: "Tìm địa điểm, chuyến đi và mọi người",
+  account: (name) => `Tài khoản: ${name}`,
+  accountNav: "Tài khoản",
+  createSheet: {
+    trip: "Chuyến đi mới",
+    tripHint: "Lên lịch từng ngày, thêm địa điểm, mời bạn đồng hành.",
+    post: "Bài viết mới",
+    postHint: "Biến chuyến đi thành câu chuyện người khác có thể dùng lại.",
+  },
+  verifyBanner: {
+    before: "Hãy xác nhận",
+    after: "để chấp nhận lời mời chuyến đi gửi tới địa chỉ này. Liên kết xác nhận đang chờ trong hộp thư của bạn.",
+    resend: "Gửi lại email",
+    sent: "Đã gửi — hãy kiểm tra hộp thư",
+    success: "Đã gửi email xác nhận",
+  },
+  theme: { label: "Giao diện", system: "Theo máy", light: "Sáng", dark: "Tối" },
+  language: { label: "Ngôn ngữ" },
+};

@@ -1,11 +1,12 @@
 "use client";
 
-import { loginSchema } from "@triply/shared";
+import { localizeMessage, loginSchema } from "@triply/shared";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { GoogleButton, OAUTH_ERRORS } from "@/components/auth/GoogleButton";
+import { GoogleButton, isOAuthError } from "@/components/auth/GoogleButton";
 import { Button, Field, inputCls } from "@/components/ui";
+import { useI18n } from "@/i18n/client";
 import { ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
 import { useSession } from "@/lib/session";
@@ -26,7 +27,9 @@ function Login() {
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
-  const oauthError = OAUTH_ERRORS[params.get("error") ?? ""];
+  const { locale, m: t } = useI18n();
+  const errorCode = params.get("error");
+  const oauthError = isOAuthError(errorCode) ? t.auth.google.errors[errorCode] : undefined;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
@@ -41,17 +44,20 @@ function Login() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = loginSchema.safeParse({ email, password });
-    if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message;
+      return setError(msg && localizeMessage(msg, locale));
+    }
     setBusy(true);
     submitting.current = true;
     setError(undefined);
     try {
       const user = await login(parsed.data);
-      toast(`Welcome back, ${user.displayName}`);
+      toast(t.auth.login.welcomeBack(user.displayName));
       router.push(user.onboarded ? next : "/onboarding");
     } catch (err) {
       submitting.current = false;
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof ApiError ? err.message : t.common.errors.generic);
     } finally {
       setBusy(false);
     }
@@ -60,33 +66,33 @@ function Login() {
   return (
     <form onSubmit={submit} className="animate-rise space-y-5" noValidate>
       <div>
-        <h1 className="font-display text-3xl font-semibold">Welcome back</h1>
-        <p className="mt-1 text-sm text-muted">Log in to keep planning.</p>
+        <h1 className="font-display text-3xl font-semibold">{t.auth.login.title}</h1>
+        <p className="mt-1 text-sm text-muted">{t.auth.login.subtitle}</p>
       </div>
       {oauthError && (
         <p role="alert" className="rounded-xl bg-accent-50 px-3 py-2 text-sm text-danger">
           {oauthError}
         </p>
       )}
-      <Field label="Email">
+      <Field label={t.auth.email}>
         <input className={inputCls} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       </Field>
-      <Field label="Password" error={error}>
+      <Field label={t.auth.password} error={error}>
         <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
       <div className="flex justify-end">
         <Link href="/forgot-password" className="inline-block py-2.5 text-sm font-medium text-primary hover:underline">
-          Forgot password?
+          {t.auth.login.forgot}
         </Link>
       </div>
       <Button size="lg" className="w-full" type="submit" disabled={busy}>
-        {busy ? "Logging in…" : "Log in"}
+        {busy ? t.auth.login.loggingIn : t.common.logIn}
       </Button>
       <GoogleButton next={next} />
       <p className="text-center text-sm text-muted">
-        New to TRIPLY?{" "}
+        {t.auth.login.newHere}{" "}
         <Link href="/register" className="inline-block py-2.5 font-semibold text-primary hover:underline">
-          Create account
+          {t.auth.login.createAccount}
         </Link>
       </p>
       {process.env.NODE_ENV !== "production" && (

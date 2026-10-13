@@ -1,3 +1,5 @@
+import { ITEM_TYPE_LABEL_VI, notificationText, type NotificationMessage } from "@triply/shared";
+import { requestLocale } from "./locale";
 /**
  * Maps database rows → API view models (packages/shared/src/api-types.ts).
  * Presenters are the only place that decides what a viewer gets to see.
@@ -63,7 +65,7 @@ export const placeInclude = (viewerId: string | null) =>
   ({
     destination: { select: { name: true } },
     area: { select: { name: true } },
-    categoryRef: { select: { key: true, labelEn: true } },
+    categoryRef: { select: { key: true, labelEn: true, labelVi: true } },
     names: { where: { kind: "primary" }, select: { lang: true, name: true } },
     photos: { where: visiblePhoto, orderBy: photoOrder, take: 1, include: { media: true, uploadedBy: { select: userSummarySelect } } },
     savedBy: { where: { userId: viewerId ?? "00000000-0000-0000-0000-000000000000" }, select: { userId: true } },
@@ -90,7 +92,7 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     status: p.status,
     savedByMe: p.savedBy.length > 0,
     categoryKey: p.categoryRef?.key ?? null,
-    categoryLabel: p.categoryRef?.labelEn ?? ITEM_TYPE_LABEL[p.category],
+    categoryLabel: requestLocale() === "vi" ? (p.categoryRef?.labelVi ?? ITEM_TYPE_LABEL_VI[p.category]) : (p.categoryRef?.labelEn ?? ITEM_TYPE_LABEL[p.category]),
     photo: p.photos[0]?.media ? { ...toImage(p.photos[0].media), credit: photoCredit(p.photos[0]).text } : null,
   };
 }
@@ -285,7 +287,8 @@ export function toNotificationView(n: NotificationRow): NotificationView {
   return {
     id: n.id,
     type: n.type,
-    text: n.text,
+    // Built in the reader's language from the stored message; older rows only have the English sentence.
+    text: n.params ? notificationText(n.params as unknown as NotificationMessage, requestLocale()) : n.text,
     actor: n.actor ? toUserSummary(n.actor) : null,
     tripId: n.tripId,
     postId: n.postId,

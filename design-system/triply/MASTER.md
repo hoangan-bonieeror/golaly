@@ -102,6 +102,9 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
 
 ## App shell
 
+- Interface in **English and Vietnamese** (`apps/web/src/i18n/README.md`); every text has room for the
+  longer Vietnamese strings (no fixed-width labels).
+
 - **Desktop (≥768px): a 64px top navbar**, not a sidebar — the map needs the width. Logo ·
   Home / Explore / Trips (active = `sand-2` fill) · global search (≥1024px; an icon below) ·
   Create · notifications (count badge) · avatar menu (Profile, Saved, Settings, Admin, Log out).
@@ -150,16 +153,32 @@ Every animation is disabled under `prefers-reduced-motion`.
 - Decorative mono (mono is for data only); emoji as icons; hardcoded hex in components.
 - Pins or routes that don't use the day colour of their day.
 
-## Atlas Night (planned)
+## Atlas Night (dark mode)
 
-Dark mode is designed but not implemented yet. Re-verify every pair when it ships; don't invert.
+Same token names, re-tuned for a dark canvas (not inverted), under `html[data-theme="dark"]` in
+`globals.css`. The theme is **System** by default (follows `prefers-color-scheme`) and can be pinned to
+Light or Dark in the account menu, Settings and the auth pages; the choice is kept per device
+(`lib/theme.ts`) and applied before first paint by an inline script, so there's no flash.
 
 | Token | Hex | Check |
 |---|---|---|
-| bg / surface / well | `#15130f` / `#1e1b16` / `#2a251f` | |
-| ink | `#e9e2d4` | 14.4 on bg, 13.3 on surface |
-| muted | `#a89e8f` | 7.0 on bg, 5.8 on well |
-| line | `#3a342c` | |
-| primary | `#7cc4b0` (text on it `#15130f`) | 9.2 |
-| vermilion (route) | `#ff8a5c` | 8.0 on bg |
-| map / contour / water | `#1b1915` / `#2e2922` / `#24413a` | |
+| `sand` (bg) / `surface` / `sand-2` (well) | `#15130f` / `#1e1b16` / `#2a251f` | |
+| `ink` / `ink-2` | `#e9e2d4` / `#cbc2b2` | 14.4 / 10.5 on bg |
+| `muted` | `#a89e8f` | 7.0 on bg, 5.8 on well, 5.0 on primary-50 |
+| `line` / `line-strong` | `#3a342c` / `#5a5147` | |
+| `primary` / `-600` / `-50` | `#7cc4b0` / `#9ad3c3` / `#1b3430` | 9.2 on bg, 6.6 on primary-50 |
+| `on-primary`, `on-ink` | `#15130f` | 9.2 on primary, 14.4 on ink |
+| `accent` / `accent-600` / `accent-700` / `accent-50` | `#ff7a45` / `#c2461b` / `#ff8a5c` / `#3b211a` | accent-700 8.0 on bg; white on accent-600 5.0 |
+| `gold-700` on `gold-50` | `#e8bb63` on `#352a14` | 7.9 |
+| `danger` | `#ff8a80` | 8.1 on bg |
+| `map` / `contour` / `water` | `#1b1915` / `#2e2922` / `#24413a` | |
+| `pin-ring` | `#e9e2d4` | day pins (2.3–3.3:1 on the dark map) get a light ring for 3:1+ separation |
+
+Rules that make both themes work:
+
+- Text on a filled `primary` or `ink` surface uses `text-on-primary` / `text-on-ink`, never `text-white`
+  (primary and ink turn light in Atlas Night). White stays only on photos, covers, day colours and `accent-600`.
+- Category and item-type tints carry `cat-tint` + `--cat` (the pin colour); Atlas Night derives a dark
+  tint and a light glyph from it.
+- Tile maps switch basemap with the theme (OpenFreeMap Positron ↔ Dark; `NEXT_PUBLIC_MAP_STYLE_URL_DARK`).
+- The E2E run checks axe contrast in Vietnamese + dark on the planner, Home, Explore, Settings and Notifications.

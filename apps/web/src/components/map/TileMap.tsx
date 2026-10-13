@@ -10,9 +10,15 @@ import type { ItemView } from "@triply/shared";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef } from "react";
+import { useT } from "@/i18n/client";
+import type { Messages } from "@/i18n/catalog";
 import type { MapStop } from "./TripMap";
 
 export const MAP_STYLE_URL = process.env.NEXT_PUBLIC_MAP_STYLE_URL || "https://tiles.openfreemap.org/styles/positron";
+/** Atlas Night uses a dark basemap (OpenFreeMap "dark", or NEXT_PUBLIC_MAP_STYLE_URL_DARK). */
+export const MAP_STYLE_URL_DARK =
+  process.env.NEXT_PUBLIC_MAP_STYLE_URL_DARK || (process.env.NEXT_PUBLIC_MAP_STYLE_URL ? process.env.NEXT_PUBLIC_MAP_STYLE_URL : "https://tiles.openfreemap.org/styles/dark");
+export const mapStyleFor = (theme: "light" | "dark") => (theme === "dark" ? MAP_STYLE_URL_DARK : MAP_STYLE_URL);
 
 type Markers = Map<string, { marker: Marker; node: HTMLButtonElement }>;
 interface Latest {
@@ -20,6 +26,7 @@ interface Latest {
   colors: string[];
   onSelect?: (i: ItemView) => void;
   onFail: () => void;
+  t: Messages;
 }
 
 /** Draws markers + per-day route lines and fits the view to the visible stops. */
@@ -54,7 +61,7 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
     entry.marker.setLngLat([s.place.lng, s.place.lat]);
     entry.node.firstElementChild!.textContent = String(s.order);
     entry.node.style.setProperty("--pin", color);
-    entry.node.setAttribute("aria-label", `${s.order}. ${s.place.name}, day ${s.dayNumber}`);
+    entry.node.setAttribute("aria-label", latest.t.trips.map.numberedPin(s.order, s.place.name, s.dayNumber));
     entry.node.title = s.place.name;
   }
   const byDay = new Map<number, MapStop[]>();
@@ -82,20 +89,24 @@ export function TileMap({
   selectedId,
   onSelect,
   onFail,
+  styleUrl = MAP_STYLE_URL,
 }: {
+  /** Fixed for the map's lifetime; callers key the component by it to switch basemaps. */
+  styleUrl?: string;
   stops: MapStop[];
   colors: string[];
   selectedId?: string | null;
   onSelect?: (i: ItemView) => void;
   onFail: () => void;
 }) {
+  const t = useT();
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const markers = useRef<Markers>(new Map());
   // Event handlers registered once read the latest props through this ref.
-  const latest = useRef<Latest>({ stops, colors, onSelect, onFail });
+  const latest = useRef<Latest>({ stops, colors, onSelect, onFail, t });
   useEffect(() => {
-    latest.current = { stops, colors, onSelect, onFail };
+    latest.current = { stops, colors, onSelect, onFail, t };
   });
 
   // Create the map once.
@@ -112,7 +123,7 @@ export function TileMap({
       if (!maplibregl.getWorkerUrl()?.includes("/maplibre/")) maplibregl.setWorkerUrl(new URL("/maplibre/maplibre-gl-worker.mjs", window.location.origin).href);
       let m: MapLibreMap;
       try {
-        m = new maplibregl.Map({ container: el.current, style: MAP_STYLE_URL, center: [0, 20], zoom: 1, attributionControl: { compact: true }, cooperativeGestures: true });
+        m = new maplibregl.Map({ container: el.current, style: styleUrl, center: [0, 20], zoom: 1, attributionControl: { compact: true }, cooperativeGestures: true });
       } catch {
         return fail(); // no WebGL
       }
@@ -155,6 +166,11 @@ export function TileMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopsKey]);
 
+  // Relabel the pins when the interface language changes (markers are plain DOM nodes).
+  useEffect(() => {
+    latest.current.stops.forEach((s) => markers.current.get(s.item.id)?.node.setAttribute("aria-label", t.trips.map.numberedPin(s.order, s.place.name, s.dayNumber)));
+  }, [t]);
+
   // Highlight + pan to the selected stop.
   useEffect(() => {
     markers.current.forEach(({ node }, id) => node.classList.toggle("is-selected", id === selectedId));
@@ -166,7 +182,7 @@ export function TileMap({
   // MapLibre makes its container `position: relative`, so the container fills an absolute wrapper.
   return (
     <div className="absolute inset-0">
-      <div ref={el} className="h-full w-full" role="region" aria-label="Map of trip stops" />
+      <div ref={el} className="h-full w-full" role="region" aria-label={t.trips.map.region} />
     </div>
   );
 }

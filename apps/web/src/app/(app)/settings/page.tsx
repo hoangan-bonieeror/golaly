@@ -1,11 +1,13 @@
 "use client";
 
-import { passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
+import { localizeMessage, passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
 import { Camera, LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { LanguageSwitch, ThemeSwitch } from "@/components/layout/Preferences";
 import { Avatar, Button, Field, PageLoader, Sheet, cx, inputCls } from "@/components/ui";
+import { useI18n, useT } from "@/i18n/client";
 import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { getPlaceNameChoice, PLACE_NAME_OPTIONS, setPlaceNameChoice, type PlaceNameChoice } from "@/lib/placeLanguage";
@@ -21,6 +23,7 @@ export default function SettingsPage() {
 function Settings({ me }: { me: Me }) {
   const { logout } = useSession();
   const router = useRouter();
+  const { locale, m: t } = useI18n();
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ displayName: me.displayName, bio: me.bio, homeBase: me.homeBase ?? "" });
   const [error, setError] = useState<string>();
@@ -28,18 +31,20 @@ function Settings({ me }: { me: Me }) {
   const [password, setPassword] = useState("");
   const [deleteError, setDeleteError] = useState<string>();
 
-  const save = useAction((body: object) => api.patch<Me>("/users/me", body), { invalidate: [keys.me, ["profile"]], success: "Profile saved" });
+  const save = useAction((body: object) => api.patch<Me>("/users/me", body), { invalidate: [keys.me, ["profile"]], success: t.settings.profileSaved });
   const avatar = useAction(
     async (file: File) => {
       const m = await api.upload<MediaView>("/media", file);
       return api.patch<Me>("/users/me", { avatarMediaId: m.id });
     },
-    { invalidate: [keys.me, ["profile"], ["feed"]], success: "Photo updated" },
+    { invalidate: [keys.me, ["profile"], ["feed"]], success: t.settings.photoUpdated },
   );
 
   return (
     <div className="mx-auto max-w-xl space-y-8">
-      <h1 className="font-display text-3xl font-semibold md:text-4xl">Settings</h1>
+      <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.settings.title}</h1>
+
+      <PreferencesCard />
 
       <form
         noValidate
@@ -47,7 +52,10 @@ function Settings({ me }: { me: Me }) {
           e.preventDefault();
           const body = { ...form, homeBase: form.homeBase.trim() };
           const parsed = updateProfileSchema.safeParse(body);
-          if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+          if (!parsed.success) {
+            const msg = parsed.error.issues[0]?.message;
+            return setError(msg && localizeMessage(msg, locale));
+          }
           setError(undefined);
           await save.run(body);
         }}
@@ -59,7 +67,7 @@ function Settings({ me }: { me: Me }) {
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            aria-label="Upload a profile photo"
+            aria-label={t.settings.uploadPhoto}
             tabIndex={-1}
             className="sr-only"
             onChange={(e) => {
@@ -69,26 +77,26 @@ function Settings({ me }: { me: Me }) {
             }}
           />
           <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()} disabled={avatar.isPending}>
-            <Camera className="size-4" /> {avatar.isPending ? "Uploading…" : "Change photo"}
+            <Camera className="size-4" /> {avatar.isPending ? t.settings.uploading : t.settings.changePhoto}
           </Button>
         </div>
-        <Field label="Display name" error={error}>
+        <Field label={t.settings.displayName} error={error}>
           <input className={inputCls} value={form.displayName} maxLength={50} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
         </Field>
-        <Field label="Username" hint="Usernames can't be changed in the MVP.">
+        <Field label={t.settings.username} hint={t.settings.usernameHint}>
           <input className={cx(inputCls, "bg-sand text-muted")} value={`@${me.username}`} disabled />
         </Field>
-        <Field label="Email">
+        <Field label={t.settings.email}>
           <input className={cx(inputCls, "bg-sand text-muted")} value={me.email} disabled />
         </Field>
-        <Field label="Bio" hint={`${form.bio.length}/160`}>
+        <Field label={t.settings.bio} hint={t.settings.bioCount(form.bio.length, 160)}>
           <textarea className={cx(inputCls, "h-20 py-2.5")} maxLength={160} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
         </Field>
-        <Field label="Home base">
+        <Field label={t.settings.homeBase}>
           <input className={inputCls} value={form.homeBase} maxLength={80} onChange={(e) => setForm({ ...form, homeBase: e.target.value })} />
         </Field>
         <Button type="submit" disabled={save.isPending}>
-          Save profile
+          {t.settings.saveProfile}
         </Button>
       </form>
 
@@ -99,7 +107,7 @@ function Settings({ me }: { me: Me }) {
       <section className="space-y-2">
         {me.isAdmin && (
           <Button variant="secondary" className="w-full justify-start" href="/admin">
-            <ShieldCheck className="size-4" /> Admin: catalog and moderation
+            <ShieldCheck className="size-4" /> {t.settings.admin}
           </Button>
         )}
         <Button
@@ -110,14 +118,14 @@ function Settings({ me }: { me: Me }) {
             router.push("/welcome");
           }}
         >
-          <LogOut className="size-4" /> Log out
+          <LogOut className="size-4" /> {t.common.logOut}
         </Button>
         <Button variant="danger" className="w-full justify-start" onClick={() => setDeleting(true)}>
-          <Trash2 className="size-4" /> Delete account
+          <Trash2 className="size-4" /> {t.settings.deleteAccount}
         </Button>
       </section>
 
-      <Sheet open={deleting} onClose={() => setDeleting(false)} title="Delete your account?">
+      <Sheet open={deleting} onClose={() => setDeleting(false)} title={t.settings.deleteSheet.title}>
         <form
           className="space-y-4"
           onSubmit={async (e) => {
@@ -127,24 +135,24 @@ function Settings({ me }: { me: Me }) {
               await logout();
               router.push("/welcome");
             } catch (err) {
-              setDeleteError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+              setDeleteError(err instanceof ApiError ? err.message : t.common.errors.generic);
             }
           }}
         >
           <p className="text-sm text-ink-2">
-            This logs you out everywhere, removes you from shared trips and deletes your trips, posts and comments. Trips others remixed from yours stay with them.
+            {t.settings.deleteSheet.body}
           </p>
           {me.hasPassword ? (
-            <Field label="Confirm with your password" error={deleteError}>
+            <Field label={t.settings.deleteSheet.confirmPassword} error={deleteError}>
               <input className={inputCls} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
           ) : (
-            <Field label={`Type your username (${me.username}) to confirm`} error={deleteError}>
+            <Field label={t.settings.deleteSheet.confirmUsername(me.username)} error={deleteError}>
               <input className={inputCls} autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
             </Field>
           )}
           <Button type="submit" className="w-full !bg-danger" disabled={!password}>
-            Delete my account
+            {t.settings.deleteSheet.submit}
           </Button>
         </form>
       </Sheet>
@@ -156,9 +164,10 @@ function PasswordCard({ hasPassword, providers }: { hasPassword: boolean; provid
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [error, setError] = useState<string>();
+  const { locale, m: t } = useI18n();
   const change = useAction((body: object) => api.post("/auth/password", body), {
     invalidate: [keys.me],
-    success: hasPassword ? "Password changed — other devices were signed out" : "Password set",
+    success: hasPassword ? t.settings.password.changed : t.settings.password.setDone,
     silentErrors: true,
   });
   return (
@@ -168,47 +177,74 @@ function PasswordCard({ hasPassword, providers }: { hasPassword: boolean; provid
       onSubmit={async (e) => {
         e.preventDefault();
         const parsed = passwordSchema.safeParse(next);
-        if (!parsed.success) return setError(parsed.error.issues[0]?.message);
+        if (!parsed.success) {
+          const msg = parsed.error.issues[0]?.message;
+          return setError(msg && localizeMessage(msg, locale));
+        }
         setError(undefined);
         try {
           await change.mutateAsync(hasPassword ? { currentPassword: current, newPassword: next } : { newPassword: next });
           setCurrent("");
           setNext("");
         } catch (err) {
-          setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.");
+          setError(err instanceof ApiError ? err.message : t.common.errors.generic);
         }
       }}
     >
       <div>
-        <h2 className="font-semibold">{hasPassword ? "Change password" : "Set a password"}</h2>
+        <h2 className="font-semibold">{hasPassword ? t.settings.password.change : t.settings.password.set}</h2>
         <p className="text-sm text-muted">
-          {providers.includes("google") ? "Google sign-in is connected. " : ""}
-          {hasPassword ? "Changing it signs you out on other devices." : "Add a password so you can also log in with your email."}
+          {providers.includes("google") ? `${t.settings.password.googleConnected} ` : ""}
+          {hasPassword ? t.settings.password.changeBody : t.settings.password.setBody}
         </p>
       </div>
       {hasPassword && (
-        <Field label="Current password">
+        <Field label={t.settings.password.current}>
           <input className={inputCls} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
         </Field>
       )}
-      <Field label="New password" hint="At least 8 characters." error={error}>
+      <Field label={t.settings.password.new} hint={t.settings.password.hint} error={error}>
         <input className={inputCls} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
       </Field>
       <Button type="submit" variant="secondary" disabled={!next || change.isPending}>
-        {hasPassword ? "Change password" : "Set password"}
+        {hasPassword ? t.settings.password.change : t.settings.password.setButton}
       </Button>
     </form>
+  );
+}
+
+/** Appearance and interface language (both apply instantly; the language is also saved to the account). */
+function PreferencesCard() {
+  const t = useT().settings;
+  return (
+    <section className="space-y-5 rounded-[var(--radius-card)] border border-line bg-surface p-5">
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-display text-xl font-semibold">{t.appearance.title}</h2>
+          <p className="text-sm text-muted">{t.appearance.hint}</p>
+        </div>
+        <ThemeSwitch />
+      </div>
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-display text-xl font-semibold">{t.language.title}</h2>
+          <p className="text-sm text-muted">{t.language.hint}</p>
+        </div>
+        <LanguageSwitch />
+      </div>
+    </section>
   );
 }
 
 /** Which language place names appear in (stored on this device). */
 function PlaceNamesCard() {
   const qc = useQueryClient();
+  const t = useT().settings.placeNames;
   const [choice, setChoice] = useState<PlaceNameChoice>(() => getPlaceNameChoice());
   return (
     <section className="space-y-3 rounded-[var(--radius-card)] border border-line bg-surface p-5">
-      <h2 className="font-display text-xl font-semibold">Place names</h2>
-      <Field label="Show place names in" hint="When a place has no name in that language, its local name is shown. Saved on this device.">
+      <h2 className="font-display text-xl font-semibold">{t.title}</h2>
+      <Field label={t.label} hint={t.hint}>
         <select
           className={inputCls}
           value={choice}
@@ -221,7 +257,7 @@ function PlaceNamesCard() {
         >
           {PLACE_NAME_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t.options[o.labelKey]}
             </option>
           ))}
         </select>

@@ -11,7 +11,8 @@ import { ReportSheet } from "@/components/social/ReportSheet";
 import { Cover } from "@/components/trip/Cover";
 import { ForkSheet } from "@/components/trip/ForkSheet";
 import { TripCard } from "@/components/trip/TripCard";
-import { Avatar, Button, cx, ErrorState, formatCount, IconButton, inputCls, LoadMore, PageLoader, timeAgo } from "@/components/ui";
+import { Avatar, Button, cx, ErrorState, IconButton, inputCls, LoadMore, PageLoader } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useComments, useMe, usePost } from "@/lib/api/queries";
 import type { PostView } from "@triply/shared";
@@ -28,6 +29,8 @@ export default function PostDetailPage() {
 function PostDetail({ post }: { post: PostView }) {
   const me = useMe().data;
   const router = useRouter();
+  const t = useT();
+  const f = useFormat();
   const share = useShare();
   const { like, save } = usePostActions(post);
   const comments = useComments(post.id);
@@ -40,15 +43,15 @@ function PostDetail({ post }: { post: PostView }) {
   const commentsAllowed = !trip || trip.allowComments;
   const invalidate = [keys.comments(post.id), keys.post(post.id), ["feed"]];
   const addComment = useAction((body: string) => api.post<CommentView>(`/posts/${post.id}/comments`, { body }), { invalidate });
-  const delComment = useAction((cid: string) => api.delete(`/comments/${cid}`), { invalidate, success: "Comment deleted" });
-  const delPost = useAction(() => api.delete(`/posts/${post.id}`), { invalidate: [["feed"], ["profile"]], success: "Post deleted" });
+  const delComment = useAction((cid: string) => api.delete(`/comments/${cid}`), { invalidate, success: t.social.comments.deleted });
+  const delPost = useAction(() => api.delete(`/posts/${post.id}`), { invalidate: [["feed"], ["profile"]], success: t.social.post.deleted });
   const requireLogin = (fn: () => void) => (me ? fn() : router.push(`/login?next=/posts/${post.id}`));
   const current = post.photos[photo] ?? { palette: ["#1f5e52", "#d9481c"] as [string, string], url: null, image: null };
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
-        <IconButton label="Back" onClick={() => router.back()}>
+        <IconButton label={t.common.back} onClick={() => router.back()}>
           <ArrowLeft className="size-5" />
         </IconButton>
         <Link href={`/u/${post.author.username}`} className="flex min-w-0 flex-1 items-center gap-3">
@@ -56,19 +59,19 @@ function PostDetail({ post }: { post: PostView }) {
           <div className="leading-tight">
             <div className="font-semibold">{post.author.displayName}</div>
             <div className="text-xs text-muted">
-              @{post.author.username} · {timeAgo(post.createdAt)}
-              {post.visibility === "DRAFT" && " · Draft"}
+              @{post.author.username} · {f.timeAgo(post.createdAt)}
+              {post.visibility === "DRAFT" && ` · ${t.social.post.draft}`}
             </div>
           </div>
         </Link>
         {me && me.id !== post.author.id && (
-          <IconButton label="Report post" onClick={() => setReport({ target: "POST", id: post.id })}>
+          <IconButton label={t.social.post.report} onClick={() => setReport({ target: "POST", id: post.id })}>
             <Flag className="size-4" />
           </IconButton>
         )}
         {me?.id === post.author.id && (
           <IconButton
-            label="Delete post"
+            label={t.social.post.delete}
             onClick={async () => {
               if (await delPost.run(undefined)) router.push(`/u/${post.author.username}`);
             }}
@@ -83,7 +86,7 @@ function PostDetail({ post }: { post: PostView }) {
         {post.photos.length > 1 && (
           <div className="mt-2 flex justify-center gap-1.5">
             {post.photos.map((_, i) => (
-              <button key={i} onClick={() => setPhoto(i)} aria-label={`Photo ${i + 1}`} className={cx("h-1.5 rounded-full transition-all", i === photo ? "w-6 bg-ink" : "w-1.5 bg-line")} />
+              <button key={i} onClick={() => setPhoto(i)} aria-label={t.social.post.photo(i + 1)} className={cx("h-1.5 rounded-full transition-all", i === photo ? "w-6 bg-ink" : "w-1.5 bg-line")} />
             ))}
           </div>
         )}
@@ -104,51 +107,51 @@ function PostDetail({ post }: { post: PostView }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={() => requireLogin(() => like.run(!post.likedByMe))} aria-pressed={post.likedByMe}>
-          <Heart className={cx("size-4", post.likedByMe && "fill-accent text-accent")} /> {formatCount(post.likeCount)}
+          <Heart className={cx("size-4", post.likedByMe && "fill-accent text-accent")} /> {f.count(post.likeCount)}
         </Button>
         <Button variant="secondary" href="#comments">
           <MessageCircle className="size-4" /> {post.commentCount}
         </Button>
         <Button variant="secondary" onClick={() => requireLogin(() => save.run(!post.savedByMe))} aria-pressed={post.savedByMe}>
-          <Bookmark className={cx("size-4", post.savedByMe && "fill-ink")} /> {post.savedByMe ? "Saved" : "Save"}
+          <Bookmark className={cx("size-4", post.savedByMe && "fill-ink")} /> {post.savedByMe ? t.common.saved : t.common.save}
         </Button>
         <Button variant="secondary" onClick={() => share(`/posts/${post.id}`, post.title)}>
-          <Share2 className="size-4" /> Share
+          <Share2 className="size-4" /> {t.common.share}
         </Button>
       </div>
 
       {trip && (
         <section className="rounded-[var(--radius-card)] border border-line bg-surface p-4">
-          <h2 className="mb-3 font-display text-xl font-semibold">The trip behind this post</h2>
+          <h2 className="mb-3 font-display text-xl font-semibold">{t.social.post.tripBehind}</h2>
           <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
             <TripCard trip={trip} compact />
             <div className="flex flex-col gap-2 sm:w-48">
               <Button href={`/trips/${trip.id}`} variant="secondary">
-                View trip
+                {t.social.post.viewTrip}
               </Button>
               {canFork && (
                 <Button variant="accent" onClick={() => setForkOpen(true)}>
-                  <GitFork className="size-4" /> Use this trip
+                  <GitFork className="size-4" /> {t.social.post.useTrip}
                 </Button>
               )}
               {!me && trip.allowFork && (
                 <Button variant="accent" href={`/login?next=/posts/${post.id}`}>
-                  <GitFork className="size-4" /> Log in to remix
+                  <GitFork className="size-4" /> {t.social.post.loginToRemix}
                 </Button>
               )}
-              {me && trip.owner.id !== me.id && !trip.allowFork && <p className="text-center text-xs text-muted">The creator turned off remixing.</p>}
+              {me && trip.owner.id !== me.id && !trip.allowFork && <p className="text-center text-xs text-muted">{t.social.post.remixOff}</p>}
             </div>
           </div>
         </section>
       )}
 
       <section id="comments" className="scroll-mt-20 space-y-4">
-        <h2 className="font-display text-xl font-semibold">Comments · {post.commentCount}</h2>
-        {comments.items?.length === 0 && <p className="text-sm text-muted">No comments yet. Ask {post.author.displayName} something about the trip!</p>}
+        <h2 className="font-display text-xl font-semibold">{t.social.comments.heading(post.commentCount)}</h2>
+        {comments.items?.length === 0 && <p className="text-sm text-muted">{t.social.comments.empty(post.author.displayName)}</p>}
         <ul className="space-y-4">
           {comments.items?.map((c) => (
             <li key={c.id} className="group flex gap-3">
-              <Link href={`/u/${c.author.username}`} aria-label={`${c.author.displayName}'s profile`} tabIndex={-1}>
+              <Link href={`/u/${c.author.username}`} aria-label={t.social.post.profileOf(c.author.displayName)} tabIndex={-1}>
                 <Avatar user={c.author} size={34} />
               </Link>
               <div className="min-w-0 flex-1">
@@ -157,15 +160,15 @@ function PostDetail({ post }: { post: PostView }) {
                   <p className="whitespace-pre-line text-sm text-ink-2">{c.body}</p>
                 </div>
                 <div className="mt-1 flex gap-3 px-1 text-xs text-muted">
-                  {timeAgo(c.createdAt)}
+                  {f.timeAgo(c.createdAt)}
                   {c.canDelete ? (
                     <button onClick={() => delComment.run(c.id)} className="flex items-center gap-1 hover:text-danger">
-                      <Trash2 className="size-3" /> Delete
+                      <Trash2 className="size-3" /> {t.social.comments.delete}
                     </button>
                   ) : (
                     me && (
                       <button onClick={() => setReport({ target: "COMMENT", id: c.id })} className="hover:text-ink">
-                        Report
+                        {t.social.comments.report}
                       </button>
                     )
                   )}
@@ -174,7 +177,7 @@ function PostDetail({ post }: { post: PostView }) {
             </li>
           ))}
         </ul>
-        <LoadMore hasMore={comments.hasNextPage} loading={comments.isFetchingNextPage} onClick={() => comments.fetchNextPage()} label="Show more comments" />
+        <LoadMore hasMore={comments.hasNextPage} loading={comments.isFetchingNextPage} onClick={() => comments.fetchNextPage()} label={t.social.comments.showMore} />
         {me && commentsAllowed && post.visibility !== "DRAFT" ? (
           <form
             onSubmit={async (e) => {
@@ -184,19 +187,20 @@ function PostDetail({ post }: { post: PostView }) {
             className="flex items-center gap-2"
           >
             <Avatar user={me} size={34} />
-            <input className={cx(inputCls, "rounded-full")} placeholder="Add a comment…" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={1000} aria-label="Add a comment" />
-            <IconButton label="Send" type="submit" className="bg-primary text-white hover:bg-primary-600" disabled={!comment.trim() || addComment.isPending}>
+            <input className={cx(inputCls, "rounded-full")} placeholder={t.social.comments.placeholder} value={comment} onChange={(e) => setComment(e.target.value)} maxLength={1000} aria-label={t.social.comments.add} />
+            <IconButton label={t.social.comments.send} type="submit" className="bg-primary text-on-primary hover:bg-primary-600" disabled={!comment.trim() || addComment.isPending}>
               <Send className="size-4" />
             </IconButton>
           </form>
         ) : !commentsAllowed ? (
-          <p className="text-sm text-muted">Comments are turned off for this trip.</p>
+          <p className="text-sm text-muted">{t.social.comments.off}</p>
         ) : !me ? (
           <p className="text-sm text-muted">
+            {t.social.comments.logIn.before && <>{t.social.comments.logIn.before} </>}
             <Link href={`/login?next=/posts/${post.id}`} className="font-semibold text-primary">
-              Log in
+              {t.social.comments.logIn.link}
             </Link>{" "}
-            to join the conversation.
+            {t.social.comments.logIn.after}
           </p>
         ) : null}
       </section>

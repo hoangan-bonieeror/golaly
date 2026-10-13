@@ -161,6 +161,8 @@ model UserProfile {
   travelerType  TravelerType? @map("traveler_type")
   interests     String[]      @default([])
   onboardedAt   DateTime?     @map("onboarded_at")
+  /// Interface language ("en" | "vi", CHECK in the migration); null = never chosen.
+  locale        String?
   /// Lower-cased, accent-free "display name username home base" for fuzzy search.
   searchText    String        @default("") @map("search_text")
   updatedAt     DateTime      @updatedAt @map("updated_at")
@@ -608,7 +610,9 @@ model Notification {
   userId       String           @map("user_id") @db.Uuid
   actorId      String?          @map("actor_id") @db.Uuid
   type         NotificationType
+  /// English sentence (older rows, logs). `params` holds the NotificationMessage each reader's language is built from.
   text         String
+  params       Json?
   tripId       String?          @map("trip_id") @db.Uuid
   postId       String?          @map("post_id") @db.Uuid
   invitationId String?          @map("invitation_id") @db.Uuid

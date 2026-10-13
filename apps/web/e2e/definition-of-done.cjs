@@ -245,13 +245,19 @@ fs.mkdirSync(shots, { recursive: true });
     const problems = [];
     // Visitor (C) on the public pages, and the owner (A) on the planner they can edit: list, map and members.
     const trip = tripUrl.replace(BASE, "");
+    // …and once more in Vietnamese with the dark theme (contrast is re-checked in Atlas Night).
     const runs = [
-      [C, routes],
-      [A, [trip, `${trip}?view=map`, `${trip}?tab=members`]],
+      [C, routes, false],
+      [A, [trip, `${trip}?view=map`, `${trip}?tab=members`], false],
+      [A, [trip, `${trip}?view=map`, "/home", "/explore", "/settings", "/notifications"], true],
     ];
-    for (const [page, list] of runs)
+    for (const [page, list, viDark] of runs)
       for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
         await page.setViewportSize(vp);
+        if (viDark) {
+          await page.context().addCookies([{ name: "triply-locale", value: "vi", url: BASE }]);
+          await page.evaluate(() => localStorage.setItem("triply-theme", "dark"));
+        }
         for (const r of list) {
           await page.goto(`${BASE}${r}`);
           await page.waitForLoadState("networkidle");
@@ -261,6 +267,14 @@ fs.mkdirSync(shots, { recursive: true });
           // No sideways scrolling on phones.
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           if (overflow > 1) problems.push(`${vp.width}px ${r}: page is ${overflow}px wider than the screen`);
+          if (viDark) {
+            const state = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dataset.theme].join("/"));
+            if (state !== "vi/dark") problems.push(`${r}: expected vi/dark, got ${state}`);
+          }
+        }
+        if (viDark) {
+          await page.context().clearCookies({ name: "triply-locale" });
+          await page.evaluate(() => localStorage.removeItem("triply-theme"));
         }
       }
     await A.setViewportSize({ width: 1360, height: 900 });

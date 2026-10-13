@@ -4,7 +4,7 @@
  * - On 401, refreshes the session once and retries (rotating refresh tokens).
  * - Errors carry the API's friendly message — raw backend errors are never shown (spec §40).
  */
-import type { ApiErrorBody } from "@triply/shared";
+import { LOCALE_HEADER, localizeMessage, type ApiErrorBody, type Locale } from "@triply/shared";
 import { placeNameHeader } from "../placeLanguage";
 
 export class ApiError extends Error {
@@ -28,6 +28,13 @@ const FALLBACK: Record<number, string> = {
 
 let refreshing: Promise<boolean> | null = null;
 
+/** Interface language sent with every call (set by the I18nProvider). Place names follow it unless Settings pins another. */
+let uiLocale: Locale = "en";
+export function setRequestLocale(l: Locale) {
+  uiLocale = l;
+}
+export const currentRequestLocale = () => uiLocale;
+
 /** Rotates the session cookies. Shared by REST retries and the realtime socket. */
 export async function refreshSession(): Promise<boolean> {
   refreshing ??= fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include", headers: { "X-Requested-With": "triply" } })
@@ -42,21 +49,22 @@ type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   let res: Response;
-  const lang = placeNameHeader();
+  const lang = placeNameHeader() ?? uiLocale;
   try {
     res = await fetch(`/api/v1${path}`, {
       method,
       credentials: "include",
       headers: {
         Accept: "application/json",
-        ...(lang ? { "Accept-Language": lang } : {}),
+        "Accept-Language": lang,
+        [LOCALE_HEADER]: uiLocale,
         ...(method !== "GET" ? { "X-Requested-With": "triply" } : {}),
         ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
       },
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
     });
   } catch {
-    throw new ApiError(0, "Can't reach TRIPLY right now. Check your connection and try again.");
+    throw new ApiError(0, localizeMessage("Can't reach TRIPLY right now. Check your connection and try again.", uiLocale));
   }
 
   if (res.status === 401 && retry && !path.startsWith("/auth/")) {
@@ -72,7 +80,8 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
     // 5xx messages are hidden (they may be internals), except the API's deliberate "upstream unavailable" answers.
     const shown = res.status < 500 || res.status === 502 || res.status === 503;
     const message = typeof data.message === "string" && shown ? data.message : res.status >= 500 ? "Something went wrong. Please try again." : FALLBACK[res.status] ?? "Something went wrong. Please try again.";
-    throw new ApiError(res.status, message, data.fields);
+    // The API already answers in `uiLocale`; the local fallbacks are translated here.
+    throw new ApiError(res.status, localizeMessage(message, uiLocale), data.fields);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

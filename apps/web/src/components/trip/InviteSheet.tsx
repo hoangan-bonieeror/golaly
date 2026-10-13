@@ -1,8 +1,9 @@
 "use client";
 
-import { ROLE_LABEL, emailSchema, type CreatedInvitation, type TripRole } from "@triply/shared";
+import { emailSchema, type CreatedInvitation, type TripRole } from "@triply/shared";
 import { Check, Copy, Link2, Mail } from "lucide-react";
 import { useState } from "react";
+import { useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction } from "@/lib/api/queries";
 import { Button, Field, Sheet, Tabs, cx, inputCls } from "../ui";
@@ -17,6 +18,8 @@ export function InviteSheet(props: Props) {
 }
 
 function InviteSheetBody({ open, onClose, tripId }: Props) {
+  const t = useT();
+  const tv = t.trips.invite;
   const [mode, setMode] = useState<"email" | "link">("email");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<InvRole>("EDITOR");
@@ -28,7 +31,7 @@ function InviteSheetBody({ open, onClose, tripId }: Props) {
   const sendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsed = emailSchema.safeParse(email);
-    if (!parsed.success) return setError("That email doesn't look right.");
+    if (!parsed.success) return setError(tv.badEmail);
     const inv = await invite.run({ email: parsed.data, role });
     if (!inv) return;
     setMode("link");
@@ -41,18 +44,18 @@ function InviteSheetBody({ open, onClose, tripId }: Props) {
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Invite to trip">
+    <Sheet open={open} onClose={onClose} title={tv.title}>
       <Tabs
         id="invite-tabs"
-        label="Invite by"
+        label={tv.inviteBy}
         value={mode}
         onChange={(m) => {
           setMode(m);
           setLink(null);
         }}
         tabs={[
-          { value: "email", label: (<><Mail className="size-4" /> Email</>) },
-          { value: "link", label: (<><Link2 className="size-4" /> Invite link</>) },
+          { value: "email", label: (<><Mail className="size-4" /> {tv.email}</>) },
+          { value: "link", label: (<><Link2 className="size-4" /> {tv.link}</>) },
         ]}
         className="mb-5"
       />
@@ -61,11 +64,11 @@ function InviteSheetBody({ open, onClose, tripId }: Props) {
 
       {mode === "email" && !link ? (
         <form onSubmit={sendEmail} className="mt-5 space-y-4" noValidate>
-          <Field label="Email address" error={error} hint="They'll get an email, plus an in-app notification if they already use TRIPLY.">
-            <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="friend@example.com" />
+          <Field label={tv.emailLabel} error={error} hint={tv.emailHint}>
+            <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={tv.emailPlaceholder} />
           </Field>
           <Button type="submit" size="lg" className="w-full" disabled={!email || invite.isPending}>
-            Send invite
+            {tv.send}
           </Button>
         </form>
       ) : (
@@ -87,18 +90,18 @@ function InviteSheetBody({ open, onClose, tripId }: Props) {
                   }}
                 >
                   {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? t.common.copied : tv.copy}
                 </Button>
               </div>
               <p className="text-xs text-muted">
                 {mode === "email"
-                  ? `Invite sent. This link only works for ${email}. It expires in 7 days.`
-                  : `Anyone with this link can join as ${ROLE_LABEL[role].toLowerCase()}. It expires in 7 days and you can revoke it anytime in Members.`}
+                  ? tv.sentNote(email)
+                  : tv.linkNote(t.labels.role[role])}
               </p>
             </>
           ) : (
             <Button size="lg" className="w-full" onClick={makeLink} disabled={invite.isPending}>
-              Create invite link
+              {tv.createLink}
             </Button>
           )}
         </div>
@@ -108,12 +111,13 @@ function InviteSheetBody({ open, onClose, tripId }: Props) {
 }
 
 function RolePicker({ role, setRole }: { role: InvRole; setRole: (r: InvRole) => void }) {
+  const t = useT();
   const opts: { value: InvRole; title: string; body: string }[] = [
-    { value: "EDITOR", title: "Editor", body: "Can add, edit, reorder and remove itinerary items." },
-    { value: "VIEWER", title: "Viewer", body: "Can see the trip but not change it." },
+    { value: "EDITOR", title: t.labels.role.EDITOR, body: t.trips.invite.editorBody },
+    { value: "VIEWER", title: t.labels.role.VIEWER, body: t.trips.invite.viewerBody },
   ];
   return (
-    <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Role">
+    <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label={t.trips.invite.role}>
       {opts.map((o) => (
         <button
           key={o.value}

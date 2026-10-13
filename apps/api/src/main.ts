@@ -18,7 +18,7 @@ export async function createApp() {
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
   app.use(localeMiddleware);
-  app.enableCors({ origin: env.WEB_ORIGIN, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With"] });
+  app.enableCors({ origin: env.WEB_ORIGIN, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
   app.setGlobalPrefix("api/v1", { exclude: ["health"] });
   // Local media driver serves files directly; S3/R2 would hand out signed URLs instead.
   app.useStaticAssets(path.resolve(env.MEDIA_DIR), { prefix: "/media/", maxAge: "30d", immutable: true, index: false, dotfiles: "deny" });

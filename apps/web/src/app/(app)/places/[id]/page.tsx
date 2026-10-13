@@ -1,6 +1,6 @@
 "use client";
 
-import type { PlaceView } from "@triply/shared";
+import type { Locale, PlaceView } from "@triply/shared";
 import { ArrowLeft, Bookmark, Clock, ExternalLink, Globe, MapPin, Navigation, Phone, Share2, Star } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -11,14 +11,16 @@ import { PlaceGallery } from "@/components/place/PlacePhotos";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { TripCard } from "@/components/trip/TripCard";
 import { Badge, Button, ErrorState, PageLoader, SectionTitle, cx } from "@/components/ui";
+import { useI18n } from "@/i18n/client";
+import { INTL_LOCALE } from "@/i18n/catalog";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe, usePlace } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
-const languageName = (tag: string) => {
+const languageName = (tag: string, locale: Locale) => {
   try {
-    return new Intl.DisplayNames(["en"], { type: "language" }).of(tag) ?? tag;
+    return new Intl.DisplayNames([INTL_LOCALE[locale]], { type: "language" }).of(tag) ?? tag;
   } catch {
     return tag;
   }
@@ -29,11 +31,13 @@ export default function PlacePage() {
   const q = usePlace(id);
   const me = useMe().data;
   const toast = useToast();
+  const { locale, m: t } = useI18n();
+  const pl = t.explore.place;
   const p = q.data;
   useDocumentTitle(p ? `${p.name}${p.destinationName ? `, ${p.destinationName}` : ""}` : null);
   const save = useAction((on: boolean) => (on ? api.post<PlaceView>(`/places/${id}/save`) : api.delete<PlaceView>(`/places/${id}/save`)), {
     invalidate: [keys.place(id), ["places"]],
-    success: (r) => (r.savedByMe ? "Place saved" : "Removed from saved"),
+    success: (r) => (r.savedByMe ? pl.saved : pl.unsaved),
   });
 
   if (q.isLoading) return <PageLoader />;
@@ -47,20 +51,20 @@ export default function PlacePage() {
       if (navigator.share) await navigator.share({ title: p.name, url });
       else {
         await navigator.clipboard.writeText(url);
-        toast("Link copied");
+        toast(t.common.linkCopied);
       }
     } catch {
       /* share sheet dismissed */
     }
   };
-  const hours = p.openingHours ? formatOpeningHours(p.openingHours) : [];
+  const hours = p.openingHours ? formatOpeningHours(p.openingHours, locale) : [];
   const where = [p.address, p.areaName && p.areaName !== p.destinationName ? p.areaName : null].filter(Boolean).join(", ");
 
   return (
     <div className="space-y-10">
       <div className="space-y-5">
         <Link href={back} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
-          <ArrowLeft className="size-4" aria-hidden /> {p.destinationName ? `Places in ${p.destinationName}` : "Explore places"}
+          <ArrowLeft className="size-4" aria-hidden /> {p.destinationName ? pl.placesIn(p.destinationName) : pl.explorePlaces}
         </Link>
 
         <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -69,12 +73,12 @@ export default function PlacePage() {
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 {p.groupLabel && <Badge tone="primary">{p.groupLabel}</Badge>}
-                {p.status === "CLOSED" && <Badge tone="gold">Permanently closed</Badge>}
+                {p.status === "CLOSED" && <Badge tone="gold">{pl.permanentlyClosed}</Badge>}
               </div>
               <h1 className="font-display text-3xl font-bold leading-tight md:text-4xl">{p.name}</h1>
               {p.localName && (
                 <p className="text-base text-ink-2">
-                  {p.localName} <span className="text-xs text-muted">· local name</span>
+                  {p.localName} <span className="text-xs text-muted">· {pl.localName}</span>
                 </p>
               )}
               <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-2">
@@ -96,7 +100,7 @@ export default function PlacePage() {
                     <span aria-hidden>·</span>
                     <span className="inline-flex items-center gap-1">
                       <Star className="size-4 fill-gold text-gold" aria-hidden />
-                      <span className="sr-only">Rated</span> {p.rating}
+                      <span className="sr-only">{pl.rated}</span> {p.rating}
                     </span>
                   </>
                 )}
@@ -107,17 +111,17 @@ export default function PlacePage() {
             <AddToTripButton place={p} size="lg" />
             {me && (
               <Button variant="secondary" size="lg" aria-pressed={p.savedByMe} onClick={() => save.run(!p.savedByMe)} disabled={save.isPending}>
-                <Bookmark className={cx("size-4", p.savedByMe && "fill-accent text-accent-700")} aria-hidden /> {p.savedByMe ? "Saved" : "Save"}
+                <Bookmark className={cx("size-4", p.savedByMe && "fill-accent text-accent-700")} aria-hidden /> {p.savedByMe ? t.common.saved : t.common.save}
               </Button>
             )}
             <Button variant="secondary" size="lg" onClick={share}>
-              <Share2 className="size-4" aria-hidden /> Share
+              <Share2 className="size-4" aria-hidden /> {t.common.share}
             </Button>
           </div>
         </header>
         {p.status === "CLOSED" && (
           <p className="rounded-2xl bg-gold-50 px-4 py-3 text-sm text-gold-700">
-            Our sources say this place has closed. It stays in the trips that already include it, but it can’t be added again.
+            {pl.closedNotice}
           </p>
         )}
       </div>
@@ -127,16 +131,16 @@ export default function PlacePage() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,480px)]">
         <section aria-labelledby="details" className="space-y-1 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-card">
           <h2 id="details" className="font-display text-[22px] font-semibold">
-            Details
+            {pl.details}
           </h2>
           <dl className="divide-y divide-line">
             {where && (
-              <Row icon={MapPin} label="Address">
+              <Row icon={MapPin} label={pl.address}>
                 {where}
               </Row>
             )}
             {hours.length > 0 && (
-              <Row icon={Clock} label="Opening hours">
+              <Row icon={Clock} label={pl.openingHours}>
                 <ul>
                   {hours.map((h) => (
                     <li key={h}>{h}</li>
@@ -145,42 +149,42 @@ export default function PlacePage() {
               </Row>
             )}
             {p.phone && (
-              <Row icon={Phone} label="Phone">
+              <Row icon={Phone} label={pl.phone}>
                 <a href={`tel:${p.phone}`} className="font-semibold text-primary hover:underline">
                   {p.phone}
                 </a>
               </Row>
             )}
             {p.website && (
-              <Row icon={Globe} label="Website">
+              <Row icon={Globe} label={pl.website}>
                 <a href={p.website} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 break-all font-semibold text-primary hover:underline">
                   {p.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
                   <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-                  <span className="sr-only">(opens in a new tab)</span>
+                  <span className="sr-only">{pl.newTab}</span>
                 </a>
               </Row>
             )}
-            <Row icon={Navigation} label="Getting there">
+            <Row icon={Navigation} label={pl.gettingThere}>
               <a href={directions} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
-                Directions in Google Maps <ExternalLink className="size-3.5" aria-hidden />
-                <span className="sr-only">(opens in a new tab)</span>
+                {pl.directions} <ExternalLink className="size-3.5" aria-hidden />
+                <span className="sr-only">{pl.newTab}</span>
               </a>
             </Row>
           </dl>
           {p.names.length > 0 && (
             <div className="pt-3">
-              <h3 className="text-sm font-semibold text-ink-2">Also known as</h3>
+              <h3 className="text-sm font-semibold text-ink-2">{pl.alsoKnownAs}</h3>
               <ul className="mt-1.5 flex flex-wrap gap-2">
                 {p.names.map((n) => (
                   <li key={n.lang} className="rounded-full bg-sand-2 px-3 py-1 text-sm" lang={n.lang}>
-                    {n.name} <span className="text-xs text-muted">· {languageName(n.lang)}</span>
+                    {n.name} <span className="text-xs text-muted">· {languageName(n.lang, locale)}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
         </section>
-        <PlacesMap places={[p, ...p.nearby]} focusId={p.id} label={`Map of ${p.name} and places nearby`} />
+        <PlacesMap places={[p, ...p.nearby]} focusId={p.id} label={pl.mapLabel(p.name)} />
       </div>
 
       {p.nearby.length > 0 && (
@@ -189,12 +193,12 @@ export default function PlacePage() {
             action={
               p.destinationSlug ? (
                 <Link href={`/explore?tab=places&dest=${p.destinationSlug}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline">
-                  More in {p.destinationName}
+                  {pl.moreIn(p.destinationName ?? "")}
                 </Link>
               ) : undefined
             }
           >
-            Nearby
+            {pl.nearby}
           </SectionTitle>
           <ol className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {p.nearby.map((n, i) => (
@@ -209,17 +213,17 @@ export default function PlacePage() {
       {p.inTrips.length > 0 && (
         <section>
           <SectionTitle>
-            In {p.tripCount} traveler{p.tripCount === 1 ? "’s trip" : "s’ trips"}
+            {pl.inTrips(p.tripCount)}
           </SectionTitle>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {p.inTrips.map((t) => (
-              <TripCard key={t.id} trip={t} compact />
+            {p.inTrips.map((trip) => (
+              <TripCard key={trip.id} trip={trip} compact />
             ))}
           </div>
         </section>
       )}
 
-      {p.attribution.length > 0 && <p className="text-xs text-muted">Place data: {p.attribution.join(" · ")}</p>}
+      {p.attribution.length > 0 && <p className="text-xs text-muted">{pl.placeData(p.attribution.join(" · "))}</p>}
     </div>
   );
 }

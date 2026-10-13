@@ -9,10 +9,13 @@ import { PostCard } from "@/components/social/PostCard";
 import { Cover } from "@/components/trip/Cover";
 import { TripCard } from "@/components/trip/TripCard";
 import { ErrorState, PageLoader, SectionTitle } from "@/components/ui";
+import { useT } from "@/i18n/client";
 import { useDestination } from "@/lib/api/queries";
 
 export default function DestinationPage() {
   const { slug } = useParams<{ slug: string }>();
+  const t = useT();
+  const d = t.explore.destination;
   const q = useDestination(slug);
   useDocumentTitle(q.data ? `${q.data.destination.name}, ${q.data.destination.country}` : null);
   if (q.isLoading) return <PageLoader />;
@@ -23,7 +26,7 @@ export default function DestinationPage() {
     <div className="space-y-10">
       <Cover palette={dest.palette} seed={dest.id} className="-mx-4 aspect-[16/9] md:mx-0 md:aspect-[21/8]" rounded>
         <div className="flex h-full flex-col justify-between p-5 text-white md:p-8">
-          <Link href="/explore" className="flex size-10 items-center justify-center rounded-full bg-black/30 backdrop-blur" aria-label="Back">
+          <Link href="/explore" className="flex size-10 items-center justify-center rounded-full bg-black/30 backdrop-blur" aria-label={t.common.back}>
             <ArrowLeft className="size-5" />
           </Link>
           <div>
@@ -35,15 +38,15 @@ export default function DestinationPage() {
       </Cover>
 
       <section>
-        <SectionTitle>Popular trips</SectionTitle>
+        <SectionTitle>{d.popularTrips}</SectionTitle>
         {popularTrips.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {popularTrips.map((t) => (
-              <TripCard key={t.id} trip={t} />
+            {popularTrips.map((trip) => (
+              <TripCard key={trip.id} trip={trip} />
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted">No public trips here yet — be the first to share one.</p>
+          <p className="text-sm text-muted">{d.noTrips}</p>
         )}
       </section>
 
@@ -51,7 +54,7 @@ export default function DestinationPage() {
 
       {posts.length > 0 && (
         <section>
-          <SectionTitle>Recent travel posts</SectionTitle>
+          <SectionTitle>{d.posts}</SectionTitle>
           <div className="grid gap-6 md:grid-cols-2">
             {posts.map((p) => (
               <PostCard key={p.id} post={p} />
@@ -62,10 +65,10 @@ export default function DestinationPage() {
 
       {remixable.length > 0 && (
         <section>
-          <SectionTitle>Suggested itineraries to remix</SectionTitle>
+          <SectionTitle>{d.remixable}</SectionTitle>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {remixable.map((t) => (
-              <TripCard key={t.id} trip={t} compact />
+            {remixable.map((trip) => (
+              <TripCard key={trip.id} trip={trip} compact />
             ))}
           </div>
         </section>

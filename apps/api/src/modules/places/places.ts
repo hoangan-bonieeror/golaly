@@ -1,3 +1,4 @@
+import { requestLocale } from "../../common/locale";
 import { Controller, Delete, Get, Injectable, Module, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import {
   normalizeSearch,
@@ -83,12 +84,16 @@ export class PlacesService {
 
   /** The two-level taxonomy (groups → categories). Changes only when the catalog pipeline runs, so it's cached briefly. */
   async categories(): Promise<CategoryView[]> {
-    if (this.categoryCache && Date.now() - this.categoryCache.at < CACHE_MS) return this.categoryCache.tree;
+    // The cache holds both labels; `label` is picked per request, in the interface language.
+    const vi = requestLocale() === "vi";
+    const localise = (tree: CategoryView[]): CategoryView[] =>
+      vi ? tree.map((g) => ({ ...g, label: g.labelVi, children: g.children?.map((c) => ({ ...c, label: c.labelVi })) })) : tree;
+    if (this.categoryCache && Date.now() - this.categoryCache.at < CACHE_MS) return localise(this.categoryCache.tree);
     const rows = await this.prisma.category.findMany({ orderBy: [{ sortOrder: "asc" }, { key: "asc" }] });
     const view = (c: (typeof rows)[number]): CategoryView => ({ key: c.key, label: c.labelEn, labelVi: c.labelVi, itemType: c.itemType });
     const tree = rows.filter((c) => !c.parentId).map((g) => ({ ...view(g), children: rows.filter((c) => c.parentId === g.id).map(view) }));
     this.categoryCache = { at: Date.now(), tree };
-    return tree;
+    return localise(tree);
   }
 
   /** Countries, provinces and cities with their place counts (rolled up to parents). Cached briefly like categories. */
@@ -169,7 +174,7 @@ export class PlacesService {
         radiusKm = q.radius ?? RADIUS.destination;
       }
     } else if (q.near) {
-      center = { lat: q.near[0], lng: q.near[1], label: "your location" };
+      center = { lat: q.near[0], lng: q.near[1], label: requestLocale() === "vi" ? "vị trí của bạn" : "your location" };
       radiusKm = q.radius ?? RADIUS.near;
     }
     // An area's centre only places the map; distances are measured from destinations and the device.
@@ -312,7 +317,7 @@ export class PlacesService {
       include: {
         ...placeInclude(viewerId),
         destination: { select: { name: true, slug: true } },
-        categoryRef: { select: { key: true, labelEn: true, parent: { select: { key: true, labelEn: true } } } },
+        categoryRef: { select: { key: true, labelEn: true, labelVi: true, parent: { select: { key: true, labelEn: true, labelVi: true } } } },
         names: { where: { kind: "primary" }, select: { lang: true, name: true }, orderBy: { lang: "asc" } },
         sources: { where: { provider: { not: "manual" } }, select: { attribution: true }, distinct: ["attribution"] },
       },
@@ -347,7 +352,7 @@ export class PlacesService {
       website: p.website,
       openingHours: p.openingHours,
       groupKey: p.categoryRef?.parent?.key ?? p.categoryRef?.key ?? null,
-      groupLabel: p.categoryRef?.parent?.labelEn ?? null,
+      groupLabel: (requestLocale() === "vi" ? p.categoryRef?.parent?.labelVi : p.categoryRef?.parent?.labelEn) ?? null,
       destinationSlug: p.destination?.slug ?? null,
       areaName: p.area?.name ?? null,
       names: p.names.filter((n) => n.name !== p.name && n.name !== base.name),

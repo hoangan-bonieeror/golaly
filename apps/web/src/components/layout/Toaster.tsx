@@ -14,10 +14,10 @@ export function Toaster() {
           role={t.tone === "error" ? "alert" : "status"}
           className={cx(
             "animate-toast pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium shadow-pop",
-            t.tone === "error" ? "bg-[#3b1d17] text-white" : "bg-ink text-white",
+            t.tone === "error" ? "bg-[#3b1d17] text-white" : "bg-ink text-on-ink",
           )}
         >
-          {t.tone === "error" ? <AlertCircle className="size-4 shrink-0 text-accent" /> : <CheckCircle2 className="size-4 shrink-0 text-success" />}
+          {t.tone === "error" ? <AlertCircle className="size-4 shrink-0 text-accent" /> : <CheckCircle2 className="size-4 shrink-0 text-success dark:text-[#1f5e52]" />}
           {t.text}
         </div>
       ))}

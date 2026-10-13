@@ -194,7 +194,7 @@ Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense sp
 
 API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-The visual language ("Atlas": map-first, paper + jade + vermilion, a colour per day, mono for times and distances) is specified in **[design-system/triply/MASTER.md](design-system/triply/MASTER.md)**.
+The visual language ("Atlas": map-first, paper + jade + vermilion, a colour per day, mono for times and distances, with an "Atlas Night" dark mode) is specified in **[design-system/triply/MASTER.md](design-system/triply/MASTER.md)**. The interface is in **English and Vietnamese** — how languages are chosen and how to add copy: **[apps/web/src/i18n/README.md](apps/web/src/i18n/README.md)**.
 
 ---
 

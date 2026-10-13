@@ -1,8 +1,9 @@
 import { Controller, Get, Global, Injectable, Module, Param, ParseUUIDPipe, Patch, Query } from "@nestjs/common";
-import { pageQuerySchema, type NotificationType, type NotificationView, type Paged } from "@triply/shared";
+import { notificationText, pageQuerySchema, type NotificationMessage, type NotificationType, type NotificationView, type Paged } from "@triply/shared";
 import { ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { notificationInclude, toNotificationView } from "../../common/presenters";
+import type { Prisma } from "../../generated/prisma/client";
 import { afterCommit, PrismaService, type Tx } from "../../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime";
 
@@ -21,11 +22,13 @@ export class NotificationsService {
     recipients: string[],
     actorId: string | null,
     type: NotificationType,
-    text: string,
+    message: NotificationMessage,
     refs: { tripId?: string; postId?: string; invitationId?: string } = {},
     tx: Tx = this.prisma,
   ) {
     const unique = [...new Set(recipients)].filter((r) => r !== actorId);
+    const text = notificationText(message, "en");
+    const params = message as unknown as Prisma.InputJsonObject;
     const created: { userId: string; view: NotificationView }[] = [];
     for (const userId of unique) {
       let row;
@@ -34,9 +37,9 @@ export class NotificationsService {
           where: { userId, actorId, type, tripId: refs.tripId, readAt: null, createdAt: { gte: new Date(Date.now() - COALESCE_MS) } },
         });
         if (recent)
-          row = await tx.notification.update({ where: { id: recent.id }, data: { text, createdAt: new Date() }, include: notificationInclude });
+          row = await tx.notification.update({ where: { id: recent.id }, data: { text, params, createdAt: new Date() }, include: notificationInclude });
       }
-      row ??= await tx.notification.create({ data: { userId, actorId, type, text, ...refs }, include: notificationInclude });
+      row ??= await tx.notification.create({ data: { userId, actorId, type, text, params, ...refs }, include: notificationInclude });
       created.push({ userId, view: toNotificationView(row) });
     }
     // Push only after the surrounding transaction commits (never for rows that were rolled back).

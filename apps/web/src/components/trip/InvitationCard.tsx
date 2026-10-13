@@ -1,30 +1,33 @@
 "use client";
 
-import { ROLE_LABEL } from "@triply/shared";
 import { CalendarX2, Link2Off, MailOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import { useAction, useInvitation, useMe } from "@/lib/api/queries";
-import { Avatar, Button, EmptyState, ErrorState, PageLoader, formatDateRange } from "../ui";
+import { useFormat, useT } from "@/i18n/client";
+import { Avatar, Button, EmptyState, ErrorState, PageLoader } from "../ui";
 import { Cover } from "./Cover";
 
 /** Accept / decline an invitation, by link token or (from a notification) by id. */
 export function InvitationCard({ by }: { by: { token: string } | { id: string } }) {
   const me = useMe();
   const router = useRouter();
+  const t = useT();
+  const f = useFormat();
+  const ti = t.trips.invitation;
   const q = useInvitation(by);
   const base = "token" in by ? `/invitations/${encodeURIComponent(by.token)}` : `/invitations/id/${by.id}`;
   const here = "token" in by ? `/invite/${by.token}` : `/invitations/${by.id}`;
   const accept = useAction(() => api.post<{ tripId: string }>(`${base}/accept`), { invalidate: [["trips"], ["notifications"]] });
-  const reject = useAction(() => api.post(`${base}/reject`), { invalidate: [["notifications"]], success: "Invitation declined" });
+  const reject = useAction(() => api.post(`${base}/reject`), { invalidate: [["notifications"]], success: ti.declined });
 
   if (q.isLoading || me.isLoading) return <PageLoader />;
   if (q.isError) return <ErrorState error={q.error} />;
   const inv = q.data!;
   if (inv.status === "invalid" || inv.status === "revoked")
-    return <EmptyState icon={<Link2Off className="size-7" />} title="This invitation isn't valid anymore" body="Ask the trip owner to send you a new link." action={<Button href="/home">Go home</Button>} />;
+    return <EmptyState icon={<Link2Off className="size-7" />} title={ti.invalidTitle} body={ti.invalidBody} action={<Button href="/home">{t.common.errors.goHome}</Button>} />;
   if (inv.status === "expired")
-    return <EmptyState icon={<CalendarX2 className="size-7" />} title="This invitation has expired." body="Invites last 7 days. Ask the owner for a fresh one." action={<Button href="/home">Go home</Button>} />;
+    return <EmptyState icon={<CalendarX2 className="size-7" />} title={ti.expiredTitle} body={ti.expiredBody} action={<Button href="/home">{t.common.errors.goHome}</Button>} />;
   const trip = inv.trip!;
 
   return (
@@ -37,39 +40,41 @@ export function InvitationCard({ by }: { by: { token: string } | { id: string } 
           <div className="flex items-center gap-3">
             <Avatar user={inv.invitedBy} size={40} />
             <p className="text-[15px]">
-              <b>{inv.invitedBy?.displayName}</b> invited you to join as <b>{ROLE_LABEL[inv.role!]}</b>
+              {ti.invited.before && `${ti.invited.before} `}
+              <b>{inv.invitedBy?.displayName}</b> {ti.invited.middle} <b>{t.labels.role[inv.role!]}</b>
+              {ti.invited.after && ` ${ti.invited.after}`}
             </p>
           </div>
           <dl className="space-y-1 text-sm text-ink-2">
             {trip.route && <div>{trip.route}</div>}
-            <div>{formatDateRange(trip.startDate ?? undefined, trip.endDate ?? undefined)}</div>
+            <div>{f.dateRange(trip.startDate, trip.endDate)}</div>
             <div className="flex items-center gap-2 pt-1">
               <div className="flex -space-x-2">
                 {trip.members.slice(0, 5).map((m) => (
                   <Avatar key={m.id} user={m} size={24} ring />
                 ))}
               </div>
-              {trip.members.length} going
+              {ti.going(trip.members.length)}
             </div>
           </dl>
           <p className="rounded-xl bg-sand-2 px-3 py-2 text-xs text-ink-2">
-            {inv.role === "EDITOR" ? "Editors can add, edit and reorder itinerary items." : "Viewers can see the plan but can't change it."}
+            {inv.role === "EDITOR" ? ti.editorNote : ti.viewerNote}
           </p>
           {!me.data ? (
             <div className="grid gap-2">
               <Button href={`/login?next=${encodeURIComponent(here)}`} size="lg" className="w-full">
-                Log in to accept
+                {ti.logInToAccept}
               </Button>
               <Button href="/register" variant="secondary" size="lg" className="w-full">
-                Create an account
+                {ti.createAccount}
               </Button>
             </div>
           ) : inv.alreadyMember ? (
             <Button href={`/trips/${trip.id}`} size="lg" className="w-full">
-              You&apos;re already on this trip — open it
+              {ti.alreadyMember}
             </Button>
           ) : inv.status === "accepted" ? (
-            <p className="text-center text-sm text-muted">This invitation has already been used.</p>
+            <p className="text-center text-sm text-muted">{ti.used}</p>
           ) : (
             <div className="flex gap-3">
               <Button
@@ -80,7 +85,7 @@ export function InvitationCard({ by }: { by: { token: string } | { id: string } 
                   if (await reject.run(undefined)) router.push("/home");
                 }}
               >
-                Decline
+                {ti.decline}
               </Button>
               <Button
                 size="lg"
@@ -91,7 +96,7 @@ export function InvitationCard({ by }: { by: { token: string } | { id: string } 
                   if (r) router.push(`/trips/${r.tripId}`);
                 }}
               >
-                <MailOpen className="size-4" /> Accept & open trip
+                <MailOpen className="size-4" /> {ti.accept}
               </Button>
             </div>
           )}

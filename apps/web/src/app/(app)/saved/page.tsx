@@ -6,35 +6,33 @@ import { PlaceRow } from "@/components/social/PlaceRow";
 import { PostCard } from "@/components/social/PostCard";
 import { TripCard } from "@/components/trip/TripCard";
 import { Button, EmptyState, LoadMore, Skeleton, TabPanel, Tabs } from "@/components/ui";
+import { useT } from "@/i18n/client";
 import { useSavedPlaces, useSavedPosts, useSavedTrips } from "@/lib/api/queries";
 
 type Tab = "trips" | "posts" | "places";
 
 export default function SavedPage() {
   const [tab, setTab] = useState<Tab>("trips");
+  const t = useT();
   const trips = useSavedTrips();
   const posts = useSavedPosts();
   const places = useSavedPlaces();
   const count = (items: unknown[] | undefined, more?: boolean) => (items ? `${items.length}${more ? "+" : ""}` : "…");
   const current = { trips: { isLoading: trips.isLoading, items: trips.items }, posts: { isLoading: posts.isLoading, items: posts.items }, places: { isLoading: places.isLoading, items: places.data } }[tab];
-  const empty = {
-    trips: "Save trips you want to explore later.",
-    posts: "Save posts that inspire your next trip.",
-    places: "Save places you don't want to forget.",
-  }[tab];
+  const empty = t.social.saved.empty[tab];
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-3xl font-semibold md:text-4xl">Saved</h1>
+      <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.social.saved.title}</h1>
       <Tabs
         id="saved-tabs"
-        label="Saved items"
+        label={t.social.saved.tabs}
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "trips", label: `Trips · ${count(trips.items, trips.hasNextPage)}` },
-          { value: "posts", label: `Posts · ${count(posts.items, posts.hasNextPage)}` },
-          { value: "places", label: `Places · ${count(places.data)}` },
+          { value: "trips", label: t.social.saved.trips(count(trips.items, trips.hasNextPage)) },
+          { value: "posts", label: t.social.saved.posts(count(posts.items, posts.hasNextPage)) },
+          { value: "places", label: t.social.saved.places(count(places.data)) },
         ]}
       />
       <TabPanel tabsId="saved-tabs" value={tab} className="space-y-6">
@@ -42,8 +40,8 @@ export default function SavedPage() {
       {tab === "trips" && !!trips.items?.length && (
         <>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.items.map((t) => (
-              <TripCard key={t.id} trip={t} level="h2" />
+            {trips.items.map((trip) => (
+              <TripCard key={trip.id} trip={trip} level="h2" />
             ))}
           </div>
           <LoadMore hasMore={trips.hasNextPage} loading={trips.isFetchingNextPage} onClick={() => trips.fetchNextPage()} />
@@ -66,7 +64,7 @@ export default function SavedPage() {
           ))}
         </div>
       )}
-      {current.items && current.items.length === 0 && <EmptyState icon={<Bookmark className="size-7" />} title={empty} action={<Button href="/explore">Explore</Button>} />}
+      {current.items && current.items.length === 0 && <EmptyState icon={<Bookmark className="size-7" />} title={empty} action={<Button href="/explore">{t.social.saved.explore}</Button>} />}
       </TabPanel>
     </div>
   );

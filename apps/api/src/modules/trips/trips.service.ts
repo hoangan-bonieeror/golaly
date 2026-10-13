@@ -294,7 +294,7 @@ export class TripsService {
         });
       return r.count > 0;
     });
-    if (on && changed) await this.notifications.notify([trip.ownerId], viewerId, "TRIP_SAVED", `saved your trip ${trip.title}`, { tripId });
+    if (on && changed) await this.notifications.notify([trip.ownerId], viewerId, "TRIP_SAVED", { k: "trip_saved", trip: trip.title }, { tripId });
     return this.summary(tripId, viewerId);
   }
 
@@ -371,7 +371,7 @@ export class TripsService {
         where: { id: source.id },
         data: { forkCount: { increment: 1 }, updatedAt: source.updatedAt },
       });
-      await this.notifications.notify([src.ownerId], viewerId, "TRIP_FORKED", `remixed your trip ${source.title}`, { tripId: source.id }, tx);
+      await this.notifications.notify([src.ownerId], viewerId, "TRIP_FORKED", { k: "trip_forked", trip: source.title }, { tripId: source.id }, tx);
       return created;
     });
     return this.summary(fork.id, viewerId);

@@ -1,11 +1,12 @@
 "use client";
 
-import { registerSchema } from "@triply/shared";
+import { localizeMessage, registerSchema } from "@triply/shared";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button, Field, inputCls } from "@/components/ui";
+import { useI18n } from "@/i18n/client";
 import { ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
 import { useSession } from "@/lib/session";
@@ -15,6 +16,7 @@ export default function Register() {
   const { register } = useSession();
   const toast = useToast();
   const router = useRouter();
+  const { locale, m: t } = useI18n();
   const [form, setForm] = useState({ email: "", password: "", username: "" });
   const [touched, setTouched] = useState(false);
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
@@ -29,7 +31,7 @@ export default function Register() {
   // Same Zod schema the API enforces.
   const parsed = registerSchema.safeParse(form);
   const fieldErrors: Record<string, string> = {};
-  if (!parsed.success) for (const i of parsed.error.issues) fieldErrors[String(i.path[0])] ??= i.message;
+  if (!parsed.success) for (const i of parsed.error.issues) fieldErrors[String(i.path[0])] ??= localizeMessage(i.message, locale);
   const err = (k: string) => (touched ? fieldErrors[k] : undefined) ?? serverErrors[k];
 
   const submit = async (e: React.FormEvent) => {
@@ -41,13 +43,13 @@ export default function Register() {
     setServerErrors({});
     try {
       await register(parsed.data);
-      toast("Account created");
+      toast(t.auth.register.created);
       router.push("/onboarding");
     } catch (e) {
       if (e instanceof ApiError) {
         const key = /username/i.test(e.message) ? "username" : /email/i.test(e.message) ? "email" : "password";
         setServerErrors(e.fields ?? { [key]: e.message });
-      } else toast("Something went wrong. Please try again.", "error");
+      } else toast(t.common.errors.generic, "error");
       submitting.current = false;
     } finally {
       setBusy(false);
@@ -62,26 +64,26 @@ export default function Register() {
   return (
     <form onSubmit={submit} className="animate-rise space-y-5" noValidate>
       <div>
-        <h1 className="font-display text-3xl font-semibold">Create your account</h1>
-        <p className="mt-1 text-sm text-muted">It takes less than a minute.</p>
+        <h1 className="font-display text-3xl font-semibold">{t.auth.register.title}</h1>
+        <p className="mt-1 text-sm text-muted">{t.auth.register.subtitle}</p>
       </div>
-      <Field label="Email" error={err("email")}>
-        <input className={inputCls} type="email" autoComplete="email" value={form.email} onChange={set("email")} placeholder="you@example.com" />
+      <Field label={t.auth.email} error={err("email")}>
+        <input className={inputCls} type="email" autoComplete="email" value={form.email} onChange={set("email")} placeholder={t.auth.register.emailPlaceholder} />
       </Field>
-      <Field label="Username" error={err("username")} hint="This is how friends find you.">
-        <input className={inputCls} autoComplete="username" value={form.username} onChange={set("username")} placeholder="an.nguyen" />
+      <Field label={t.auth.username} error={err("username")} hint={t.auth.register.usernameHint}>
+        <input className={inputCls} autoComplete="username" value={form.username} onChange={set("username")} placeholder={t.auth.register.usernamePlaceholder} />
       </Field>
-      <Field label="Password" error={err("password")} hint="At least 8 characters.">
+      <Field label={t.auth.password} error={err("password")} hint={t.auth.passwordHint}>
         <input className={inputCls} type="password" autoComplete="new-password" value={form.password} onChange={set("password")} />
       </Field>
       <Button size="lg" className="w-full" type="submit" disabled={busy}>
-        {busy ? "Creating…" : "Create account"}
+        {busy ? t.auth.register.creating : t.auth.register.submit}
       </Button>
       <GoogleButton />
       <p className="text-center text-sm text-muted">
-        Already have an account?{" "}
+        {t.auth.register.haveAccount}{" "}
         <Link href="/login" className="inline-block py-2.5 font-semibold text-primary hover:underline">
-          Log in
+          {t.common.logIn}
         </Link>
       </p>
     </form>

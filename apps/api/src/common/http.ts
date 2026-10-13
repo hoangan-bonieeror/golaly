@@ -8,7 +8,8 @@ import {
   PipeTransform,
   BadRequestException,
 } from "@nestjs/common";
-import type { ApiErrorBody } from "@triply/shared";
+import { localizeMessage, type ApiErrorBody } from "@triply/shared";
+import { requestLocale } from "./locale";
 import type { Response } from "express";
 import { ZodError, type ZodType } from "zod";
 
@@ -101,6 +102,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     } else {
       this.log.error("Unhandled error", exception instanceof Error ? exception.stack : String(exception));
+    }
+    // Messages are written in English where they're thrown; the client gets them in its interface language.
+    const locale = requestLocale();
+    if (locale !== "en") {
+      body = {
+        ...body,
+        message: localizeMessage(body.message, locale),
+        ...(body.fields ? { fields: Object.fromEntries(Object.entries(body.fields).map(([k, v]) => [k, localizeMessage(v, locale)])) } : {}),
+      };
     }
     res.status(status).json(body);
   }

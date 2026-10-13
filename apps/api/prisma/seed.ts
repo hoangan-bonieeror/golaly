@@ -7,8 +7,9 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "@node-rs/argon2";
 import { createHash, randomBytes } from "node:crypto";
-import { PrismaClient, type ItemType, type NotificationType } from "../src/generated/prisma/client";
+import { PrismaClient, type ItemType, type NotificationType, type Prisma } from "../src/generated/prisma/client";
 import { createSeed } from "./seed-data/data";
+import { notificationText } from "@triply/shared";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -176,7 +177,8 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
       userId: n.userId,
       actorId: n.actorId,
       type: n.type as NotificationType,
-      text: n.text,
+      text: notificationText(n.message, "en"),
+      params: n.message as unknown as Prisma.InputJsonObject,
       tripId: n.tripId ?? null,
       postId: n.postId ?? null,
       invitationId: n.type === "TRIP_INVITE" ? (db.invitations.find((i) => i.tripId === n.tripId)?.id ?? null) : null,

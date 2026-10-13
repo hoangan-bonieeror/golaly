@@ -1,12 +1,13 @@
 "use client";
 
-import { ITEM_TYPE_LABEL, type ItemView, type TripDetail } from "@triply/shared";
+import type { ItemView, TripDetail } from "@triply/shared";
 import { ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
-import { cx, timeAgo } from "../ui";
+import { useFormat, useI18n, useT } from "@/i18n/client";
+import { cx } from "../ui";
 import type { DayFilter } from "../trip/DayBar";
 import { ItemTypeIcon } from "./ItemTypeIcon";
 
@@ -31,6 +32,9 @@ export function Itinerary({
   onEdit?: (item: ItemView) => void;
 }) {
   const me = useMe().data;
+  const { m: t, locale } = useI18n();
+  const f = useFormat();
+  const ti = t.trips.itinerary;
   const days = day === "all" ? trip.days : trip.days.filter((d) => d.dayNumber === day);
   const may = (a: string) => trip.permissions.includes(a as never);
   const canEdit = may("itinerary.edit");
@@ -40,9 +44,9 @@ export function Itinerary({
 
   const invalidate = [keys.trip(trip.id), ["trips"]];
   const reorder = useAction((a: { id: string; dayId: string; index: number }) => api.post(`/items/${a.id}/reorder`, { dayId: a.dayId, index: a.index }), { invalidate });
-  const duplicate = useAction((id: string) => api.post(`/items/${id}/duplicate`), { invalidate, success: "Item duplicated" });
-  const remove = useAction((id: string) => api.delete(`/items/${id}`), { invalidate, success: "Item removed" });
-  const addDay = useAction(() => api.post(`/trips/${trip.id}/days`), { invalidate, success: "Day added" });
+  const duplicate = useAction((id: string) => api.post(`/items/${id}/duplicate`), { invalidate, success: ti.duplicated });
+  const remove = useAction((id: string) => api.delete(`/items/${id}`), { invalidate, success: ti.removed });
+  const addDay = useAction(() => api.post(`/trips/${trip.id}/days`), { invalidate, success: ti.dayAdded });
 
   const drop = (dayId: string, index: number) => {
     if (dragId) void reorder.run({ id: dragId, dayId, index });
@@ -64,15 +68,15 @@ export function Itinerary({
               <h2 id={`day-${d.id}`} className="flex min-w-0 items-baseline gap-2 font-display text-xl font-bold">
                 <span aria-hidden className="size-2.5 shrink-0 translate-y-[-2px] self-center rounded-full" style={{ background: color }} />
                 <span className="truncate">
-                  Day {d.dayNumber}
-                  {d.date && <span className="font-semibold text-ink-2"> · {new Date(d.date + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>}
+                  {t.trips.day(d.dayNumber)}
+                  {d.date && <span className="font-semibold text-ink-2"> · {f.day(d.date, { weekday: "short", day: "numeric", month: "short" })}</span>}
                   {d.title && <span className="font-semibold text-ink-2"> · {d.title}</span>}
                 </span>
               </h2>
               {stats.stops > 0 && (
                 <span className="shrink-0 font-mono text-xs text-muted">
-                  {stats.stops} {stats.stops === 1 ? "stop" : "stops"}
-                  {stats.km > 0 && ` · ${formatKm(stats.km)}`}
+                  {t.format.stops(stats.stops)}
+                  {stats.km > 0 && ` · ${formatKm(stats.km, locale)}`}
                 </span>
               )}
             </header>
@@ -89,7 +93,7 @@ export function Itinerary({
             >
               {items.length === 0 && (
                 <li className={cx("rounded-[14px] border border-dashed border-line px-4 py-5 text-center text-sm text-muted", overKey === `${d.id}:0` && "border-primary bg-primary-50")}>
-                  Nothing planned yet.
+                  {ti.nothingPlanned}
                 </li>
               )}
               {items.map((it, idx) => {
@@ -98,7 +102,7 @@ export function Itinerary({
                 const leg = legs.get(it.id);
                 const editor = it.updatedBy && it.updatedBy.id !== me?.id ? it.updatedBy : null;
                 const selected = selectedId === it.id;
-                const meta = [place ? place.categoryLabel || ITEM_TYPE_LABEL[it.type] : it.type === "NOTE" ? "Note" : `${ITEM_TYPE_LABEL[it.type]} · custom`, place && place.name !== it.title ? place.name : null, it.endTime ? `until ${it.endTime}` : null].filter(Boolean).join(" · ");
+                const meta = [place ? place.categoryLabel || t.labels.itemType[it.type] : it.type === "NOTE" ? ti.note : ti.custom(t.labels.itemType[it.type]), place && place.name !== it.title ? place.name : null, it.endTime ? ti.until(it.endTime) : null].filter(Boolean).join(" · ");
                 return (
                   <li
                     key={it.id}
@@ -117,9 +121,9 @@ export function Itinerary({
                     className={cx("group relative", dragId === it.id && "opacity-40")}
                   >
                     {idx > 0 && (
-                      <div className="ml-[26px] border-l-2 border-dashed border-line py-1.5 pl-[14px] font-mono text-xs text-muted sm:ml-[62px]" title={leg ? "Estimated from straight-line distance" : undefined}>
-                        {leg ? legLabel(leg) : <span aria-hidden>&nbsp;</span>}
-                        {leg && <span className="sr-only"> (estimate)</span>}
+                      <div className="ml-[26px] border-l-2 border-dashed border-line py-1.5 pl-[14px] font-mono text-xs text-muted sm:ml-[62px]" title={leg ? ti.legHint : undefined}>
+                        {leg ? legLabel(leg, t, locale) : <span aria-hidden>&nbsp;</span>}
+                        {leg && <span className="sr-only"> {ti.estimate}</span>}
                       </div>
                     )}
                     {overKey === `${d.id}:${idx}` && dragId !== it.id && <span className="absolute left-0 right-0 top-0 h-0.5 rounded bg-primary sm:left-[62px]" />}
@@ -135,7 +139,7 @@ export function Itinerary({
                         <div className="flex items-center gap-3">
                           {n !== null ? (
                             <span className="flex size-[30px] shrink-0 items-center justify-center rounded-full font-mono text-[13px] font-semibold text-white" style={{ background: color }}>
-                              <span className="sr-only">Stop </span>
+                              <span className="sr-only">{ti.stop} </span>
                               {n}
                             </span>
                           ) : (
@@ -149,7 +153,7 @@ export function Itinerary({
                                 onSelect?.(it);
                               }}
                               className="text-left font-semibold leading-snug hover:underline"
-                              aria-label={place ? `Show ${it.title} on map` : undefined}
+                              aria-label={place ? ti.showOnMap(it.title) : undefined}
                               aria-pressed={place ? selected : undefined}
                             >
                               {it.title}
@@ -174,7 +178,7 @@ export function Itinerary({
                         {it.notes && <p className={cx("mt-2 whitespace-pre-line border-l-2 pl-2.5 text-[13px]", selected ? "border-primary font-semibold text-primary" : "border-line text-ink-2")}>{it.notes}</p>}
                         {editor && it.updatedAt && (
                           <p className="mt-1.5 text-[11px] text-muted">
-                            Edited by {editor.displayName} · {timeAgo(it.updatedAt)}
+                            {ti.editedBy(editor.displayName, f.timeAgo(it.updatedAt))}
                           </p>
                         )}
                       </div>
@@ -188,9 +192,9 @@ export function Itinerary({
               <button
                 type="button"
                 onClick={() => onAdd?.(d.id)}
-                className="mt-4 flex h-11 w-full items-center gap-2 rounded-xl border border-dashed border-[#b9ad99] px-3.5 text-left text-sm font-semibold text-primary hover:border-primary hover:bg-primary-50/60 sm:ml-[62px] sm:w-[calc(100%-62px)]"
+                className="mt-4 flex h-11 w-full items-center gap-2 rounded-xl border border-dashed border-line-strong px-3.5 text-left text-sm font-semibold text-primary hover:border-primary hover:bg-primary-50/60 sm:ml-[62px] sm:w-[calc(100%-62px)]"
               >
-                <Plus className="size-4 shrink-0" aria-hidden /> Add a place to Day {d.dayNumber}
+                <Plus className="size-4 shrink-0" aria-hidden /> {ti.addPlaceToDay(d.dayNumber)}
               </button>
             )}
           </section>
@@ -204,7 +208,7 @@ export function Itinerary({
           onClick={() => addDay.run(undefined)}
           className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sand-2 text-sm font-semibold text-ink-2 hover:bg-line"
         >
-          <CalendarPlus className="size-4" /> Add another day
+          <CalendarPlus className="size-4" /> {ti.addDay}
         </button>
       )}
     </div>
@@ -226,6 +230,7 @@ function ItemMenu({
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -280,7 +285,7 @@ function ItemMenu({
     <div ref={ref} className="relative -mr-1.5 -mt-1">
       <button
         ref={button}
-        aria-label="Item actions"
+        aria-label={t.trips.itinerary.actions}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -299,13 +304,13 @@ function ItemMenu({
         <MoreHorizontal className="size-4" />
       </button>
       {open && (
-        <div id={menuId} role="menu" aria-label="Item actions" onKeyDown={onMenuKey} className="animate-rise absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border border-line bg-surface p-1 shadow-pop">
-          {item(<Pencil className="size-4" />, "Edit", onEdit)}
-          {item(<Copy className="size-4" />, "Duplicate", onDuplicate)}
-          {item(<ArrowUp className="size-4" />, "Move up", () => onMove(-1), false, first)}
-          {item(<ArrowDown className="size-4" />, "Move down", () => onMove(1), false, last)}
+        <div id={menuId} role="menu" aria-label={t.trips.itinerary.actions} onKeyDown={onMenuKey} className="animate-rise absolute right-0 top-full z-20 mt-1 w-48 rounded-xl border border-line bg-surface p-1 shadow-pop">
+          {item(<Pencil className="size-4" />, t.common.edit, onEdit)}
+          {item(<Copy className="size-4" />, t.trips.itinerary.duplicate, onDuplicate)}
+          {item(<ArrowUp className="size-4" />, t.trips.itinerary.moveUp, () => onMove(-1), false, first)}
+          {item(<ArrowDown className="size-4" />, t.trips.itinerary.moveDown, () => onMove(1), false, last)}
           <div role="separator" className="my-1 h-px bg-line" />
-          {item(<Trash2 className="size-4" />, "Delete", onDelete, true)}
+          {item(<Trash2 className="size-4" />, t.common.delete, onDelete, true)}
         </div>
       )}
     </div>

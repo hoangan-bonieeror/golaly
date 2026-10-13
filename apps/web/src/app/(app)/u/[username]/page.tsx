@@ -7,9 +7,9 @@ import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { TripCard } from "@/components/trip/TripCard";
-import { INTERESTS, TRAVELER_TYPES } from "@triply/shared";
 import Link from "next/link";
 import { Avatar, Badge, Button, EmptyState, ErrorState, IconButton, PageLoader, Sheet, Skeleton, TabPanel, Tabs } from "@/components/ui";
+import { useFormat, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useFollowList, useMe, useProfile, useUserPosts, useUserTrips } from "@/lib/api/queries";
 
@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const handle = decodeURIComponent(username);
   const me = useMe().data;
   const router = useRouter();
+  const t = useT();
+  const f = useFormat();
   const profile = useProfile(handle);
   useDocumentTitle(profile.data ? `${profile.data.user.displayName} (@${profile.data.user.username})` : null);
   const trips = useUserTrips(handle);
@@ -46,15 +48,15 @@ export default function ProfilePage() {
             <div className="flex gap-2">
               {p.isMe ? (
                 <Button variant="secondary" size="sm" href="/settings">
-                  <Settings className="size-4" /> Edit profile
+                  <Settings className="size-4" /> {t.social.profile.edit}
                 </Button>
               ) : (
                 <>
                   <Button size="sm" variant={p.followedByMe ? "secondary" : "primary"} disabled={follow.isPending} onClick={() => (me ? follow.run(!p.followedByMe) : router.push(`/login?next=/u/${handle}`))}>
-                    {p.followedByMe ? "Following" : "Follow"}
+                    {p.followedByMe ? t.social.profile.following : t.social.profile.follow}
                   </Button>
                   {me && (
-                    <IconButton label="Report user" onClick={() => setReportOpen(true)} className="size-8">
+                    <IconButton label={t.social.profile.report} onClick={() => setReportOpen(true)} className="size-8">
                       <Flag className="size-4" />
                     </IconButton>
                   )}
@@ -64,7 +66,7 @@ export default function ProfilePage() {
           </div>
           <p className="flex items-center justify-center gap-2 text-sm text-muted md:justify-start">
             @{u.username}
-            {p.followsMe && <span className="rounded-full bg-sand-2 px-2 py-0.5 text-[11px] font-semibold text-ink-2">Follows you</span>}
+            {p.followsMe && <span className="rounded-full bg-sand-2 px-2 py-0.5 text-[11px] font-semibold text-ink-2">{t.social.profile.followsYou}</span>}
           </p>
           {u.bio && <p className="mt-2 max-w-md text-[15px] text-ink-2">{u.bio}</p>}
           {u.homeBase && (
@@ -74,28 +76,32 @@ export default function ProfilePage() {
           )}
           {(u.travelerType || u.interests.length > 0) && (
             <div className="mt-3 flex flex-wrap justify-center gap-1.5 md:justify-start">
-              {u.travelerType && <Badge tone="primary">{TRAVELER_TYPES.find((x) => x.value === u.travelerType)?.label} traveler</Badge>}
+              {u.travelerType && <Badge tone="primary">{t.social.profile.travelerBadge(t.labels.travelerType[u.travelerType])}</Badge>}
               {u.interests.map((i) => (
-                <Badge key={i}>{INTERESTS.find((x) => x.value === i)?.label ?? i}</Badge>
+                <Badge key={i}>{t.labels.interest[i] ?? i}</Badge>
               ))}
             </div>
           )}
-          <ul aria-label="Profile stats" className="mt-4 flex justify-center gap-6 md:justify-start">
-            <Stat label="Trips" value={p.trips} />
-            <Stat label="Countries" value={p.countries} />
-            <Stat label="Followers" value={p.followers} onClick={() => setList("followers")} />
-            <Stat label="Following" value={p.following} onClick={() => setList("following")} />
+          <ul aria-label={t.social.profile.stats} className="mt-4 flex justify-center gap-6 md:justify-start">
+            <Stat label={t.social.profile.trips} value={p.trips} />
+            <Stat label={t.social.profile.countries} value={p.countries} />
+            <Stat label={t.social.profile.followers} value={p.followers} onClick={() => setList("followers")} />
+            <Stat label={t.social.profile.following} value={p.following} onClick={() => setList("following")} />
           </ul>
-          <p className="mt-2 text-xs text-muted">Joined {new Date(u.joinedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</p>
+          <p className="mt-2 text-xs text-muted">{t.social.profile.joined(f.day(u.joinedAt.slice(0, 10), { month: "long", year: "numeric" }))}</p>
         </div>
       </header>
 
       <Tabs
         id="profile-tabs"
-        label="Profile content"
+        label={t.social.profile.content}
         value={tab}
         onChange={setTab}
-        tabs={[{ value: "trips" as const, label: "Trips" }, { value: "posts" as const, label: "Posts" }, ...(p.isMe ? [{ value: "saved" as const, label: "Saved" }] : [])]}
+        tabs={[
+          { value: "trips" as const, label: t.social.profile.trips },
+          { value: "posts" as const, label: t.social.profile.posts },
+          ...(p.isMe ? [{ value: "saved" as const, label: t.social.profile.saved }] : []),
+        ]}
       />
 
       <TabPanel tabsId="profile-tabs" value={tab}>
@@ -104,15 +110,15 @@ export default function ProfilePage() {
           <Skeleton className="aspect-[5/4] max-w-sm" />
         ) : trips.data?.length ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {trips.data.map((t) => (
-              <TripCard key={t.id} trip={t} level="h2" />
+            {trips.data.map((trip) => (
+              <TripCard key={trip.id} trip={trip} level="h2" />
             ))}
           </div>
         ) : (
           <EmptyState
             icon={<Luggage className="size-7" />}
-            title={p.isMe ? "Your next adventure starts here." : "No public trips yet"}
-            action={p.isMe ? <Button href="/trips/new">Create trip</Button> : undefined}
+            title={p.isMe ? t.social.profile.emptyTripsMe : t.social.profile.emptyTrips}
+            action={p.isMe ? <Button href="/trips/new">{t.social.profile.createTrip}</Button> : undefined}
           />
         ))}
 
@@ -123,16 +129,16 @@ export default function ProfilePage() {
           <div className="grid gap-6 md:grid-cols-2">
             {posts.data.map((post) => (
               <div key={post.id} className="relative">
-                {post.visibility === "DRAFT" && <span className="absolute left-3 top-3 z-10 rounded-full bg-gold px-2.5 py-1 text-xs font-bold text-white">Draft</span>}
+                {post.visibility === "DRAFT" && <span className="absolute left-3 top-3 z-10 rounded-full bg-gold-50 px-2.5 py-1 text-xs font-bold text-gold-700">{t.social.post.draft}</span>}
                 <PostCard post={post} level="h2" />
               </div>
             ))}
           </div>
         ) : (
-          <EmptyState icon={<PenLine className="size-7" />} title={p.isMe ? "Share your first journey." : "No posts yet"} action={p.isMe ? <Button href="/posts/new">New post</Button> : undefined} />
+          <EmptyState icon={<PenLine className="size-7" />} title={p.isMe ? t.social.profile.emptyPostsMe : t.social.profile.emptyPosts} action={p.isMe ? <Button href="/posts/new">{t.social.profile.newPost}</Button> : undefined} />
         ))}
 
-      {tab === "saved" && p.isMe && <EmptyState icon={<Bookmark className="size-7" />} title="Everything you've saved lives in Saved" action={<Button href="/saved">Open Saved</Button>} />}
+      {tab === "saved" && p.isMe && <EmptyState icon={<Bookmark className="size-7" />} title={t.social.profile.savedElsewhere} action={<Button href="/saved">{t.social.profile.openSaved}</Button>} />}
       </TabPanel>
 
       {reportOpen && <ReportSheet open onClose={() => setReportOpen(false)} target="USER" targetId={u.id} />}
@@ -142,6 +148,7 @@ export default function ProfilePage() {
 }
 
 function Stat({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
+  const t = useT();
   const inner = (
     <span className="flex flex-col">
       <span className="text-xs text-muted">{label}</span>
@@ -151,11 +158,11 @@ function Stat({ label, value, onClick }: { label: string; value: number; onClick
   return (
     <li>
       {onClick ? (
-        <button type="button" onClick={onClick} className="min-h-11 rounded-lg text-left hover:opacity-80" aria-label={`${value} ${label}. Show list`}>
+        <button type="button" onClick={onClick} className="min-h-11 rounded-lg text-left hover:opacity-80" aria-label={t.social.profile.statShowList(value, label)}>
           {inner}
         </button>
       ) : (
-        <span aria-label={`${value} ${label}`}>{inner}</span>
+        <span aria-label={t.social.profile.stat(value, label)}>{inner}</span>
       )}
     </li>
   );
@@ -163,16 +170,17 @@ function Stat({ label, value, onClick }: { label: string; value: number; onClick
 
 function FollowSheet({ handle, which, onClose }: { handle: string; which: "followers" | "following" | null; onClose: () => void }) {
   const me = useMe().data;
+  const t = useT();
   const q = useFollowList(handle, which);
   const follow = useAction((a: { username: string; on: boolean }) => (a.on ? api.post(`/users/${a.username}/follow`) : api.delete(`/users/${a.username}/follow`)), {
     invalidate: [["profile"], ["feed"]],
   });
   return (
-    <Sheet open={!!which} onClose={onClose} title={which === "followers" ? "Followers" : "Following"}>
+    <Sheet open={!!which} onClose={onClose} title={which === "followers" ? t.social.profile.followers : t.social.profile.following}>
       {q.isLoading ? (
         <Skeleton className="h-40" />
       ) : !q.data?.length ? (
-        <p className="py-6 text-center text-sm text-muted">{which === "followers" ? "No followers yet." : "Not following anyone yet."}</p>
+        <p className="py-6 text-center text-sm text-muted">{which === "followers" ? t.social.profile.noFollowers : t.social.profile.noFollowing}</p>
       ) : (
         <ul className="-mx-2 max-h-[60vh] overflow-y-auto">
           {q.data.map((p) => (
@@ -189,7 +197,7 @@ function FollowSheet({ handle, which, onClose }: { handle: string; which: "follo
               </Link>
               {me && !p.isMe && (
                 <Button size="sm" variant={p.followedByMe ? "secondary" : "primary"} disabled={follow.isPending} onClick={() => follow.run({ username: p.username, on: !p.followedByMe })}>
-                  {p.followedByMe ? "Following" : "Follow"}
+                  {p.followedByMe ? t.social.profile.following : t.social.profile.follow}
                 </Button>
               )}
             </li>
