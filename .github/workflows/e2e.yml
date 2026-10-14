@@ -1,0 +1,57 @@
+# Definition-of-Done E2E (Playwright + axe) on the full stack: build → migrate + seed → start API and web → run.
+# Slow (~10 min), so it is not part of every PR. Run it from Actions → E2E → Run workflow (any branch).
+name: E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4-alpine
+        env:
+          POSTGRES_USER: triply
+          POSTGRES_PASSWORD: triply
+          POSTGRES_DB: triply
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U triply" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://triply:triply@localhost:5432/triply
+      JWT_SECRET: ci-only-secret-ci-only-secret-0123456789
+      WEB_ORIGIN: http://localhost:3000
+      API_ORIGIN: http://localhost:4000
+      NEXT_PUBLIC_REALTIME_URL: http://localhost:4000
+      NEXT_PUBLIC_DEMO_SWITCHER: "false"
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Migrate + seed
+        run: npm run db:deploy && npm run db:seed
+      - name: Start API and web
+        run: |
+          (cd apps/api && node dist/main.js > ../../api.log 2>&1 &)
+          (cd apps/web && npx next start -p 3000 > ../../web.log 2>&1 &)
+          npx --yes wait-on -t 60000 http://localhost:4000/health http://localhost:3000/welcome
+      - name: Definition-of-Done E2E (Playwright)
+        run: npx playwright install --with-deps chromium && npm run e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            apps/web/e2e/artifacts
+            api.log
+            web.log

@@ -35,7 +35,7 @@ TRIPLY is a full-stack MVP. You can discover public trips, remix one into your o
 | Place catalog | `pipelines/`: Python 3.12, DuckDB, pyosmium, Apache Airflow 3: imports open place data (Overture Maps, OpenStreetMap) per country/province |
 | Shared | `packages/shared`: domain types, the **permission matrix**, **Zod schemas** used by both API and forms, and the API response contract |
 | Tests | Jest (unit + integration against a real Postgres test DB), Playwright (Definition-of-Done journey) |
-| Ops | Docker Compose, Dockerfiles, GitHub Actions CI |
+| Ops | Docker Compose, Dockerfiles, GitHub Actions CI/CD (Neon → Render → Vercel) |
 
 ```
 triply/
@@ -55,7 +55,7 @@ triply/
 ├── pipelines/                place catalog: triply_catalog (Python) · dags/ (Airflow) · tests/
 ├── docs/                     ARCHITECTURE.md · screenshots
 ├── docker-compose.yml        PostGIS (dev) + optional full stack + optional Airflow
-└── .github/workflows/ci.yml  typecheck → tests → build → e2e · pipelines: ruff → pytest
+└── .github/workflows/       ci.yml: lint · tests · build · pipelines → deploy on main · e2e.yml (manual)
 ```
 
 ---
@@ -298,6 +298,8 @@ Current status: **146/146** API tests (`admin.int.ts` covers the catalog admin A
 ---
 
 ## Deploying
+
+**Continuous delivery:** every push to `main` that passes CI runs the Neon migrations, deploys the API to Render and the web app to Vercel, then smoke-tests both. Setup and rollback: [docs/CI-CD.md](docs/CI-CD.md).
 
 The repo has a Dockerfile for each app and a `full` Compose profile:
 

@@ -1,0 +1,88 @@
+# CI/CD
+
+All automation lives in GitHub Actions (`.github/workflows/`).
+
+```
+PR / push ─┬─ Lint + typecheck ───────────┐
+           ├─ API tests (PostGIS 16) ─────┤
+           ├─ Build + API Docker image ───┼─ all green & branch = main ─▶ 1. Neon: prisma migrate deploy
+           └─ Pipelines (ruff + pytest) ──┘                              2. Render: deploy this commit, wait for "live", /health
+                                                                         3. Vercel: build + deploy web (production), smoke /welcome
+```
+
+| Workflow | When | What |
+|---|---|---|
+| `ci.yml` (CI/CD) | every PR, every push to `main`, manual | 4 check jobs in parallel; on `main` the 3 deploy jobs run in order |
+| `e2e.yml` (E2E) | manual only | full-stack Playwright Definition-of-Done + axe (~10 min) |
+| `dependabot.yml` | monthly | one grouped PR to bump the GitHub Actions versions |
+
+Pull requests never touch production. Vercel's Git integration still builds a **preview** for every PR branch;
+`apps/web/vercel.json` turns off Vercel's own deploys of `main`, so production only changes after CI is green.
+
+Deploys share the `deploy-production` concurrency group and are never cancelled half way. If one step fails,
+the later ones don't run (a failed migration → the old API and web stay live).
+
+## One-time setup
+
+### 1. GitHub → Settings → Environments → New environment `production`
+
+Optional: *Required reviewers* = yourself, if you want to click **Approve** before each deploy.
+
+**Environment secrets**
+
+| Secret | Where to get it |
+|---|---|
+| `NEON_DATABASE_URL` | Neon → project *Triply* → branch *production* → Connect → **turn pooling OFF** (host without `-pooler`), keep `?sslmode=require` |
+| `RENDER_DEPLOY_HOOK_URL` | Render → *triply-api* → Settings → Deploy Hook (copy the whole URL) |
+| `RENDER_API_KEY` | Render → Account settings → API keys (lets CI wait for the deploy to go live; optional) |
+| `VERCEL_TOKEN` | vercel.com/account/tokens |
+| `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | run `npx vercel link` in `apps/web` once, then read `.vercel/project.json` (`orgId`, `projectId`) — don't commit `.vercel/` |
+
+**Environment variables** (not secret)
+
+| Variable | Example |
+|---|---|
+| `RENDER_SERVICE_ID` | `srv-…` (in the Render dashboard URL of *triply-api*) |
+| `API_URL` | `https://triply-api.onrender.com` |
+| `WEB_URL` | `https://triply.vercel.app` (optional; defaults to the deployment URL) |
+
+### 2. Render (*triply-api*)
+
+- Settings → Build & Deploy → **Auto-Deploy: Off** (`render.yaml`: `autoDeployTrigger: off`). CI triggers the deploy through the hook,
+  pinned to the tested commit (`&ref=<sha>`), and only after the migrations ran.
+- Set `WEB_ORIGIN` to the Vercel production URL once it exists.
+
+### 3. Vercel
+
+- New project → import `hoangan-bonieeror/triply` → **Root Directory: `apps/web`**, framework Next.js
+  (install/build at the repo root via npm workspaces is detected automatically).
+- Project → Settings → Environment Variables (Production *and* Preview):
+  - `API_ORIGIN` = `https://triply-api.onrender.com` — used at **build time** for the `/api/v1` and `/media` rewrites
+  - `NEXT_PUBLIC_REALTIME_URL` = `https://triply-api.onrender.com`
+- Previews call the production API: fine for a demo; don't share preview links with test data you care about.
+
+### 4. Branch protection (recommended)
+
+Settings → Branches → rule for `main` → *Require status checks to pass*: `Lint + typecheck`,
+`API tests (unit + integration)`, `Build (shared, API, web) + API image`, `Pipelines (ruff + pytest)`.
+
+## Everyday use
+
+- Work on a branch → open a PR → CI runs, Vercel posts a preview link → merge → production deploys itself.
+- Migrations: just commit them. CI proves they apply to an empty PostGIS database (`prisma migrate deploy`), CD applies them to Neon
+  before the new API starts. **No more running `npm run db:deploy` against Neon by hand.**
+- Re-deploy without a new commit: Actions → CI/CD → Run workflow → branch `main`, *Deploy* ticked.
+- Run E2E: Actions → E2E → Run workflow.
+
+## Rollback
+
+- Web: Vercel → Deployments → previous deployment → *Promote to Production* (instant).
+- API: Render → Deploys → previous deploy → *Rollback*.
+- Database: Prisma migrations only go forward. Write a new migration that undoes the change, or restore the Neon branch to a point in time
+  (Neon → Branches → *production* → Restore) — that loses writes made since then.
+
+## Not included (yet)
+
+- Schema drift check (`prisma migrate diff` between `schema.prisma` and the migrations).
+- Neon branch per PR (we test migrations on a throwaway PostGIS container instead).
+- Deploying the Airflow catalog pipeline (it runs on your machine).
