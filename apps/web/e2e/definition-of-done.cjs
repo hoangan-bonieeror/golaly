@@ -257,9 +257,9 @@ fs.mkdirSync(shots, { recursive: true });
     // One tap: the rained-out basket boats did happen after all… then back to skipped.
     const went = B.getByRole("button", { name: "Mark Basket boats, Coconut Forest as visited" });
     await went.click();
-    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as visited"]').waitFor();
+    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as visited"]').first().waitFor();
     await B.getByRole("button", { name: "Mark Basket boats, Coconut Forest as skipped" }).click();
-    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as skipped"]').waitFor();
+    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as skipped"]').first().waitFor();
 
     // An expense split by amount, from the stop's menu.
     await B.locator("li[data-item-id]", { hasText: "Dinner at Mót" }).getByRole("button", { name: "Item actions" }).click();
@@ -301,6 +301,68 @@ fs.mkdirSync(shots, { recursive: true });
     if (await C.getByRole("button", { name: "Expenses" }).count()) throw new Error("visitor sees the expenses button");
     const status = await C.evaluate((u) => fetch(`/api/v1${u}/expenses`, { headers: { "X-Requested-With": "triply" } }).then((r) => r.status), hoianTrip);
     if (status !== 403) throw new Error(`visitor got ${status} for expenses`);
+  });
+
+  // During the trip (roadmap phase 2), on the seeded in-progress "Saigon long weekend" (Minh is an editor).
+  let saigonTrip;
+  await step("17d. during the trip: today, swipe to mark, where to now, split the group", async () => {
+    const id = await B.evaluate(() =>
+      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "triply" } })
+        .then((r) => r.json())
+        .then((r) => r.items.find((t) => t.title === "Saigon long weekend")?.id),
+    );
+    if (!id) throw new Error("seeded Saigon trip not found (run npm run db:seed)");
+    saigonTrip = `/trips/${id}`;
+    await B.goto(`${BASE}${saigonTrip}`);
+    // Opens on today, with the part of the day it is now marked.
+    await B.locator('button[aria-current="date"][aria-pressed="true"]', { hasText: "Today" }).waitFor();
+    await B.locator('[aria-current="time"]').first().waitFor();
+    // The rest happens on Day 2 (today, unless this machine's clock is near midnight).
+    await B.getByRole("group", { name: "Show day" }).getByRole("button", { name: /^Day 2/ }).click();
+
+    // The group splits this afternoon: lanes, who's going, and the meet-up point.
+    await B.getByRole("group", { name: "The group splits up" }).first().waitFor();
+    await B.getByText("Meet-up point").first().waitFor();
+    await B.locator("li[data-item-id]", { hasText: "Book Street" }).getByRole("button", { name: "Item actions" }).click();
+    await B.getByRole("menuitem", { name: "Who's going?" }).click();
+    const who = B.getByRole("dialog", { name: "Who's going to Book Street?" });
+    await who.getByRole("checkbox", { name: "Minh" }).check();
+    await who.getByRole("button", { name: "Save" }).click();
+    await B.getByLabel("Going: Minh & Nam").or(B.getByLabel("Going: Nam & Minh")).first().waitFor();
+    await B.locator("li[data-item-id]", { hasText: "Book Street" }).getByRole("button", { name: "Item actions" }).click();
+    await B.getByRole("menuitem", { name: "Who's going?" }).click();
+    await who.getByRole("checkbox", { name: "Minh" }).uncheck();
+    await who.getByRole("button", { name: "Save" }).click();
+    await B.getByLabel("Going: Nam").first().waitFor();
+
+    // Where to now? (no location permission here: the plan without distances).
+    await B.getByRole("button", { name: "Where to now?" }).click();
+    const next = B.getByRole("dialog", { name: "Where to now?" });
+    await next.getByRole("heading", { name: "Left in today's plan" }).waitFor();
+    await next.getByRole("link", { name: /^Directions to / }).first().waitFor();
+    await B.keyboard.press("Escape");
+
+    // Phones: a swipe marks a stop (right = went, again = undo).
+    await B.setViewportSize({ width: 390, height: 844 });
+    await B.goto(`${BASE}${saigonTrip}`);
+    await B.getByRole("group", { name: "Show day" }).getByRole("button", { name: /^Day 2/ }).click();
+    const card = B.locator("li[data-item-id]", { hasText: "War Remnants Museum" });
+    const went = card.getByRole("button", { name: "Mark War Remnants Museum as visited" });
+    const swipe = () =>
+      card.locator(".touch-pan-y").first().evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const y = r.top + r.height / 2;
+        const ev = (type, x) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 7, pointerType: "touch", clientX: x, clientY: y }));
+        ev("pointerdown", r.left + 20);
+        for (const dx of [16, 40, 80, 120]) ev("pointermove", r.left + 20 + dx);
+        ev("pointerup", r.left + 140);
+      });
+    const before = await went.getAttribute("aria-pressed");
+    await swipe();
+    await B.locator(`[aria-label="Mark War Remnants Museum as visited"][aria-pressed="${before === "true" ? "false" : "true"}"]:visible`).waitFor();
+    await swipe();
+    await B.locator(`[aria-label="Mark War Remnants Museum as visited"][aria-pressed="${before}"]:visible`).waitFor();
+    await B.setViewportSize({ width: 1360, height: 900 });
   });
 
   // A 96×64 PNG: the smallest image the media pipeline accepts is 64×64.
@@ -349,6 +411,7 @@ fs.mkdirSync(shots, { recursive: true });
     const runs = [
       [C, routes, false],
       [A, [trip, `${trip}?view=map`, `${trip}?tab=members`], false],
+      ...(saigonTrip ? [[B, [saigonTrip], false], [B, [saigonTrip], true]] : []),
       ...(hoianTrip ? [[B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], false], [B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], true]] : []),
       [A, [trip, `${trip}?view=map`, "/home", "/explore", "/settings", "/notifications"], true],
     ];

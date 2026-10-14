@@ -33,7 +33,11 @@ const nextConfig: NextConfig = {
   // Docker builds a self-contained server bundle (only the files it needs, no devDependencies).
   ...(process.env.NEXT_OUTPUT === "standalone" ? { output: "standalone" as const, outputFileTracingRoot: path.resolve(process.cwd(), "../..") } : {}),
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      // The offline service worker must never be served stale (a new deploy replaces it).
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }] },
+    ];
   },
   async rewrites() {
     return [

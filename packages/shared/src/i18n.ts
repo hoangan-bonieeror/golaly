@@ -143,6 +143,9 @@ const VI_EXACT: Record<string, string> = {
 
   // After the trip: what happened, photos, expenses
   "Some of those items aren't on this trip any more. Refresh and try again.": "Một vài mục không còn trong chuyến đi này. Hãy tải lại rồi thử lại.",
+  "Only people on this trip can be going.": "Chỉ những người trong chuyến đi mới có thể được chọn.",
+  "Use an HH:mm time.": "Nhập giờ theo dạng HH:mm.",
+  "Use a YYYY-MM-DD date.": "Nhập ngày theo dạng YYYY-MM-DD.",
   "That photo is already on this stop.": "Ảnh này đã có ở điểm dừng này.",
   "Only whoever added a photo, or the trip owner, can remove it.": "Chỉ người đã thêm ảnh hoặc chủ chuyến đi mới xoá được ảnh.",
   "Everyone on an expense has to be on the trip.": "Mọi người trong khoản chi đều phải là thành viên chuyến đi.",

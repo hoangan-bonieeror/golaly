@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { useI18n, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
+import { isOffline, queueMarks } from "@/lib/offline";
 import { applyStatuses, markable } from "@/lib/plan";
 import { useToast } from "@/lib/toast";
 import { Photo } from "../place/PlacePhotos";
@@ -20,7 +21,9 @@ import { ItemTypeIcon } from "./ItemTypeIcon";
 export function useSetStatuses(trip: TripDetail) {
   const qc = useQueryClient();
   const toast = useToast();
-  const t = useT().after.status;
+  const all = useT();
+  const t = all.after.status;
+  const tq = all.during.offline;
   return async (changes: [string, ItemStatus][], message?: string | null) => {
     if (changes.length === 0) return true;
     const key = keys.trip(trip.id);
@@ -31,7 +34,13 @@ export function useSetStatuses(trip: TripDetail) {
       await api.patch(`/trips/${trip.id}/items/status`, { items: changes.map(([id, status]) => ({ id, status })) });
       if (message !== null) toast(message ?? t.saved[changes[0][1]]);
       return true;
-    } catch {
+    } catch (e) {
+      // No connection: keep the mark on screen and on this device; it syncs when the connection is back.
+      if (isOffline(e)) {
+        queueMarks(trip.id, changes);
+        toast(tq.queued);
+        return true;
+      }
       if (prev) qc.setQueryData(key, prev);
       toast(t.failed, "error");
       return false;
@@ -43,11 +52,13 @@ export function useSetStatuses(trip: TripDetail) {
 }
 
 /** Two one-tap toggles on a stop once the trip has started: went ✓ / skipped ✕ (tap again to undo). */
-export function StatusToggle({ item, onChange }: { item: ItemView; onChange: (status: ItemStatus) => void }) {
+export function StatusToggle({ item, onChange, labeled, className }: { item: ItemView; onChange: (status: ItemStatus) => void; labeled?: boolean; className?: string }) {
   const t = useT().after.status;
-  const btn = "flex size-9 items-center justify-center rounded-full border transition-colors md:size-8";
+  const btn = labeled
+    ? "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border text-[13px] font-semibold transition-colors"
+    : "flex size-9 items-center justify-center rounded-full border transition-colors md:size-8";
   return (
-    <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+    <div className={cx("flex shrink-0 items-center gap-1", labeled && "gap-2", className)} onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         aria-pressed={item.status === "VISITED"}
@@ -57,6 +68,7 @@ export function StatusToggle({ item, onChange }: { item: ItemView; onChange: (st
         className={cx(btn, item.status === "VISITED" ? "border-primary bg-primary text-on-primary" : "border-line text-muted hover:border-primary hover:text-primary")}
       >
         <Check className="size-4" aria-hidden />
+        {labeled && t.markVisited}
       </button>
       <button
         type="button"
@@ -67,6 +79,7 @@ export function StatusToggle({ item, onChange }: { item: ItemView; onChange: (st
         className={cx(btn, item.status === "SKIPPED" ? "border-ink-2 bg-ink-2 text-surface" : "border-line text-muted hover:border-ink-2 hover:text-ink")}
       >
         <X className="size-4" aria-hidden />
+        {labeled && t.markSkipped}
       </button>
     </div>
   );

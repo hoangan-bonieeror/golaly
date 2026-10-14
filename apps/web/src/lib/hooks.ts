@@ -23,3 +23,13 @@ export function useMediaQuery(query: string) {
   }, [query]);
   return match;
 }
+
+/** The current time, refreshed every `ms` (default a minute) — for "now" highlights. */
+export function useNow(ms = 60_000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return now;
+}

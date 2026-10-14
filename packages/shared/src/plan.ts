@@ -54,7 +54,8 @@ export function presentOn(m: { arriveOn: string | null; leaveOn: string | null }
   return (!m.arriveOn || m.arriveOn <= date) && (!m.leaveOn || date <= m.leaveOn);
 }
 
-function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+/** Great-circle distance in km. */
+export function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const r = Math.PI / 180;
   const s = Math.sin(((b.lat - a.lat) * r) / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(((b.lng - a.lng) * r) / 2) ** 2;
   return 12_742 * Math.asin(Math.sqrt(s));

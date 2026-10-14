@@ -1,20 +1,23 @@
 "use client";
 
 import type { ItemSlot, ItemView, TripDetail } from "@triply/shared";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Check, CircleDashed, Copy, GripVertical, Heart, Lightbulb, Moon, Pencil, Plus, Shuffle, Sun, Sunrise, Trash2, Users, Wallet, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Check, CircleDashed, Copy, Flag, GripVertical, Heart, Lightbulb, Moon, Pencil, Plus, Shuffle, Sun, Sunrise, Trash2, Users, Wallet, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { prefersReducedMotion } from "@/lib/motion";
-import { absentOn, applyMove, dayIndexFor, firstName, ITEM_SLOTS, listId, markable, nameList, parseList, tripPhase } from "@/lib/plan";
+import { absentOn, applyMove, dayIndexFor, dayProgress, firstName, ITEM_SLOTS, listId, markable, nameList, parseList, tripNow, tripPhase } from "@/lib/plan";
+import { useNow } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { useFormat, useI18n } from "@/i18n/client";
 import { cx } from "../ui";
 import type { DayFilter } from "../trip/DayBar";
 import { EvidenceBadge, PhotoStrip, StatusBadge, StatusToggle, useSetStatuses } from "./AfterTrip";
 import { ItemMenu, type MenuAction } from "./ItemMenu";
+import { AssignSheet, GoingLine, LaneChips, laneKey, lanesOf } from "./Split";
+import { SwipeArea } from "./Swipe";
 import { ItemTypeIcon, TYPE_META } from "./ItemTypeIcon";
 import { PoolSection, sortPool, type MoveFn } from "./Pool";
 import { useFlip, useItineraryDrag, type DragState } from "./useItineraryDrag";
@@ -74,6 +77,16 @@ export function Itinerary({
   const canMark = canEdit && phase !== "before";
   const inlineMark = canEdit && (phase === "during" || phase === "after");
   const setStatuses = useSetStatuses(trip);
+  // While the trip is under way: today's day and the part of the day it is now.
+  const clock = useNow();
+  const nowAt = tripNow(trip, clock);
+  const td = t.during;
+  // Splitting up: who's going to a stop, and the meet-up point.
+  const [assigning, setAssigning] = useState<ItemView | null>(null);
+  const meetup = useAction((it: ItemView) => api.patch(`/items/${it.id}`, { meetup: !it.meetup }), {
+    invalidate: [keys.trip(trip.id), ["trips"]],
+    success: (r) => ((r as ItemView).meetup ? td.split.meetupSaved : td.split.meetupCleared),
+  });
   const canSpend = may("expenses.manage") && !!onAddExpense;
 
   const invalidate = [keys.trip(trip.id), ["trips"]];
@@ -165,6 +178,7 @@ export function Itinerary({
         {liveMsg}
       </p>
 
+      {canEdit && <AssignSheet trip={trip} item={assigning} onClose={() => setAssigning(null)} />}
       <PoolSection
         trip={trip}
         dnd={dnd}
@@ -184,6 +198,8 @@ export function Itinerary({
           const legs = dayLegs(d.items);
           const stats = dayStats(d);
           const away = absentOn(trip.members, d.date);
+          const progress = dayProgress(d.items);
+          const isToday = nowAt?.dayId === d.id;
           const numbers = new Map<string, number>();
           d.items.filter((i) => i.place).forEach((i, n) => numbers.set(i.id, n + 1));
           return (
@@ -196,6 +212,7 @@ export function Itinerary({
                     {d.date && <span className="font-semibold text-ink-2"> · {f.day(d.date, { weekday: "short", day: "numeric", month: "short" })}</span>}
                     {d.title && <span className="font-semibold text-ink-2"> · {d.title}</span>}
                   </span>
+                  {isToday && <span className="shrink-0 self-center rounded-full bg-primary px-2 py-0.5 font-sans text-[11px] font-semibold text-on-primary">{td.today}</span>}
                 </h2>
                 {stats.stops > 0 && (
                   <span className="shrink-0 font-mono text-xs text-muted">
@@ -204,6 +221,16 @@ export function Itinerary({
                   </span>
                 )}
               </header>
+              {/* Progress once the trip has started: how much of the day is done. */}
+              {phase !== "before" && progress.total > 0 && (progress.done > 0 || phase === "during" || phase === "after") && (
+                <div className="-mt-1 mb-2 flex items-center gap-2" title={td.progressLabel(progress.visited, progress.skipped, progress.total)}>
+                  <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-sand-2" role="img" aria-label={td.progressLabel(progress.visited, progress.skipped, progress.total)}>
+                    <span className="h-full bg-primary transition-[width] duration-300" style={{ width: `${(progress.visited / progress.total) * 100}%` }} />
+                    <span className="h-full bg-ink-2/40 transition-[width] duration-300" style={{ width: `${(progress.skipped / progress.total) * 100}%` }} />
+                  </div>
+                  <span aria-hidden className="shrink-0 font-mono text-[11px] text-muted">{td.progress(progress.done, progress.total)}</span>
+                </div>
+              )}
               {away.length > 0 && (
                 <p className="-mt-1 mb-2 flex items-center gap-1.5 text-[13px] text-muted">
                   <Users className="size-3.5" aria-hidden /> {tp.absent(nameList(away.map((m) => firstName(m.user)), and))}
@@ -218,12 +245,21 @@ export function Itinerary({
                   const SlotIcon = SLOT_ICON[slot];
                   const lid = listId(d.id, slot);
                   const target = dragging && dragging.toDay === lid;
+                  const isNow = isToday && nowAt?.slot === slot;
+                  const lanes = lanesOf(items);
+                  const laneColor = (it: ItemView) => lanes.find((l) => l.key === laneKey(it))?.color;
                   return (
                     <div key={slot} role="group" aria-label={tp.where(d.dayNumber, tp.slots[slot])}>
-                      <div className="flex h-8 items-center gap-2 sm:pl-[62px]">
-                        <SlotIcon className={cx("size-3.5", target ? "text-primary" : "text-muted")} aria-hidden />
-                        <span className={cx("font-mono text-[11px] font-semibold uppercase tracking-wider", target ? "text-primary" : "text-muted")}>{tp.slots[slot]}</span>
-                        <span aria-hidden className={cx("h-px flex-1", target ? "bg-primary" : "bg-line")} />
+                      <div className="flex h-8 items-center gap-2 sm:pl-[62px]" aria-current={isNow ? "time" : undefined}>
+                        <SlotIcon className={cx("size-3.5", target || isNow ? "text-primary" : "text-muted")} aria-hidden />
+                        <span className={cx("font-mono text-[11px] font-semibold uppercase tracking-wider", target || isNow ? "text-primary" : "text-muted")}>{tp.slots[slot]}</span>
+                        {isNow && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-px text-[11px] font-semibold text-primary">
+                            <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+                            {td.now}
+                          </span>
+                        )}
+                        <span aria-hidden className={cx("h-px flex-1", target || isNow ? "bg-primary" : "bg-line")} />
                         {canAdd && (
                           <button
                             type="button"
@@ -236,11 +272,15 @@ export function Itinerary({
                           </button>
                         )}
                       </div>
+                      <LaneChips trip={trip} lanes={lanes} />
                       <ol ref={dnd.listRef(lid)} className={cx("relative min-h-1.5 rounded-[14px] transition-colors", target && items.length === 0 && "min-h-12 border border-dashed border-primary bg-primary-50/60")}>
                         {items.map((it, idx) => {
                           const place = it.place;
                           const n = numbers.get(it.id) ?? null;
-                          const leg = idx > 0 ? legs.get(it.id) : undefined;
+                          // No walk between two stops of different groups: they happen side by side.
+                          const prevLane = idx > 0 ? laneKey(items[idx - 1]) : null;
+                          const parallel = !!prevLane && !!laneKey(it) && prevLane !== laneKey(it);
+                          const leg = idx > 0 && !parallel ? legs.get(it.id) : undefined;
                           const editor = it.updatedBy && it.updatedBy.id !== me?.id ? it.updatedBy : null;
                           const selected = selectedId === it.id;
                           // Flights and transfers look like tickets: a notched perforation and a stub with the time.
@@ -268,6 +308,12 @@ export function Itinerary({
                           const actions: MenuAction[] = [
                             ...statusActions,
                             ...(canEdit ? [{ icon: <Pencil className="size-4" />, label: t.common.edit, onClick: () => onEdit?.(it) }] : []),
+                            ...(canEdit && markable(it) && trip.members.length > 1
+                              ? [
+                                  { icon: <Users className="size-4" />, label: td.split.who, onClick: () => setAssigning(it) },
+                                  { icon: <Flag className="size-4" />, label: it.meetup ? td.split.unmakeMeetup : td.split.makeMeetup, onClick: () => meetup.run(it) },
+                                ]
+                              : []),
                             ...(canSpend && markable(it) ? [{ icon: <Wallet className="size-4" />, label: ta.expenses.addForItem, onClick: () => onAddExpense?.(it) }] : []),
                             ...(canAdd ? [{ icon: <Copy className="size-4" />, label: ti.duplicate, onClick: () => duplicate.run(it.id) }] : []),
                             ...(canMove
@@ -319,16 +365,23 @@ export function Itinerary({
                               )}
                               <div className="flex items-start gap-3 sm:gap-3.5">
                                 <div className="hidden w-12 shrink-0 pt-[15px] text-right font-mono text-[13px] text-ink sm:block">{it.startTime ?? ""}</div>
+                                <SwipeArea
+                                  className="min-w-0 flex-1"
+                                  enabled={inlineMark && markable(it) && !dragging}
+                                  onSwipe={(dir) => void setStatuses([[it.id, dir === "right" ? (it.status === "VISITED" ? "PLANNED" : "VISITED") : it.status === "SKIPPED" ? "PLANNED" : "SKIPPED"]])}
+                                >
                                 <div
                                   onClick={() => onSelect?.(it)}
                                   className={cx(
-                                    "min-w-0 flex-1 cursor-pointer rounded-[14px] border p-3 transition-[border-color,background-color,box-shadow,transform] duration-200",
+                                    "min-w-0 cursor-pointer rounded-[14px] border p-3 transition-[border-color,background-color,box-shadow,transform] duration-200",
                                     ticket && "ticket flex gap-3",
                                     ticket && (selected ? "[--ticket-line:var(--color-primary)]" : "[--ticket-line:var(--color-line)]"),
                                     selected ? "border-primary bg-primary-50 ring-1 ring-primary" : hoveredId === it.id ? "border-ink-2/50 bg-surface" : "border-line bg-surface hover:border-ink-2/40",
                                     pulseId === it.id && "animate-select-pulse",
                                     dragging?.id === it.id && "scale-[1.02] shadow-pop",
+                                    laneColor(it) && "border-l-[3px]",
                                   )}
+                                  style={laneColor(it) ? { borderLeftColor: laneColor(it) } : undefined}
                                 >
                                   <div className={ticket ? "min-w-0 flex-1" : "contents"}>
                                     <div className="flex items-center gap-3">
@@ -364,7 +417,7 @@ export function Itinerary({
                                         </span>
                                       )}
                                       {it.startTime && <span className="shrink-0 font-mono text-[13px] text-ink sm:hidden">{it.startTime}</span>}
-                                      {inlineMark && markable(it) && <StatusToggle item={it} onChange={(st) => void setStatuses([[it.id, st]])} />}
+                                      {inlineMark && markable(it) && <StatusToggle className="hidden sm:flex" item={it} onChange={(st) => void setStatuses([[it.id, st]])} />}
                                       {canMove && (
                                         /* Drag handle: pointer drag, or Space + arrow keys (announced). touch-action:none lets a finger drag it. */
                                         <button
@@ -390,6 +443,9 @@ export function Itinerary({
                                         <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden /> {tp.lovedButAway(nameList(awayLovers, and))}
                                       </p>
                                     )}
+                                    {/* Phones: the went / skipped buttons get their own row (and a swipe does the same). */}
+                                    {inlineMark && markable(it) && <StatusToggle labeled className="mt-2.5 sm:hidden" item={it} onChange={(st) => void setStatuses([[it.id, st]])} />}
+                                    <GoingLine trip={trip} item={it} color={laneColor(it)} />
                                     <EvidenceBadge evidence={it.evidence} />
                                     <PhotoStrip item={it} />
                                     {editor && it.updatedAt && <p className="mt-1.5 text-[11px] text-muted">{ti.editedBy(editor.displayName, f.timeAgo(it.updatedAt))}</p>}
@@ -405,6 +461,7 @@ export function Itinerary({
                                     </>
                                   )}
                                 </div>
+                                </SwipeArea>
                               </div>
                             </li>
                           );

@@ -46,6 +46,11 @@ export interface DB {
   reports: { id: string; reporterId: string; target: string; targetId: string; reason: string; createdAt: string }[];
   /** After the trip (phase 3): what happened at each stop, and the group's shared expenses (minor units). */
   itemStatuses: { itemId: string; status: "VISITED" | "SKIPPED" }[];
+  /** Who goes where when the group splits up, and where it meets again. */
+  itemAssignees: { itemId: string; userId: string }[];
+  meetups: string[];
+  /** place id → opening hours (OSM syntax). */
+  placeHours: Record<string, string>;
   expenses: { id: string; tripId: string; paidBy: string; amount: number; description: string; category: "FOOD" | "LODGING" | "TRANSPORT" | "ACTIVITY" | "SHOPPING" | "OTHER"; spentOn: string | null; itemId: string | null; shares: { userId: string; amount: number }[]; createdAt: string }[];
   settlements: { id: string; tripId: string; fromId: string; toId: string; amount: number; createdAt: string }[];
 }
@@ -144,6 +149,19 @@ const placeSeeds: PlaceSeed[] = [
   ["war-museum", "War Remnants Museum", "PLACE", "saigon", "28 Võ Văn Tần, Quận 3", 10.7795, 106.6921, 4.6],
   ["cu-chi", "Củ Chi Tunnels", "ACTIVITY", "saigon", "Phú Hiệp, Củ Chi", 11.1437, 106.4630, 4.4],
   ["com-tam", "Cơm Tấm Ba Ghiền", "RESTAURANT", "saigon", "84 Đặng Văn Ngữ, Phú Nhuận", 10.7954, 106.6720, 4.4],
+  // District 1 on foot: the in-progress demo trip and "Where to now?".
+  ["pho-hoa", "Phở Hòa Pasteur", "RESTAURANT", "saigon", "260C Pasteur, Quận 3", 10.7891, 106.6896, 4.3],
+  ["independence-palace", "Independence Palace", "PLACE", "saigon", "135 Nam Kỳ Khởi Nghĩa, Quận 1", 10.7770, 106.6953, 4.5],
+  ["nguyen-hue", "Nguyễn Huệ Walking Street", "PLACE", "saigon", "Nguyễn Huệ, Quận 1", 10.7743, 106.7038, 4.5],
+  ["notre-dame", "Notre-Dame Cathedral Basilica", "PLACE", "saigon", "01 Công xã Paris, Quận 1", 10.7798, 106.6990, 4.5],
+  ["post-office", "Saigon Central Post Office", "PLACE", "saigon", "02 Công xã Paris, Quận 1", 10.7799, 106.6999, 4.6],
+  ["banh-mi-huynh-hoa", "Bánh Mì Huỳnh Hoa", "RESTAURANT", "saigon", "26 Lê Thị Riêng, Quận 1", 10.7713, 106.6925, 4.4],
+  ["skydeck", "Saigon Skydeck", "ACTIVITY", "saigon", "36 Hồ Tùng Mậu, Quận 1", 10.7717, 106.7044, 4.3],
+  ["workshop", "The Workshop Coffee", "RESTAURANT", "saigon", "27 Ngô Đức Kế, Quận 1", 10.7741, 106.7045, 4.6],
+  ["jade-emperor", "Jade Emperor Pagoda", "PLACE", "saigon", "73 Mai Thị Lựu, Quận 1", 10.7920, 106.6981, 4.5],
+  ["opera-house", "Saigon Opera House", "PLACE", "saigon", "07 Công Trường Lam Sơn, Quận 1", 10.7766, 106.7031, 4.5],
+  ["book-street", "Nguyễn Văn Bình Book Street", "PLACE", "saigon", "Nguyễn Văn Bình, Quận 1", 10.7805, 106.6998, 4.5],
+  ["lusine", "L'Usine Lê Lợi", "RESTAURANT", "saigon", "70B Lê Lợi, Quận 1", 10.7730, 106.7010, 4.3],
 
   ["ggb", "Golden Gate Bridge", "PLACE", "sf", "Golden Gate Bridge, SF", 37.8199, -122.4783, 4.8],
   ["ferry-bldg", "Ferry Building Marketplace", "RESTAURANT", "sf", "1 Ferry Building, SF", 37.7955, -122.3937, 4.6],
@@ -178,6 +196,9 @@ const placeCategoryKeys: Record<string, string> = {
   "hoian-market": "shopping.market", "ben-thanh": "shopping.market", tailor: "shopping.tailor",
   teamlab: "culture.gallery", "halong-cruise": "activity.tour", "cu-chi": "sights.historic", "tra-que": "activity.cooking_class",
   "coconut-forest": "activity.tour", "white-marble": "nightlife.bar",
+  "pho-hoa": "food.noodles", "independence-palace": "sights.historic", "nguyen-hue": "sights.landmark", "notre-dame": "sights.landmark",
+  "post-office": "sights.historic", "banh-mi-huynh-hoa": "food.street_food", skydeck: "sights.viewpoint", workshop: "drink.cafe",
+  "jade-emperor": "culture.pagoda", "opera-house": "sights.landmark", "book-street": "sights.landmark", lusine: "drink.cafe",
   shinkansen: "transport.train_station", tram28: "transport.train_station",
 };
 
@@ -191,6 +212,25 @@ const places: Place[] = placeSeeds.map(([key, name, category, dest, address, lat
   lng,
   rating,
 }));
+
+/** Opening hours (OpenStreetMap syntax) for the places "Where to now?" demos with. */
+const placeHours: Record<string, string> = {
+  "pho-hoa": "Mo-Su 06:00-22:00", "independence-palace": "Mo-Su 08:00-11:00,13:00-16:00", "nguyen-hue": "24/7",
+  "notre-dame": "Mo-Sa 08:00-11:00,15:00-16:00; Su off", "post-office": "Mo-Fr 07:00-19:00; Sa,Su 07:00-18:00",
+  "banh-mi-huynh-hoa": "Mo-Su 06:00-21:00", "war-museum": "Mo-Su 07:30-17:30", skydeck: "Mo-Su 09:30-21:30",
+  "com-tam": "Mo-Su 06:00-22:00", "ben-thanh": "Mo-Su 06:00-18:00", workshop: "Mo-Su 08:00-21:00", "jade-emperor": "Mo-Su 07:00-17:00",
+  "opera-house": "Mo-Su 09:00-17:00", "book-street": "Mo-Su 08:00-21:30", lusine: "Mo-Su 07:30-22:00",
+  "ancient-town": "24/7", mot: "Mo-Su 07:00-22:00", roastery: "Mo-Su 07:00-22:00", "hoian-museum": "Tu-Su 07:00-17:00; Mo off",
+  "white-marble": "Mo-Su 11:00-23:00", "cao-lau": "Mo-Su 08:00-21:00", "banh-mi-phuong": "Mo-Su 06:30-21:30", "hoian-market": "Mo-Su 05:00-19:00",
+  "bun-cha": "Mo-Su 08:00-20:00", "cafe-giang": "Mo-Su 07:00-22:30", "hoan-kiem": "24/7",
+};
+
+/** YYYY-MM-DD `n` days from today on this computer (the one the browser runs on), so the in-progress demo
+ *  trip is always under way. */
+const fromToday = (n: number) => {
+  const d = new Date(Date.parse(NOW) + n * 86_400_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 // ── Trips + itineraries ─────────────────────────────────────────────────
 type ItemSeed = [time: string, type: ItineraryItemType, title: string, placeKey?: string, notes?: string, end?: string];
@@ -265,6 +305,13 @@ const trips: Trip[] = [
     cover: ["#1b4965", "#f4a259"], forkCount: 0, saveCount: 410, createdAt: ago(3100), updatedAt: ago(2900),
   },
   {
+    id: t("saigon"), ownerId: u("an"), title: "Saigon long weekend",
+    description: "Three days in District 1 on foot — and we're in it right now.",
+    destinationIds: [d("saigon")], startDate: fromToday(-1), endDate: fromToday(1),
+    visibility: "PRIVATE", allowComments: true, allowFork: true, estimatedBudget: 9_000_000, currency: "VND",
+    cover: ["#3d1e6d", "#f26b4e"], forkCount: 0, saveCount: 0, createdAt: ago(240), updatedAt: ago(3),
+  },
+  {
     id: t("hoian"), ownerId: u("an"), title: "Hội An with the crew",
     description: "Three days of lanterns, cao lầu and a cooking class. Rain ate the basket boats — next time.",
     destinationIds: [d("hoian")], startDate: "2026-08-14", endDate: "2026-08-16",
@@ -328,6 +375,29 @@ buildItinerary("hoian", "2026-08-14", [
     ["10:00", "PLACE", "Hội An Museum", "hoian-museum"],
     ["11:30", "PLACE", "Central Market", "hoian-market"],
     ["", "NOTE", "Grab to Đà Nẵng airport by 15:00"],
+  ]},
+], "an");
+
+// In progress (dates relative to today): yesterday done, today half-way, tomorrow to come.
+buildItinerary("saigon", fromToday(-1), [
+  { title: "Arrive & District 1", items: [
+    ["12:00", "RESTAURANT", "Phở lunch", "pho-hoa"],
+    ["15:00", "PLACE", "Independence Palace", "independence-palace"],
+    ["19:30", "PLACE", "Nguyễn Huệ Walking Street", "nguyen-hue"],
+  ]},
+  { title: "Old Saigon", items: [
+    ["08:00", "PLACE", "Notre-Dame Cathedral", "notre-dame"],
+    ["", "PLACE", "Central Post Office", "post-office"],
+    ["11:30", "RESTAURANT", "Bánh mì Huỳnh Hoa", "banh-mi-huynh-hoa"],
+    ["14:00", "PLACE", "War Remnants Museum", "war-museum"],
+    ["14:00", "PLACE", "Book Street", "book-street", "Nam's afternoon off"],
+    ["18:00", "ACTIVITY", "Sunset at Saigon Skydeck", "skydeck", "Everyone meets here"],
+    ["20:00", "RESTAURANT", "Cơm tấm dinner", "com-tam"],
+  ]},
+  { title: "Markets & home", items: [
+    ["09:00", "PLACE", "Bến Thành Market", "ben-thanh"],
+    ["11:00", "RESTAURANT", "Coffee at The Workshop", "workshop"],
+    ["16:00", "FLIGHT", "Fly home"],
   ]},
 ], "an");
 
@@ -418,6 +488,9 @@ const members: TripMember[] = [
   { tripId: t("california"), userId: u("an"), role: "VIEWER", joinedAt: ago(2500) },
   { tripId: t("kyoto"), userId: u("sarah"), role: "OWNER", joinedAt: ago(5000) },
   { tripId: t("portugal"), userId: u("linh"), role: "OWNER", joinedAt: ago(3100) },
+  { tripId: t("saigon"), userId: u("an"), role: "OWNER", joinedAt: ago(240) },
+  { tripId: t("saigon"), userId: u("minh"), role: "EDITOR", joinedAt: ago(230) },
+  { tripId: t("saigon"), userId: u("nam"), role: "EDITOR", joinedAt: ago(220) },
   { tripId: t("hoian"), userId: u("an"), role: "OWNER", joinedAt: ago(1500) },
   { tripId: t("hoian"), userId: u("minh"), role: "EDITOR", joinedAt: ago(1490) },
   { tripId: t("hoian"), userId: u("linh"), role: "VIEWER", joinedAt: ago(1480) },
@@ -516,7 +589,9 @@ export function createSeed(): DB {
       { key: "yanaka", title: "Yanaka Ginza snacks", type: "RESTAURANT", by: "nam" },
       { key: "shinsekai", title: "Shinsekai kushikatsu", type: "PLACE", by: "nam" },
       { key: "philosophers-path", title: "Philosopher's Path", type: "PLACE", by: "minh" },
-    ].map((x, i) => ({ id: seedId(`pool:japan:${x.key}`), tripId: t("japan"), placeId: p(x.key), type: x.type as ItineraryItemType, title: x.title, addedBy: u(x.by), sortOrder: i })),
+    ]
+      .map((x, i) => ({ id: seedId(`pool:japan:${x.key}`), tripId: t("japan"), placeId: p(x.key), type: x.type as ItineraryItemType, title: x.title, addedBy: u(x.by), sortOrder: i }))
+      .concat([{ id: seedId("pool:saigon:jade-emperor"), tripId: t("saigon"), placeId: p("jade-emperor"), type: "PLACE" as ItineraryItemType, title: "Jade Emperor Pagoda", addedBy: u("nam"), sortOrder: 0 }]),
     votes: (
       [
         ["kiyomizu", "an", "LOVE"], ["kiyomizu", "minh", "LOVE"], ["kiyomizu", "linh", "OK"],
@@ -554,7 +629,19 @@ export function createSeed(): DB {
         [1, 0, "VISITED"], [1, 1, "VISITED"], [1, 2, "SKIPPED"], [1, 3, "VISITED"],
         [2, 0, "VISITED"], [2, 1, "SKIPPED"], [2, 2, "VISITED"],
       ] as const
-    ).map(([day, n, status]) => ({ itemId: hi(day, n), status })),
+    )
+      .map(([day, n, status]) => ({ itemId: hi(day, n), status }))
+      .concat(
+        ([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1]] as const).map(([day, n]) => ({ itemId: seedId(`item:saigon:${day}:${n}`), status: "VISITED" as const })),
+      ),
+    // This afternoon the group splits: An + Minh at the museum, Nam on Book Street; all meet at the Skydeck.
+    itemAssignees: [
+      { itemId: seedId("item:saigon:1:3"), userId: u("an") },
+      { itemId: seedId("item:saigon:1:3"), userId: u("minh") },
+      { itemId: seedId("item:saigon:1:4"), userId: u("nam") },
+    ],
+    meetups: [seedId("item:saigon:1:5")],
+    placeHours: Object.fromEntries(Object.entries(placeHours).map(([k, v]) => [p(k), v])),
     expenses: [
       { key: "homestay", paidBy: "an", amount: VND(4_800_000), description: "Homestay, 2 nights", category: "LODGING" as const, spentOn: "2026-08-14", itemId: null, shares: equal(4_800_000, crew) },
       { key: "cao-lau", paidBy: "minh", amount: VND(1_000_000), description: "Cao lầu dinner", category: "FOOD" as const, spentOn: "2026-08-14", itemId: hi(0, 2), shares: equal(1_000_000, crew) },

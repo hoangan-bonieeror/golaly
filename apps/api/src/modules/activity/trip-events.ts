@@ -14,6 +14,7 @@ export type TripEventType =
   | "item.unvoted"
   | "member.dates"
   | "item.photo"
+  | "item.assignees"
   | "expense.added"
   | "expense.updated"
   | "expense.deleted"

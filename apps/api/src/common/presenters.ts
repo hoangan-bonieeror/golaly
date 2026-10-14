@@ -221,6 +221,7 @@ export const itemInclude = (viewerId: string | null) =>
     updatedBy: { select: userSummarySelect },
     addedBy: { select: userSummarySelect },
     votes: { select: { userId: true, level: true }, orderBy: { createdAt: "asc" } },
+    assignees: { select: { userId: true }, orderBy: { userId: "asc" } },
     photos: { orderBy: { createdAt: "asc" }, take: 24, include: { media: true, uploader: { select: userSummarySelect } } },
     // A fork's item: what the original group did there (only shown while the original is viewable).
     source: { select: { status: true, votes: { select: { level: true } }, trip: { select: { visibility: true, deletedAt: true } } } },
@@ -251,6 +252,8 @@ export function toItemView(i: ItemRow): ItemView {
     addedBy: i.addedBy ? toUserSummary(i.addedBy) : null,
     photos: i.photos.map((p) => ({ id: p.id, image: toImage(p.media), uploadedBy: toUserSummary(p.uploader), createdAt: p.createdAt.toISOString() })),
     evidence: evidenceOf(i.source),
+    assignees: i.assignees.map((a) => a.userId),
+    meetup: i.meetup,
     type: i.type,
     title: i.title,
     description: i.description,

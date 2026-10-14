@@ -107,6 +107,7 @@ const itemBase = z.object({
   /** Part of the day; set from startTime when one is given (see slotForTime). */
   slot: z.enum(ITEM_SLOTS).optional(),
   status: z.enum(ITEM_STATUSES).optional(),
+  meetup: z.boolean().optional(),
 });
 const timeOrder = (v: { startTime?: string | null; endTime?: string | null }) => !v.startTime || !v.endTime || v.endTime >= v.startTime;
 const timeMsg = { message: "End time should be after the start time.", path: ["endTime"] };
@@ -121,6 +122,9 @@ export const itemStatusBatchSchema = z.object({
   items: z.array(z.object({ id: uuid, status: z.enum(ITEM_STATUSES) })).min(1).max(300),
 });
 export const itemPhotoSchema = z.object({ mediaId: uuid });
+/** Who goes to a stop when the group splits up; an empty list means everyone. */
+export const itemAssigneesSchema = z.object({ userIds: z.array(uuid).max(50) });
+export type ItemAssigneesInput = z.infer<typeof itemAssigneesSchema>;
 
 // ── Expenses (amounts in the currency's smallest unit) ──────────────────
 const minor = z.number().int("Amounts are whole numbers of the currency's smallest unit.").positive("Enter an amount above zero.").max(MAX_AMOUNT, "That amount is too large.");
@@ -253,3 +257,11 @@ export const directionsQuerySchema = z.object({
   mode: z.enum(DIRECTIONS_MODES).default("walk"),
 });
 export type DirectionsQuery = z.infer<typeof directionsQuerySchema>;
+
+/** "Where to now?": the traveller's local date and time (the trip's clock), and where they are if they shared it. */
+export const nextQuerySchema = z.object({
+  near: latLngParam.optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a YYYY-MM-DD date."),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use an HH:mm time."),
+});
+export type NextQuery = z.infer<typeof nextQuerySchema>;

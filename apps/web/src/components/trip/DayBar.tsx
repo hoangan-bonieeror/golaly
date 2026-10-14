@@ -18,6 +18,7 @@ export function DayBar({
   onChange,
   cityOf,
   presence,
+  today,
   className,
 }: {
   days: DayView[];
@@ -26,6 +27,8 @@ export function DayBar({
   cityOf?: (d: DayView) => string | null;
   /** Members there that day (their own dates); shown when someone is away. */
   presence?: (d: DayView) => { present: number; total: number };
+  /** While the trip is under way: today's day number (its chip says "Today"). */
+  today?: number | null;
   className?: string;
 }) {
   const t = useT();
@@ -45,12 +48,13 @@ export function DayBar({
             key={d.id}
             type="button"
             aria-pressed={on}
+            aria-current={today === d.dayNumber ? "date" : undefined}
             onClick={() => onChange(d.dayNumber)}
             className={cx(chip, on ? "border-transparent text-white" : "border-line bg-surface text-ink-2 hover:border-ink-2")}
             style={on ? { background: dayColor(d.dayNumber) } : undefined}
           >
             {!on && <span aria-hidden className="size-2 rounded-full" style={{ background: dayColor(d.dayNumber) }} />}
-            {t.trips.day(d.dayNumber)}
+            {today === d.dayNumber ? t.during.todayChip(t.trips.day(d.dayNumber)) : t.trips.day(d.dayNumber)}
             {on && city && <span className="font-medium opacity-90">· {city}</span>}
             {someoneAway && (
               <span className={cx("inline-flex items-center gap-0.5 font-mono text-[11px] font-medium", on ? "opacity-90" : "text-muted")} title={t.trips.plan.presentCount(who.present, who.total)}>

@@ -1,5 +1,6 @@
 import { DirectionsModule } from "./modules/directions/directions";
 import { ExpensesModule } from "./modules/expenses/expenses";
+import { NextModule } from "./modules/next/next";
 import { Controller, Get, Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
@@ -60,6 +61,7 @@ class HealthController {
     AdminModule,
     DirectionsModule,
     ExpensesModule,
+    NextModule,
   ],
   controllers: [HealthController],
   providers: [

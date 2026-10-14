@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { I18nProvider, useI18n } from "@/i18n/client";
 import { ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
+import { registerServiceWorker } from "@/lib/offline";
 import { ToastProvider } from "@/lib/toast";
 
 /** After sign-in on a new device, the language saved on the account wins over the device's guess. */
@@ -27,6 +28,8 @@ export function Providers({ locale, children }: { locale: Locale; children: Reac
         defaultOptions: {
           queries: {
             staleTime: 15_000,
+            // Offline, still try once: the service worker answers trip data from its last copy.
+            networkMode: "offlineFirst",
             refetchOnWindowFocus: true,
             // Don't hammer the API on permission/not-found errors.
             retry: (count, e) => !(e instanceof ApiError && e.status >= 400 && e.status < 500) && count < 2,
@@ -34,6 +37,7 @@ export function Providers({ locale, children }: { locale: Locale; children: Reac
         },
       }),
   );
+  useEffect(() => registerServiceWorker(), []);
   return (
     <QueryClientProvider client={client}>
       <I18nProvider initial={locale}>

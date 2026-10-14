@@ -103,3 +103,26 @@ export function visitedOnly(trip: TripDetail): { trip: TripDetail; marked: boole
 export function wentOn(trip: { outcome: { visited: number } | null; startDate: string | null; endDate: string | null }, today = todayIso()) {
   return trip.outcome ? trip.outcome.visited > 0 : tripPhase(trip, today) === "after";
 }
+
+// ── During the trip (phase 2) ──────────────────────────────────────────
+
+/** The local time on this device as HH:mm. */
+export function nowHm(now = new Date()) {
+  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+/** While a trip is under way: today's day and the part of the day it is now (null otherwise). */
+export function tripNow(trip: TripDetail, now = new Date()): { dayId: string; dayNumber: number; slot: ItemSlot } | null {
+  const today = todayIso(now);
+  if (tripPhase(trip, today) !== "during") return null;
+  const day = trip.days.find((d) => d.date === today);
+  return day ? { dayId: day.id, dayNumber: day.dayNumber, slot: slotForTime(nowHm(now)) } : null;
+}
+
+/** Went / skipped / total of a day's stops (notes don't count). */
+export function dayProgress(items: ItemView[]) {
+  const stops = items.filter(markable);
+  const visited = stops.filter((i) => i.status === "VISITED").length;
+  const skipped = stops.filter((i) => i.status === "SKIPPED").length;
+  return { visited, skipped, done: visited + skipped, total: stops.length };
+}

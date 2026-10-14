@@ -1,0 +1,153 @@
+"use client";
+
+/**
+ * Offline tolerance (roadmap phase 2). The service worker (public/sw.js) keeps the last copy of trip
+ * pages and data; this module keeps went / skipped marks made without a connection in localStorage and
+ * sends them when the connection is back (one batch per trip; a mark for a stop that no longer exists
+ * is dropped). The planner shows the queued marks on top of the saved trip, so nothing jumps back.
+ */
+import { useQueryClient } from "@tanstack/react-query";
+import type { ItemStatus, TripDetail } from "@triply/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, ApiError } from "./api/client";
+
+const KEY = "triply-offline-status";
+const EVENT = "triply-offline-queue";
+
+type Mark = { tripId: string; id: string; status: ItemStatus; at: number };
+
+function read(): Mark[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function write(list: Mark[]) {
+  try {
+    if (list.length) localStorage.setItem(KEY, JSON.stringify(list));
+    else localStorage.removeItem(KEY);
+  } catch {
+    /* storage full or blocked: the marks stay only in memory for this visit */
+  }
+  window.dispatchEvent(new Event(EVENT));
+}
+
+/** Queue marks for later (the latest mark for a stop wins). */
+export function queueMarks(tripId: string, changes: [string, ItemStatus][]) {
+  const now = Date.now();
+  const ids = new Set(changes.map(([id]) => id));
+  write([...read().filter((m) => !ids.has(m.id)), ...changes.map(([id, status]) => ({ tripId, id, status, at: now }))]);
+}
+
+export const pendingFor = (tripId: string) => read().filter((m) => m.tripId === tripId);
+
+/** The trip with any queued marks applied (what the traveller last saw). */
+export function withQueued(trip: TripDetail): TripDetail {
+  if (typeof window === "undefined") return trip;
+  const marks = pendingFor(trip.id);
+  if (!marks.length) return trip;
+  const by = new Map(marks.map((m) => [m.id, m.status]));
+  const set = <T extends { id: string; status: ItemStatus }>(i: T) => (by.has(i.id) ? { ...i, status: by.get(i.id)! } : i);
+  return { ...trip, pool: trip.pool.map(set), days: trip.days.map((d) => ({ ...d, items: d.items.map(set) })) };
+}
+
+/** A failed request that never reached the server (no connection) rather than one the server refused. */
+export const isOffline = (e: unknown) => (e instanceof ApiError && e.status === 0) || (typeof navigator !== "undefined" && navigator.onLine === false);
+
+let flushing: Promise<number> | null = null;
+/** Sends every queued mark; resolves to how many were synced. */
+export function flushMarks(): Promise<number> {
+  flushing ??= (async () => {
+    let synced = 0;
+    const byTrip = new Map<string, Mark[]>();
+    for (const m of read()) byTrip.set(m.tripId, [...(byTrip.get(m.tripId) ?? []), m]);
+    for (const [tripId, marks] of byTrip) {
+      try {
+        await api.patch(`/trips/${tripId}/items/status`, { items: marks.map(({ id, status }) => ({ id, status })) });
+        synced += marks.length;
+      } catch (e) {
+        if (isOffline(e)) break; // still offline: try again later
+        // Refused (a stop was deleted, access lost): send the ones that still can go, one by one.
+        for (const m of marks) {
+          try {
+            await api.patch(`/trips/${tripId}/items/status`, { items: [{ id: m.id, status: m.status }] });
+            synced++;
+          } catch (err) {
+            if (isOffline(err)) return synced;
+          }
+        }
+      }
+      const done = new Set(marks.map((m) => m.id));
+      write(read().filter((m) => !(m.tripId === tripId && done.has(m.id) && marks.find((x) => x.id === m.id)?.at === m.at)));
+    }
+    return synced;
+  })().finally(() => (flushing = null));
+  return flushing;
+}
+
+/** Online / offline, and the number of marks waiting for this trip; syncs them when the connection returns. */
+export function useOffline(tripId: string, onSynced?: (n: number) => void) {
+  const qc = useQueryClient();
+  const [online, setOnline] = useState(true);
+  const [pending, setPending] = useState(0);
+  const notify = useRef(onSynced);
+  useEffect(() => {
+    notify.current = onSynced;
+  });
+  const busy = useRef(false);
+  const sync = useCallback(async () => {
+    if (busy.current || !pendingFor(tripId).length || navigator.onLine === false) return;
+    busy.current = true;
+    try {
+      const n = await flushMarks();
+      if (n) {
+        notify.current?.(n);
+        void qc.invalidateQueries({ queryKey: ["trip", tripId] });
+      }
+    } finally {
+      busy.current = false;
+    }
+  }, [tripId, qc]);
+  useEffect(() => {
+    const update = () => {
+      setOnline(navigator.onLine);
+      setPending(pendingFor(tripId).length);
+    };
+    const back = () => {
+      update();
+      void sync();
+    };
+    update();
+    void sync();
+    window.addEventListener("online", back);
+    window.addEventListener("offline", update);
+    window.addEventListener(EVENT, update);
+    window.addEventListener("storage", update);
+    return () => {
+      window.removeEventListener("online", back);
+      window.removeEventListener("offline", update);
+      window.removeEventListener(EVENT, update);
+      window.removeEventListener("storage", update);
+    };
+  }, [tripId, sync]);
+  return { online, pending };
+}
+
+/** Registers the service worker (production builds, or dev with NEXT_PUBLIC_SW=1 — it would fight hot reload). */
+export function registerServiceWorker() {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+  if (process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_SW !== "1") return;
+  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => undefined);
+}
+
+/** Forget cached trips (on logout: the next person on this device mustn't see them). */
+export function clearOfflineData() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* ignore */
+  }
+  navigator.serviceWorker?.controller?.postMessage({ type: "clear" });
+}

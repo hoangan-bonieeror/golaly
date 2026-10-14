@@ -5,6 +5,7 @@ import type { Locale } from "./i18n";
  * the viewer may not see is simply absent.
  */
 import type { TripAction } from "./permissions";
+import type { OpenState } from "./opening-hours";
 import type {
   Destination,
   Interest,
@@ -295,6 +296,10 @@ export interface ItemView {
    * public or link-shared. Counts only — never who.
    */
   evidence: ItemEvidence | null;
+  /** Who goes there when the group splits up (user ids); empty = everyone. */
+  assignees: string[];
+  /** Where the group meets again after splitting up. */
+  meetup: boolean;
   type: ItineraryItemType;
   title: string;
   description: string | null;
@@ -525,4 +530,30 @@ export interface ExpensesView {
   budget: number | null;
   /** The currency is fixed: the trip already has expenses or repayments. */
   currencyLocked: boolean;
+}
+
+// ── During the trip (phase 2) ──────────────────────────────────────────
+
+/** One answer to "Where to now?": a stop from the plan or the ideas, or a place nearby that isn't in the trip. */
+export interface NextCandidate {
+  item: { id: string; title: string; dayId: string | null; slot: ItemSlot; startTime: string | null } | null;
+  place: PlaceView;
+  /** Straight-line metres from the traveller (null without their location). */
+  distanceM: number | null;
+  /** Estimated walk (≈ 1.3 × straight line at 4.8 km/h), minutes. */
+  walkMin: number | null;
+  open: OpenState;
+}
+export interface NextSuggestions {
+  date: string;
+  /** The part of the day it is now (from the traveller's clock). */
+  slot: ItemSlot;
+  /** Today's day of the trip, if it has one. */
+  dayId: string | null;
+  located: boolean;
+  /** What's left today, best first (open, close by). */
+  plan: NextCandidate[];
+  pool: NextCandidate[];
+  /** Well-rated places within walking distance that aren't in the trip and aren't closed. */
+  nearby: NextCandidate[];
 }

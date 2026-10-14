@@ -3,7 +3,7 @@
 import type { TripSummary } from "@triply/shared";
 import { ArrowRight, Users } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
@@ -24,7 +24,9 @@ export default function HomePage() {
   const trending = (explore.data?.destinations ?? []).slice(0, 6);
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
   const t = useT();
-  const greeting = t.home.greeting[partOfDay()];
+  // The device's own clock: the server can't know the visitor's time zone, so it renders no greeting.
+  const pod = useSyncExternalStore(noop, partOfDay, () => null);
+  const greeting = pod ? t.home.greeting[pod] : null;
   const empty = mode === "following" ? t.home.emptyFollowing : t.home.emptyForYou;
 
   return (
@@ -32,7 +34,7 @@ export default function HomePage() {
       <div className="min-w-0 space-y-8">
         <header>
           <p className="text-sm text-muted">
-            {me ? t.home.greetingName(greeting, me.displayName) : greeting}
+            {greeting ? (me ? t.home.greetingName(greeting, me.displayName) : greeting) : "\u00a0"}
           </p>
           <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.home.title}</h1>
         </header>
@@ -164,7 +166,8 @@ function ContinuePlanning({ trip }: { trip: TripSummary }) {
   );
 }
 
-function partOfDay() {
+const noop = () => () => {};
+function partOfDay(): "morning" | "afternoon" | "evening" {
   const h = new Date().getHours();
   return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }

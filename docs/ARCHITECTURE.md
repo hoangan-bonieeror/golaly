@@ -112,6 +112,23 @@ planner shows who is away each day and warns when someone who loves a place isn'
 close to each other are grouped client-side (`clusterByArea`, single-linkage within 1.5 km) so a whole area can be
 planned into one part of a day.
 
+**During the trip** (migration `20261019000000_split_the_group`). The web app decides "today" and "now" from the
+device's clock (`tripNow` in `lib/plan.ts`: the trip's day whose date is today, and `slotForTime` of the local time);
+the server never guesses a time zone. `GET /trips/:id/next?date&time[&near=lat,lng]` takes the traveller's local date
+and time (opening hours are local to the place, and the traveller is there) and returns today's remaining stops, the
+ideas and, with a location, up to five rated places within 1.2 km that aren't in the trip and aren't closed (a KNN walk
+of the places GIST index). Opening hours are evaluated by `openStateAt` in `packages/shared/src/opening-hours.ts`, a
+small reader of the common part of OpenStreetMap's syntax that answers "unknown" for anything it doesn't understand
+(months, sunrise, …). The location is used for that answer only and never stored. Splitting up: `item_assignees`
+(item, user; none = everyone, and everyone ticked is stored as none) set with `PUT /items/:id/assignees`, members only,
+removed when someone leaves the trip and not copied by a fork; `itinerary_items.meetup` marks where the group meets
+again (copied by a fork). **Offline:** `public/sw.js` (hand-written, registered in production builds) caches built
+assets and media cache-first, and trip pages (HTML and RSC payloads) plus `/trips`, `/trips/:id`,
+`/trips/:id/expenses` and `/users/me` network-first; queries run with `networkMode: "offlineFirst"` so they still try
+(and get the cached copy). Went/skipped marks that fail for lack of a connection are queued in `localStorage`
+(`lib/offline.ts`), shown on top of the cached trip, and sent in one batch per trip when the browser is back online.
+Logout clears the data cache and the queue.
+
 **After the trip** (migration `20261018000000_after_the_trip`). Each item's `status` (PLANNED / VISITED / SKIPPED)
 records what happened; `PATCH /trips/:id/items/status` sets many at once (one-tap buttons and the after-trip
 checklist share it) under the trip's row lock. Summaries carry an `outcome` (`{planned, visited, skipped}` over places,
@@ -127,7 +144,7 @@ change returns the whole `ExpensesView` and emits `trip.expenses.updated`; the w
 so realtime refreshes it with the rest of the trip.
 
 **Activity log** (`trip_events`, append-only). Every structural change to a plan — added, pooled, updated, moved,
-deleted, status, voted, unvoted, member dates, photos, expenses and repayments — is inserted in the same transaction as the change, with facts only
+deleted, status, voted, unvoted, member dates, who's going, photos, expenses and repayments — is inserted in the same transaction as the change, with facts only
 (ids, day numbers, slots, vote levels; never titles or notes). It is the behavioural record future planning
 suggestions will learn from; whether a user's events may be used for that is their opt-in
 `user_profiles.analytics_consent` (Settings → Planning suggestions), checked by whatever exports them.
@@ -144,6 +161,7 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Days | `GET/POST /trips/:id/days` · `PATCH/DELETE /trips/:id/days/:dayId` |
 | Items | `POST /days/:dayId/items` · `PATCH/DELETE /items/:id` · `POST /items/:id/reorder` `{dayId \| null, index, slot?}` · `POST /items/:id/duplicate` |
 | Ideas pool & votes | `GET/POST /trips/:id/pool` · `PUT/DELETE /items/:id/vote` `{level: LOVE\|OK\|SKIP}` |
+| During the trip | `GET /trips/:id/next?date=YYYY-MM-DD&time=HH:mm[&near=lat,lng]` · `PUT /items/:id/assignees` `{userIds}` · `PATCH /items/:id` `{meetup}` |
 | After the trip | `PATCH /trips/:id/items/status` `{items: [{id, status}]}` · `POST /items/:itemId/photos` `{mediaId}` · `DELETE /item-photos/:photoId` |
 | Expenses | `GET/POST /trips/:id/expenses` · `PATCH/DELETE /expenses/:expenseId` (`{description, amount, category, paidById, spentOn?, itemId?, split: {mode: equal, userIds} \| {mode: custom, shares}}`) · `POST /trips/:id/settlements` `{fromId, toId, amount}` · `DELETE /settlements/:settlementId` — each returns the whole expenses view |
 | Members | `GET /trips/:id/members` · `POST /trips/:id/invitations` · `DELETE /trips/:id/invitations/:invId` · `PATCH/DELETE /trips/:id/members/:userId` · `PATCH /trips/:id/members/:userId/dates` `{arriveOn, leaveOn}` |

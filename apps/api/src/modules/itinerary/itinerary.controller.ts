@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Put } from "@nestjs/common";
 import {
+  itemAssigneesSchema,
+  type ItemAssigneesInput,
   createItemSchema,
   reorderItemSchema,
   updateDaySchema,
@@ -61,6 +63,11 @@ export class ItineraryController {
   @Patch("trips/:id/items/status")
   setStatuses(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(itemStatusBatchSchema)) body: ItemStatusBatchInput) {
     return this.svc.setStatuses(id, requireUser(me), body);
+  }
+
+  @Put("items/:id/assignees")
+  setAssignees(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(itemAssigneesSchema)) body: ItemAssigneesInput) {
+    return this.svc.setAssignees(id, requireUser(me), body);
   }
 
   @Post("items/:itemId/photos")

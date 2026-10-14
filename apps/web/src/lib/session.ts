@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { clearOfflineData } from "./offline";
 import type { LoginInput, Me, RegisterInput } from "@triply/shared";
 import { useCallback } from "react";
 import { api } from "./api/client";
@@ -34,6 +35,7 @@ export function useSession() {
 
   const logout = useCallback(async () => {
     await api.post("/auth/logout").catch(() => undefined);
+    clearOfflineData();
     getSocket(null);
     qc.clear();
     qc.setQueryData(keys.me, null);

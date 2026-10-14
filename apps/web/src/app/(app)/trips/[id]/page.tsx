@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { presentOn, type ItemSlot, type ItemView, type TripSummary } from "@triply/shared";
-import { ArrowLeft, Bookmark, CheckCheck, Flag, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, Sparkles, UserPlus, Wallet } from "lucide-react";
+import { ArrowLeft, Bookmark, CheckCheck, Compass, Flag, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, Sparkles, UserPlus, Wallet, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -13,6 +13,7 @@ import { TripMap } from "@/components/map/TripMap";
 import { useShare } from "@/components/social/PostCard";
 import { DayBar, type DayFilter } from "@/components/trip/DayBar";
 import { ExpensesPanel, type ExpenseMode } from "@/components/trip/ExpensesPanel";
+import { NextSheet } from "@/components/trip/NextSheet";
 import { ForkSheet } from "@/components/trip/ForkSheet";
 import { InviteSheet } from "@/components/trip/InviteSheet";
 import { MembersPanel } from "@/components/trip/MembersPanel";
@@ -26,7 +27,9 @@ import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe, useTrip } from "@/lib/api/queries";
 import { useMediaQuery } from "@/lib/hooks";
 import { useTripRealtime } from "@/lib/realtime";
-import { markable, tripPhase } from "@/lib/plan";
+import { useOffline } from "@/lib/offline";
+import { markable, tripNow, tripPhase } from "@/lib/plan";
+import { useToast } from "@/lib/toast";
 import { dayStats, formatKm } from "@/lib/trip-geo";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
@@ -71,6 +74,10 @@ function TripPlanner() {
   const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; slot?: ItemSlot; pool?: boolean; item?: ItemView | null }>({ open: false });
   const [day, setDay] = useState<DayFilter | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [nextOpen, setNextOpen] = useState(false);
+  const toast = useToast();
+  // Marks made offline sync when the connection is back.
+  const offline = useOffline(id, (n) => toast(t.during.offline.synced(n)));
   const [expenseMode, setExpenseMode] = useState<ExpenseMode>({ kind: "list" });
 
   // URL state: `?view=map` (narrow screens), `?tab=members` (the travelers panel) and `?tab=expenses`. Older `?tab=map` links still open the map.
@@ -125,8 +132,10 @@ function TripPlanner() {
   const s = trip.stats;
   const VisIcon = trip.visibility === "PUBLIC" ? Globe2 : trip.visibility === "LINK_ONLY" ? Link2 : Lock;
   const totalKm = trip.days.reduce((sum, d) => sum + dayStats(d).km, 0);
-  // Multi-city trips open on Day 1 so the map isn't squeezed around far-apart clusters.
-  const dayFilter: DayFilter = day ?? (trip.destinations.length > 1 && trip.days.length > 1 ? 1 : "all");
+  // During the trip the planner opens on today. Otherwise multi-city trips open on Day 1 so the map isn't
+  // squeezed around far-apart clusters.
+  const nowAt = tripNow(trip);
+  const dayFilter: DayFilter = day ?? nowAt?.dayNumber ?? (trip.destinations.length > 1 && trip.days.length > 1 ? 1 : "all");
 
   const select = (it: ItemView) => {
     setSelected((cur) => (cur?.id === it.id ? null : it));
@@ -303,7 +312,7 @@ function TripPlanner() {
       {/* Plan: from 1024px the planner fills the window — the itinerary column scrolls on its own
           beside a map that always shows in full. Below that, a List / Map switch. */}
       <div className="lg:flex lg:min-h-0 lg:flex-1">
-        <section aria-label={p.itinerary} className="min-w-0 lg:w-[460px] lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-line xl:w-[560px]">
+        <section aria-label={p.itinerary} className="relative min-w-0 lg:w-[460px] lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-line xl:w-[560px]">
           <div ref={planTop} className="scroll-mt-14 md:scroll-mt-16" />
           {/* Stays under the top bar so the day (and List / Map) is always one tap away. */}
           <div className="sticky top-14 z-20 space-y-3 border-b border-line bg-surface/95 px-4 py-3.5 backdrop-blur md:top-16 md:px-5 lg:top-0">
@@ -321,11 +330,19 @@ function TripPlanner() {
                 </button>
               ))}
             </div>
-            <DayBar days={trip.days} value={dayFilter} onChange={changeDay} cityOf={trip.destinations.length > 1 ? cityOf : undefined} presence={trip.myRole ? dayPresence : undefined} />
+            <DayBar days={trip.days} value={dayFilter} onChange={changeDay} cityOf={trip.destinations.length > 1 ? cityOf : undefined} presence={trip.myRole ? dayPresence : undefined} today={nowAt?.dayNumber} />
           </div>
 
           {(wide || view === "list") && (
             <div className="mx-auto max-w-3xl px-4 pb-8 pt-5 md:px-5 lg:max-w-none">
+              {(!offline.online || offline.pending > 0) && (
+                <p role="status" className="mb-5 flex items-start gap-2 rounded-2xl border border-gold/40 bg-gold-50 px-4 py-3 text-sm font-medium text-gold-700">
+                  <WifiOff className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>
+                    {!offline.online && t.during.offline.banner} {offline.pending > 0 && t.during.offline.pending(offline.pending)}
+                  </span>
+                </p>
+              )}
               {phase === "after" && (trip.myRole || marked) && (
                 <div className="mb-5 rounded-2xl border border-line bg-sand-2 p-4">
                   <p className="flex items-center gap-2 font-semibold">
@@ -344,10 +361,20 @@ function TripPlanner() {
                   </div>
                 </div>
               )}
-              {phase === "during" && canEdit && (
-                <p className="mb-5 flex items-center gap-2 rounded-2xl bg-primary-50 px-4 py-3 text-sm font-medium text-primary">
-                  <CheckCheck className="size-4 shrink-0" aria-hidden /> {ta.banner.during}
-                </p>
+              {phase === "during" && trip.myRole && (
+                <div className="mb-5 rounded-2xl bg-primary-50 p-4">
+                  {canEdit && (
+                    <p className="mb-3 flex items-start gap-2 text-sm font-medium text-primary">
+                      <CheckCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+                      <span>
+                        {ta.banner.during} <span className="md:hidden">{t.during.swipe.hint}.</span>
+                      </span>
+                    </p>
+                  )}
+                  <Button onClick={() => setNextOpen(true)} className="w-full sm:w-auto">
+                    <Compass className="size-4" /> {t.during.next.open}
+                  </Button>
+                </div>
               )}
               {hasAbout && (
                 <div className="mb-6 space-y-2.5 border-b border-line pb-5">
@@ -437,6 +464,7 @@ function TripPlanner() {
           <ExpensesPanel trip={trip} mode={expenseMode} onMode={setExpenseMode} />
         </Sheet>
       )}
+      {trip.myRole && <NextSheet open={nextOpen} onClose={() => setNextOpen(false)} trip={trip} />}
       {canEdit && <ReviewSheet open={reviewOpen} onClose={() => setReviewOpen(false)} trip={trip} />}
       {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} defaultSlot={sheet.slot} pool={sheet.pool} item={sheet.item} />}
       {may("members.invite") && <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={trip.id} />}

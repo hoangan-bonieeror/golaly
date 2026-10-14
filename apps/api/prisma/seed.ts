@@ -37,6 +37,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     prisma.expenseShare.deleteMany(),
     prisma.expense.deleteMany(),
     prisma.itemPhoto.deleteMany(),
+    prisma.itemAssignee.deleteMany(),
     prisma.itemVote.deleteMany(),
     prisma.itineraryItem.deleteMany(),
     prisma.tripDay.deleteMany(),
@@ -101,6 +102,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
       lat: p.lat,
       lng: p.lng,
       rating: p.rating ?? null,
+      openingHours: db.placeHours[p.id] ?? null,
     })),
   });
 
@@ -173,6 +175,8 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
   });
   await prisma.itemVote.createMany({ data: db.votes.map((v) => ({ ...v })) });
   // After the trip: what happened at each stop, and the money.
+  await prisma.itemAssignee.createMany({ data: db.itemAssignees });
+  await prisma.itineraryItem.updateMany({ where: { id: { in: db.meetups } }, data: { meetup: true } });
   for (const s of db.itemStatuses) await prisma.itineraryItem.update({ where: { id: s.itemId }, data: { status: s.status } });
   for (const e of db.expenses) {
     await prisma.expense.create({

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
+import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type ItemAssigneesInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
 import { lockTrip, writeSortOrder } from "../../common/locks";
@@ -217,7 +217,7 @@ export class ItineraryService {
       await this.touch(tx, trip.id);
       if (input.status !== undefined && input.status !== cur.status)
         await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.status", itemId, placeId: updated.placeId, payload: { from: cur.status, to: updated.status } }, tx);
-      const changed = (["title", "type", "placeId", "startTime", "endTime", "notes", "description"] as const).filter((k) => input[k] !== undefined && input[k] !== cur[k]);
+      const changed = (["title", "type", "placeId", "startTime", "endTime", "notes", "description", "meetup"] as const).filter((k) => input[k] !== undefined && input[k] !== cur[k]);
       if (changed.length || slot !== cur.slot)
         await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.updated", itemId, placeId: updated.placeId, payload: { fields: [...changed, ...(slot !== cur.slot ? ["slot"] : [])].join(","), slot } }, tx);
       await this.notifications.notify(this.access.memberIds(trip), viewerId, "TRIP_ITEM_UPDATED", { k: "item_updated", item: updated.title, trip: trip.title }, { tripId: trip.id }, tx);
@@ -370,6 +370,30 @@ export class ItineraryService {
     });
     if (changed) this.realtime.trip(trip.id, viewerId, "trip.item.updated", tripId);
     return { changed };
+  }
+
+  /**
+   * PUT /items/:id/assignees — who goes to this stop when the group splits up (empty = everyone). Only people
+   * on the trip; someone who leaves the trip drops off its stops (see members).
+   */
+  async setAssignees(itemId: string, viewerId: string, input: ItemAssigneesInput): Promise<ItemView> {
+    const item = await this.item(itemId);
+    const trip = await this.access.require("itinerary.edit", item.tripId, viewerId);
+    const ids = [...new Set(input.userIds)];
+    const members = new Set(this.access.memberIds(trip));
+    if (ids.some((id) => !members.has(id))) throw Errors.invalid("Only people on this trip can be going.");
+    // Everyone ticked is the same as nobody singled out.
+    const want = ids.length === members.size ? [] : ids;
+    await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      await tx.itemAssignee.deleteMany({ where: { itemId } });
+      if (want.length) await tx.itemAssignee.createMany({ data: want.map((userId) => ({ itemId, userId })) });
+      await tx.itineraryItem.update({ where: { id: itemId }, data: { updatedById: viewerId } });
+      await this.touch(tx, trip.id);
+      await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.assignees", itemId, placeId: item.placeId, payload: { count: want.length } }, tx);
+    });
+    this.realtime.trip(trip.id, viewerId, "trip.item.updated", itemId);
+    return this.itemView(itemId, viewerId);
   }
 
   /** POST /items/:id/photos — a member adds one of their uploads to a stop (the trip's memories). */

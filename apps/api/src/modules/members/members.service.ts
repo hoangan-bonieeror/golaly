@@ -237,6 +237,8 @@ export class MembersService {
     if (!trip.members.some((m) => m.userId === userId)) throw Errors.notFound("That member");
     await this.prisma.transaction(async (tx) => {
       await tx.tripMember.delete({ where: { tripId_userId: { tripId, userId } } });
+      // They're no longer going anywhere with this group.
+      await tx.itemAssignee.deleteMany({ where: { userId, item: { tripId } } });
       await this.audit.log(viewerId, leaving ? "trip.member.left" : "trip.member.removed", "trip", tripId, { userId }, tx);
     });
     await this.realtime.kick(tripId, userId);

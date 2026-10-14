@@ -375,6 +375,8 @@ export class TripsService {
                 startTime: i.startTime,
                 endTime: i.endTime,
                 notes: i.notes,
+                // The meet-up point carries over; who goes where doesn't (it's a different group).
+                meetup: i.meetup,
                 sortOrder: i.sortOrder,
                 updatedById: viewerId,
               })),

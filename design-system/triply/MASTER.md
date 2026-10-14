@@ -139,6 +139,15 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   gold dot, under the planned stops and never on a route.
 - **Who's there:** the day chip shows "3/4" with a people icon when someone is away; the day
   header says "Not here: Nam"; a gold note on a stop says when someone who loves it isn't there.
+- **During the trip:** the day chip reads "Day 2 · Today" and the planner opens on it; the part of the
+  day it is now has a jade label with a pulsing "Now" pill; a thin progress bar under each day header
+  (went = jade, skipped = `ink-2` at 40%). On phones the went / skipped buttons get their own labelled row
+  under the title, and a swipe shows what it will do underneath (jade "Went" from the left, ink "Skip"
+  from the right). "Where to now?" is the primary button in the jade "You're on this trip" panel and opens a
+  sheet: open state in jade ("Open until 17:30"), closed in `accent-700` with the card at 70% opacity, walk
+  time in mono, a jade "Go" hand-off. Split groups use lane colours (jade, `accent-700`, `gold-700`, `ink-2`):
+  a 3px left rail on their stops, a chip per group under the part-of-day label, and a small avatar stack with
+  names; the meet-up point is a `gold-50` pill with a flag. Offline shows a `gold-50` notice with WifiOff.
 - **After the trip:** from the first day, each stop has two round toggles — ✓ went (fills `primary`)
   and ✕ skipped (fills `ink-2`); a skipped title is struck through in `ink-2`. When the trip is over,
   a `sand-2` banner with an accent flag offers "Mark what you did" (a went/skipped checklist) and the recap.

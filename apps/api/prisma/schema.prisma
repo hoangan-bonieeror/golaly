@@ -145,6 +145,7 @@ model User {
   itemsEdited     ItineraryItem[]          @relation("ItemEditor")
   itemsAdded      ItineraryItem[]          @relation("ItemAdder")
   itemPhotos      ItemPhoto[]              @relation("ItemPhotoUploader")
+  itemAssignments ItemAssignee[]
   expensesPaid    Expense[]                @relation("ExpensePayer")
   expensesMade    Expense[]                @relation("ExpenseCreator")
   expenseShares   ExpenseShare[]
@@ -529,6 +530,8 @@ model ItineraryItem {
   startTime    String?    @map("start_time")
   endTime      String?    @map("end_time")
   notes        String?
+  /// Where the group meets up again after splitting (roadmap phase 2).
+  meetup       Boolean    @default(false)
   sortOrder    Int        @map("sort_order")
   updatedById  String?    @map("updated_by") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at")
@@ -544,10 +547,24 @@ model ItineraryItem {
   copies    ItineraryItem[] @relation("ItemSource")
   photos    ItemPhoto[]
   expenses  Expense[]
+  assignees ItemAssignee[]
 
   @@index([dayId, sortOrder])
   @@index([tripId, dayId])
   @@map("itinerary_items")
+}
+
+/// Who is going to a stop when the group splits up (none = everyone).
+model ItemAssignee {
+  itemId String @map("item_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  item ItineraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
+  @@index([userId])
+  @@map("item_assignees")
 }
 
 /// A trip's own photos of a stop (memories for the recap), visible to whoever can see the trip.

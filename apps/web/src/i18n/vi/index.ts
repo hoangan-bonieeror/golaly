@@ -1,5 +1,6 @@
 import type { Messages } from "../types";
 import { after } from "./after";
+import { during } from "./during";
 import { auth } from "./auth";
 import { common } from "./common";
 import { explore } from "./explore";
@@ -13,4 +14,4 @@ import { titles } from "./titles";
 import { trips } from "./trips";
 
 /** Vietnamese catalog — must match `Messages` exactly (a missing or extra key fails the typecheck). */
-export const vi: Messages = { common, labels, format, nav, titles, auth, home, social, explore, trips, settings, after };
+export const vi: Messages = { common, labels, format, nav, titles, auth, home, social, explore, trips, settings, after, during };
