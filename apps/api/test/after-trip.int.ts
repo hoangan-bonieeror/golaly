@@ -185,4 +185,18 @@ describe("expenses", () => {
     const types = (await t.prisma.tripEvent.findMany({ where: { tripId: trip.id, type: { startsWith: "expense." } }, select: { type: true, payload: true } })).map((e) => e.type);
     expect(types).toEqual(["expense.added", "expense.updated", "expense.deleted"]);
   });
+
+  it("still settles up with someone who has left the trip", async () => {
+    const { owner, editor, trip } = await crew();
+    await owner.post(`/trips/${trip.id}/expenses`, { description: "Boat", amount: 400_000, category: "TRANSPORT", paidById: owner.id, split: { mode: "equal", userIds: [owner.id, editor.id] } });
+    expect((await editor.delete(`/trips/${trip.id}/members/${editor.id}`)).status).toBe(200);
+    const v = (await owner.get(`/trips/${trip.id}/expenses`)).body as ExpensesView;
+    expect(v.transfers.map((x) => [x.from.id, x.to.id, x.amount])).toEqual([[editor.id, owner.id, 200_000]]);
+    const paid = await owner.post(`/trips/${trip.id}/settlements`, { fromId: editor.id, toId: owner.id, amount: 200_000 });
+    expect(paid.status).toBe(201);
+    expect(paid.body.transfers).toEqual([]);
+    // Someone never on the trip or its money still can't be used.
+    const stranger = await t.register("ats2");
+    expect((await owner.post(`/trips/${trip.id}/settlements`, { fromId: stranger.id, toId: owner.id, amount: 1 })).status).toBe(422);
+  });
 });

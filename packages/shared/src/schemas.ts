@@ -87,7 +87,8 @@ export const updateTripSchema = z
     visibility: visibilitySchema,
     allowComments: z.boolean(),
     allowFork: z.boolean(),
-    estimatedBudget: z.number().int().min(0).max(10_000_000).nullable(),
+    // Per person, in whole units of the trip's currency (₫ amounts run into the millions).
+    estimatedBudget: z.number().int().min(0).max(2_000_000_000).nullable(),
     coverMediaId: uuid.nullable(),
     /** ISO 4217; can't change once the trip has expenses. */
     currency: z.string().trim().toUpperCase().refine(isCurrency, "Pick a currency from the list."),

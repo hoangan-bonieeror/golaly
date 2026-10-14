@@ -71,7 +71,7 @@ export default function TripRecapPage() {
 
       <header className="mt-3 overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">
         <Cover palette={trip.cover} seed={trip.id} image={trip.coverImage} imageUrl={trip.coverUrl} sizes="(min-width: 896px) 896px, 100vw" className="aspect-[3/1] w-full md:aspect-[4/1]" />
-        <div className="p-5 md:p-6">
+        <div className="p-4 sm:p-5 md:p-6">
           <p className="font-mono text-xs font-semibold uppercase tracking-wider text-accent-700">{t.recap.eyebrow}</p>
           <h1 className="mt-1 font-display text-3xl font-extrabold leading-tight md:text-4xl">{trip.title}</h1>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-sm text-ink-2">
@@ -80,9 +80,9 @@ export default function TripRecapPage() {
           </p>
           <ul className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             {tiles.map((x) => (
-              <li key={x.label} className="rounded-2xl bg-sand-2 px-4 py-3">
+              <li key={x.label} className="rounded-2xl bg-sand-2 px-3 py-3 sm:px-4">
                 <x.icon className="size-4 text-muted" aria-hidden />
-                <div className="mt-1 font-display text-xl font-extrabold tabular-nums">{x.value}</div>
+                <div className="mt-1 break-words font-display text-base font-extrabold leading-tight tabular-nums sm:text-xl">{x.value}</div>
                 <div className="text-xs text-ink-2">{x.label}</div>
               </li>
             ))}

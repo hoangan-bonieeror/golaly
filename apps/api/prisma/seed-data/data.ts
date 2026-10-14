@@ -308,14 +308,14 @@ const trips: Trip[] = [
     id: t("saigon"), ownerId: u("an"), title: "Saigon long weekend",
     description: "Three days in District 1 on foot — and we're in it right now.",
     destinationIds: [d("saigon")], startDate: fromToday(-1), endDate: fromToday(1),
-    visibility: "PRIVATE", allowComments: true, allowFork: true, estimatedBudget: 9_000_000, currency: "VND",
+    visibility: "PRIVATE", allowComments: true, allowFork: true, estimatedBudget: 3_000_000, currency: "VND",
     cover: ["#3d1e6d", "#f26b4e"], forkCount: 0, saveCount: 0, createdAt: ago(240), updatedAt: ago(3),
   },
   {
     id: t("hoian"), ownerId: u("an"), title: "Hội An with the crew",
     description: "Three days of lanterns, cao lầu and a cooking class. Rain ate the basket boats — next time.",
     destinationIds: [d("hoian")], startDate: "2026-08-14", endDate: "2026-08-16",
-    visibility: "PUBLIC", allowComments: true, allowFork: true, estimatedBudget: 12_000_000, currency: "VND",
+    visibility: "PUBLIC", allowComments: true, allowFork: true, estimatedBudget: 3_000_000, currency: "VND",
     cover: ["#a4471f", "#f5cd5b"], forkCount: 0, saveCount: 12, createdAt: ago(1500), updatedAt: ago(200),
   },
 ];

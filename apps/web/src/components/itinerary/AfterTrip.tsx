@@ -160,7 +160,7 @@ export function ItemPhotos({ trip, item }: { trip: TripDetail; item: ItemView })
       }
       toast(t.added);
     } catch (e) {
-      toast(e instanceof Error ? e.message : t.added, "error");
+      toast(e instanceof Error ? e.message : t.failed, "error");
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";

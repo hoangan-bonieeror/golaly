@@ -106,13 +106,15 @@ npm run db:seed        # DEV ONLY: WIPES users, trips, posts, places (incl. an i
 npm run dev            # API → http://localhost:4000   Web → http://localhost:3000
 ```
 
-Already have data you want to keep (your own account, an imported catalog)? Add only the in-progress demo trip
-instead — it touches nothing else, reuses catalog places with the same name nearby, and can be re-run to move its
-dates to today:
+Already have data you want to keep (your own account, an imported catalog)? Add only the two demo trips instead —
+"Saigon long weekend" (under way today: Today, Where to now?, split group) and "Hội An with the crew" (over: recap,
+expenses in đồng, remix evidence). It touches nothing else, reuses catalog places with the same name nearby, and can be
+re-run (only those two trips are replaced; Saigon's dates move to today):
 
 ```bash
-npm run db:demo-trip -w @triply/api                           # owner: an@triply.dev
-npm run db:demo-trip -w @triply/api -- --owner you@example.com  # owner: your own account
+npm run db:demo-trip -w @triply/api                             # both, owner an@triply.dev
+npm run db:demo-trip -w @triply/api -- --owner you@example.com  # owned by your own account
+npm run db:demo-trip -w @triply/api -- --trip hoian             # just one: saigon | hoian
 ```
 
 Open **http://localhost:3000** and log in with a demo account (password `demo1234`):

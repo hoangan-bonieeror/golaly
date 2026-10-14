@@ -62,9 +62,11 @@ function Overview({ trip, view, onMode }: { trip: TripDetail; view: ExpensesView
   const undo = useAction((id: string) => api.delete<ExpensesView>(`/settlements/${id}`), { success: t.undone });
   const currency = useAction((code: string) => api.patch(`/trips/${trip.id}`, { currency: code }), { invalidate: [keys.trip(trip.id), ["trips"]], success: t.currencySaved });
 
-  const budgetMinor = view.budget !== null ? view.budget * 10 ** view.digits : null;
-  const used = budgetMinor ? Math.min(1, view.total / budgetMinor) : 0;
   const people = Math.max(1, trip.members.length);
+  // The trip's budget is per person (Trip settings): the group's is that × the travelers.
+  const perPersonMinor = view.budget ? view.budget * 10 ** view.digits : null;
+  const budgetMinor = perPersonMinor !== null ? perPersonMinor * people : null;
+  const used = budgetMinor ? Math.min(1, view.total / budgetMinor) : 0;
   const owner = trip.myRole === "OWNER";
   const codes = [...new Set([view.currency, ...COMMON_CURRENCIES])];
 
@@ -101,7 +103,10 @@ function Overview({ trip, view, onMode }: { trip: TripDetail; view: ExpensesView
         {budgetMinor !== null && budgetMinor > 0 && (
           <div className="mt-4">
             <div className="flex justify-between text-[13px]">
-              <span className="text-ink-2">{t.budget(money(budgetMinor))}</span>
+              <span className="text-ink-2">
+                {t.budget(money(budgetMinor))}
+                {people > 1 && perPersonMinor !== null && <span className="text-muted"> · {t.budgetEach(money(perPersonMinor))}</span>}
+              </span>
               <span className={cx("font-semibold", view.total > budgetMinor ? "text-danger" : "text-ink-2")}>
                 {view.total > budgetMinor ? t.overBudget(money(view.total - budgetMinor)) : t.leftInBudget(money(budgetMinor - view.total))}
               </span>

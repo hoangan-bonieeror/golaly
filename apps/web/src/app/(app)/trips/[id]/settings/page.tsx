@@ -111,8 +111,8 @@ function TripSettings({ trip }: { trip: TripDetail }) {
         <Field label={fields.destinations} group>
           <DestinationPicker value={form.destinationIds} onChange={(v) => set("destinationIds", v)} />
         </Field>
-        <Field label={st.budget} hint={st.budgetHint}>
-          <input className={inputCls} inputMode="numeric" value={form.estimatedBudget} onChange={(e) => set("estimatedBudget", e.target.value.replace(/\D/g, "").slice(0, 7))} placeholder={st.budgetPlaceholder} />
+        <Field label={st.budget(trip.currency)} hint={st.budgetHint}>
+          <input className={inputCls} inputMode="numeric" value={form.estimatedBudget} onChange={(e) => set("estimatedBudget", e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder={st.budgetPlaceholder(trip.currency)} />
         </Field>
         <div>
           <span className="mb-1.5 block text-sm font-medium text-ink-2">{st.cover}</span>

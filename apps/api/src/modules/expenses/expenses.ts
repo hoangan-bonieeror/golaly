@@ -219,11 +219,17 @@ export class ExpensesService {
     return this.list(row.tripId, viewerId);
   }
 
-  /** Records a repayment. Either party (or the owner) can record it; both must be on the trip. */
+  /**
+   * Records a repayment. Both people must be on the trip — or on its money already (someone who left the trip
+   * still owes or is owed what their expenses say, and settling up with them has to stay possible).
+   */
   async settle(tripId: string, viewerId: string, input: SettlementInput) {
     const trip = await this.trip(tripId, viewerId);
     const members = new Set(trip.members.map((m) => m.userId));
-    if (!members.has(input.fromId) || !members.has(input.toId)) throw Errors.invalid("Both people have to be on the trip.");
+    const onTheMoney = async (id: string) =>
+      members.has(id) ||
+      !!(await this.prisma.expense.findFirst({ where: { tripId, OR: [{ paidById: id }, { shares: { some: { userId: id } } }] }, select: { id: true } }));
+    if (!(await onTheMoney(input.fromId)) || !(await onTheMoney(input.toId))) throw Errors.invalid("Both people have to be on the trip.");
     await this.prisma.transaction(async (tx) => {
       await tx.settlement.create({ data: { tripId, fromId: input.fromId, toId: input.toId, amount: BigInt(input.amount), createdById: viewerId } });
       await this.events.log({ tripId, actorId: viewerId, type: "settlement.added", payload: { from: input.fromId, to: input.toId } }, tx);

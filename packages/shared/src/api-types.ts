@@ -526,7 +526,7 @@ export interface ExpensesView {
   byCategory: { category: ExpenseCategory; amount: number }[];
   /** Spending per day of the trip (expenses with a date). */
   byDay: { date: string; amount: number }[];
-  /** The trip's estimated budget, in whole currency units (as entered on the trip). */
+  /** The trip's estimated budget PER PERSON, in whole currency units (as entered in Trip settings). */
   budget: number | null;
   /** The currency is fixed: the trip already has expenses or repayments. */
   currencyLocked: boolean;
