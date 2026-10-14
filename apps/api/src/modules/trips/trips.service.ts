@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { CreateTripInput, Paged, TripDetail, TripSummary, UpdateTripInput } from "@triply/shared";
 import { addDays, dayCount, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
+import { requestLocale } from "../../common/locale";
 import { lockTrip } from "../../common/locks";
 import { pageOf } from "../../common/paging";
 import { dayInclude, itemInclude, toDayView, toItemView, toTripSummary, toUserSummary, tripSummaryInclude, userSummarySelect } from "../../common/presenters";
@@ -148,6 +149,8 @@ export class TripsService {
           startDate: toDate(input.startDate),
           endDate: toDate(input.endDate),
           visibility: "PRIVATE", // spec §17: default PRIVATE
+          // Expenses are kept in one currency per trip; start from the creator's language (changeable until the first expense).
+          currency: requestLocale() === "vi" ? "VND" : "USD",
           coverA: cover[0],
           coverB: cover[1],
           members: { create: { userId: ownerId, role: "OWNER" } },
@@ -180,6 +183,10 @@ export class TripsService {
         where: { id: input.coverMediaId, ownerId: viewerId },
       });
       if (!m) throw Errors.invalid("Upload the cover photo first.");
+    }
+    if (input.currency && input.currency !== trip.currency) {
+      const [expenses, settlements] = await Promise.all([this.prisma.expense.count({ where: { tripId } }), this.prisma.settlement.count({ where: { tripId } })]);
+      if (expenses + settlements) throw Errors.invalid("The currency can't change once expenses are recorded.", { currency: "The currency can't change once expenses are recorded." });
     }
     const start = input.startDate !== undefined ? input.startDate : fromDate(trip.startDate);
     const end = input.endDate !== undefined ? input.endDate : fromDate(trip.endDate);
@@ -359,6 +366,7 @@ export class TripsService {
             items: {
               create: day.items.map((i) => ({
                 tripId: created.id,
+                sourceItemId: i.id,
                 slot: i.slot,
                 type: i.type,
                 title: i.title,
@@ -380,6 +388,7 @@ export class TripsService {
           data: source.items.map((i) => ({
             tripId: created.id,
             dayId: null,
+            sourceItemId: i.id,
             type: i.type,
             title: i.title,
             description: i.description,

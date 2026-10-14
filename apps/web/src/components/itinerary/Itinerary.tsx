@@ -1,18 +1,19 @@
 "use client";
 
 import type { ItemSlot, ItemView, TripDetail } from "@triply/shared";
-import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Copy, GripVertical, Heart, Lightbulb, Moon, Pencil, Plus, Shuffle, Sun, Sunrise, Trash2, Users } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Check, CircleDashed, Copy, GripVertical, Heart, Lightbulb, Moon, Pencil, Plus, Shuffle, Sun, Sunrise, Trash2, Users, Wallet, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { prefersReducedMotion } from "@/lib/motion";
-import { absentOn, applyMove, dayIndexFor, firstName, ITEM_SLOTS, listId, nameList, parseList } from "@/lib/plan";
+import { absentOn, applyMove, dayIndexFor, firstName, ITEM_SLOTS, listId, markable, nameList, parseList, tripPhase } from "@/lib/plan";
 import { useToast } from "@/lib/toast";
 import { useFormat, useI18n } from "@/i18n/client";
 import { cx } from "../ui";
 import type { DayFilter } from "../trip/DayBar";
+import { EvidenceBadge, PhotoStrip, StatusBadge, StatusToggle, useSetStatuses } from "./AfterTrip";
 import { ItemMenu, type MenuAction } from "./ItemMenu";
 import { ItemTypeIcon, TYPE_META } from "./ItemTypeIcon";
 import { PoolSection, sortPool, type MoveFn } from "./Pool";
@@ -37,6 +38,7 @@ export function Itinerary({
   onAdd,
   onAddIdea,
   onEdit,
+  onAddExpense,
 }: {
   trip: TripDetail;
   day?: DayFilter;
@@ -48,6 +50,8 @@ export function Itinerary({
   onAdd?: (dayId: string, slot?: ItemSlot) => void;
   onAddIdea?: () => void;
   onEdit?: (item: ItemView) => void;
+  /** "Add expense" on a stop (members only). */
+  onAddExpense?: (item: ItemView) => void;
 }) {
   const me = useMe().data;
   const { m: t, locale } = useI18n();
@@ -64,6 +68,13 @@ export function Itinerary({
   const root = useRef<HTMLDivElement>(null);
   const [liveMsg, setLiveMsg] = useState("");
   const and = locale === "vi" ? "và" : "&";
+  const ta = t.after;
+  // After the trip starts, stops can be marked went / skipped: one tap on the card while it's under way or over.
+  const phase = tripPhase(trip);
+  const canMark = canEdit && phase !== "before";
+  const inlineMark = canEdit && (phase === "during" || phase === "after");
+  const setStatuses = useSetStatuses(trip);
+  const canSpend = may("expenses.manage") && !!onAddExpense;
 
   const invalidate = [keys.trip(trip.id), ["trips"]];
   /** Optimistic move: the list (and the map, legs, totals) update at once; the server confirms. */
@@ -244,8 +255,20 @@ export function Itinerary({
                           ]
                             .filter(Boolean)
                             .join(" · ");
+                          const statusActions: MenuAction[] =
+                            canMark && markable(it)
+                              ? [
+                                  ...(it.status !== "PLANNED" ? [{ heading: ta.status[it.status] }] : []),
+                                  ...(it.status !== "VISITED" ? [{ icon: <Check className="size-4" />, label: ta.status.markVisited, onClick: () => void setStatuses([[it.id, "VISITED"]]) }] : []),
+                                  ...(it.status !== "SKIPPED" ? [{ icon: <X className="size-4" />, label: ta.status.markSkipped, onClick: () => void setStatuses([[it.id, "SKIPPED"]]) }] : []),
+                                  ...(it.status !== "PLANNED" ? [{ icon: <CircleDashed className="size-4" />, label: ta.status.markPlanned, onClick: () => void setStatuses([[it.id, "PLANNED"]]) }] : []),
+                                  "separator" as const,
+                                ]
+                              : [];
                           const actions: MenuAction[] = [
+                            ...statusActions,
                             ...(canEdit ? [{ icon: <Pencil className="size-4" />, label: t.common.edit, onClick: () => onEdit?.(it) }] : []),
+                            ...(canSpend && markable(it) ? [{ icon: <Wallet className="size-4" />, label: ta.expenses.addForItem, onClick: () => onAddExpense?.(it) }] : []),
                             ...(canAdd ? [{ icon: <Copy className="size-4" />, label: ti.duplicate, onClick: () => duplicate.run(it.id) }] : []),
                             ...(canMove
                               ? [
@@ -324,13 +347,14 @@ export function Itinerary({
                                             e.stopPropagation();
                                             onSelect?.(it);
                                           }}
-                                          className="text-left font-semibold leading-snug hover:underline"
+                                          className={cx("text-left font-semibold leading-snug hover:underline", it.status === "SKIPPED" && "text-ink-2 line-through decoration-ink-2/50")}
                                           aria-label={place ? ti.showOnMap(it.title) : undefined}
                                           aria-pressed={place ? selected : undefined}
                                         >
                                           {it.title}
                                         </button>
                                         <div className={cx("truncate text-[13px]", selected ? "text-ink-2" : "text-muted")}>{meta}</div>
+                                        {!(inlineMark && markable(it)) && <StatusBadge status={it.status} className="mt-1" />}
                                       </div>
                                       {loves > 0 && (
                                         <span className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-accent-700" title={t.trips.plan.vote.LOVE}>
@@ -340,6 +364,7 @@ export function Itinerary({
                                         </span>
                                       )}
                                       {it.startTime && <span className="shrink-0 font-mono text-[13px] text-ink sm:hidden">{it.startTime}</span>}
+                                      {inlineMark && markable(it) && <StatusToggle item={it} onChange={(st) => void setStatuses([[it.id, st]])} />}
                                       {canMove && (
                                         /* Drag handle: pointer drag, or Space + arrow keys (announced). touch-action:none lets a finger drag it. */
                                         <button
@@ -365,6 +390,8 @@ export function Itinerary({
                                         <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden /> {tp.lovedButAway(nameList(awayLovers, and))}
                                       </p>
                                     )}
+                                    <EvidenceBadge evidence={it.evidence} />
+                                    <PhotoStrip item={it} />
                                     {editor && it.updatedAt && <p className="mt-1.5 text-[11px] text-muted">{ti.editedBy(editor.displayName, f.timeAgo(it.updatedAt))}</p>}
                                   </div>
                                   {ticket && (

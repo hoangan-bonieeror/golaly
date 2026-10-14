@@ -11,6 +11,7 @@ import { absentOn, applyVote, firstName, ITEM_SLOTS, nameList } from "@/lib/plan
 import { dayColor } from "@/lib/trip-geo";
 import { useToast } from "@/lib/toast";
 import { Avatar, Button, Sheet, cx } from "../ui";
+import { EvidenceBadge } from "./AfterTrip";
 import { ItemMenu } from "./ItemMenu";
 import { ItemTypeIcon } from "./ItemTypeIcon";
 import type { useItineraryDrag } from "./useItineraryDrag";
@@ -187,6 +188,7 @@ export function PoolSection({
                         />
                       )}
                     </div>
+                    <EvidenceBadge evidence={it.evidence} />
                     <VoteBar trip={trip} item={it} and={and} />
                   </div>
                 </li>

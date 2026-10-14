@@ -60,6 +60,8 @@ describe("permission matrix", () => {
       expect(check("trip.view", STRANGER, t)).toBe(true);
       expect(check("itinerary.edit", STRANGER, t)).toBe(false);
       expect(check("itinerary.vote", STRANGER, t)).toBe(false);
+      // Expenses are members-only, even on a public trip.
+      expect(check("expenses.manage", STRANGER, t)).toBe(false);
     }
   });
 
@@ -118,6 +120,6 @@ describe("TripAccessService.assert", () => {
 
   it("lists exactly the permitted actions", () => {
     const perms = svc.permissions(asAccess(trip()), VIEWER);
-    expect(perms).toEqual(["trip.view", "itinerary.view", "itinerary.vote", "members.view"]);
+    expect(perms).toEqual(["trip.view", "itinerary.view", "itinerary.vote", "itinerary.photo", "expenses.manage", "members.view"]);
   });
 });

@@ -5,7 +5,10 @@ import {
   updateDaySchema,
   updateItemSchema,
   voteSchema,
+  itemPhotoSchema,
+  itemStatusBatchSchema,
   type CreateItemInput,
+  type ItemStatusBatchInput,
   type ReorderItemInput,
   type UpdateItemInput,
   type VoteInput,
@@ -53,6 +56,22 @@ export class ItineraryController {
   @Post("trips/:id/pool")
   addToPool(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(createItemSchema)) body: CreateItemInput) {
     return this.svc.addToPool(id, requireUser(me), body);
+  }
+
+  @Patch("trips/:id/items/status")
+  setStatuses(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(itemStatusBatchSchema)) body: ItemStatusBatchInput) {
+    return this.svc.setStatuses(id, requireUser(me), body);
+  }
+
+  @Post("items/:itemId/photos")
+  addPhoto(@Param("itemId", Uuid) itemId: string, @ViewerId() me: string | null, @Body(new ZodPipe(itemPhotoSchema)) body: { mediaId: string }) {
+    return this.svc.addPhoto(itemId, requireUser(me), body.mediaId);
+  }
+
+  @Delete("item-photos/:photoId")
+  @HttpCode(200)
+  removePhoto(@Param("photoId", Uuid) photoId: string, @ViewerId() me: string | null) {
+    return this.svc.removePhoto(photoId, requireUser(me));
   }
 
   @Put("items/:itemId/vote")

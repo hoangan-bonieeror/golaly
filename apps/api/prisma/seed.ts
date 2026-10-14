@@ -33,6 +33,10 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     prisma.postMedia.deleteMany(),
     prisma.post.deleteMany(),
     prisma.tripEvent.deleteMany(),
+    prisma.settlement.deleteMany(),
+    prisma.expenseShare.deleteMany(),
+    prisma.expense.deleteMany(),
+    prisma.itemPhoto.deleteMany(),
     prisma.itemVote.deleteMany(),
     prisma.itineraryItem.deleteMany(),
     prisma.tripDay.deleteMany(),
@@ -168,6 +172,28 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     data: db.pool.map((x) => ({ id: x.id, tripId: x.tripId, dayId: null, slot: "ANY" as const, type: x.type as ItemType, title: x.title, placeId: x.placeId, sortOrder: x.sortOrder, addedById: x.addedBy, updatedById: x.addedBy })),
   });
   await prisma.itemVote.createMany({ data: db.votes.map((v) => ({ ...v })) });
+  // After the trip: what happened at each stop, and the money.
+  for (const s of db.itemStatuses) await prisma.itineraryItem.update({ where: { id: s.itemId }, data: { status: s.status } });
+  for (const e of db.expenses) {
+    await prisma.expense.create({
+      data: {
+        id: e.id,
+        tripId: e.tripId,
+        paidById: e.paidBy,
+        amount: BigInt(e.amount),
+        description: e.description,
+        category: e.category,
+        spentOn: d(e.spentOn ?? undefined),
+        itemId: e.itemId,
+        createdById: e.paidBy,
+        createdAt: new Date(e.createdAt),
+        shares: { create: e.shares.map((x) => ({ userId: x.userId, amount: BigInt(x.amount) })) },
+      },
+    });
+  }
+  await prisma.settlement.createMany({
+    data: db.settlements.map((x) => ({ id: x.id, tripId: x.tripId, fromId: x.fromId, toId: x.toId, amount: BigInt(x.amount), createdById: x.fromId, createdAt: new Date(x.createdAt) })),
+  });
 
   // Demo invitations get fresh random tokens; only hashes are stored.
   for (const inv of db.invitations) {

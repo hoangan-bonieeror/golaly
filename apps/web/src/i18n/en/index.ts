@@ -1,3 +1,4 @@
+import { after } from "./after";
 import { auth } from "./auth";
 import { common } from "./common";
 import { explore } from "./explore";
@@ -11,4 +12,4 @@ import { titles } from "./titles";
 import { trips } from "./trips";
 
 /** English is the source catalog: its shape is the `Messages` type every other language must match. */
-export const en = { common, labels, format, nav, titles, auth, home, social, explore, trips, settings };
+export const en = { common, labels, format, nav, titles, auth, home, social, explore, trips, settings, after };

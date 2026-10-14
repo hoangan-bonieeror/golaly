@@ -242,6 +242,67 @@ fs.mkdirSync(shots, { recursive: true });
     if (await A.locator("#pool-body li", { hasText: "Meiji Jingu" }).count()) throw new Error("planned idea is still in the pool");
   });
 
+  // After the trip (roadmap phase 3), on the seeded past trip "Hội An with the crew" (Minh is an editor).
+  let hoianTrip;
+  await step("17c. after the trip: mark a stop, split an expense, settle up, see the recap", async () => {
+    const id = await B.evaluate(() =>
+      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "triply" } })
+        .then((r) => r.json())
+        .then((r) => r.items.find((t) => t.title === "Hội An with the crew")?.id),
+    );
+    if (!id) throw new Error("seeded Hội An trip not found (run npm run db:seed)");
+    hoianTrip = `/trips/${id}`;
+    await B.goto(`${BASE}${hoianTrip}`);
+    await B.getByText("This trip is over.").waitFor();
+    // One tap: the rained-out basket boats did happen after all… then back to skipped.
+    const went = B.getByRole("button", { name: "Mark Basket boats, Coconut Forest as visited" });
+    await went.click();
+    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as visited"]').waitFor();
+    await B.getByRole("button", { name: "Mark Basket boats, Coconut Forest as skipped" }).click();
+    await B.locator('[aria-pressed="true"][aria-label="Mark Basket boats, Coconut Forest as skipped"]').waitFor();
+
+    // An expense split by amount, from the stop's menu.
+    await B.locator("li[data-item-id]", { hasText: "Dinner at Mót" }).getByRole("button", { name: "Item actions" }).click();
+    await B.getByRole("menuitem", { name: "Add expense" }).click();
+    const sheet = B.getByRole("dialog", { name: "Expenses" });
+    await sheet.getByLabel("What for").fill(`E2E dessert ${stamp}`);
+    await sheet.getByLabel("Amount (VND)").fill("300000");
+    await sheet.getByRole("radio", { name: "By amount" }).click();
+    await sheet.getByLabel("An's share").fill("200000");
+    await sheet.getByText(/100,000 left to assign/).waitFor();
+    await sheet.getByLabel("Minh's share").fill("100000");
+    await sheet.getByText("Adds up").waitFor();
+    await sheet.getByRole("button", { name: "Save expense" }).click();
+    const row = sheet.getByRole("button", { name: `Edit: E2E dessert ${stamp}` });
+    await row.waitFor();
+    // Settle the first suggested transfer, then undo it.
+    const before = await sheet.getByRole("button", { name: /^Mark that / }).count();
+    await sheet.getByRole("button", { name: /^Mark that / }).first().click();
+    await B.getByText("Payment recorded").waitFor();
+    if ((await sheet.getByRole("button", { name: /^Mark that / }).count()) >= before) throw new Error("settling didn't reduce the transfers");
+    await sheet.getByText(/Payments made/).click();
+    await sheet.getByRole("button", { name: "Undo" }).last().click();
+    await B.getByText("Payment removed").waitFor();
+    // Clean up the expense.
+    await row.click();
+    await sheet.getByRole("button", { name: "Delete" }).click();
+    await B.getByText("Expense deleted").waitFor();
+    await B.keyboard.press("Escape");
+
+    // The recap: places the group went to.
+    await B.goto(`${BASE}${hoianTrip}/recap`);
+    await B.getByRole("heading", { name: "Hội An with the crew" }).waitFor();
+    await B.getByText("8 of 11 places").waitFor();
+    await B.getByRole("heading", { name: "The group's favorites" }).waitFor();
+
+    // A visitor sees how it went, but never the money.
+    await C.goto(`${BASE}${hoianTrip}`);
+    await C.getByText("This trip is over.").waitFor();
+    if (await C.getByRole("button", { name: "Expenses" }).count()) throw new Error("visitor sees the expenses button");
+    const status = await C.evaluate((u) => fetch(`/api/v1${u}/expenses`, { headers: { "X-Requested-With": "triply" } }).then((r) => r.status), hoianTrip);
+    if (status !== 403) throw new Error(`visitor got ${status} for expenses`);
+  });
+
   // A 96×64 PNG: the smallest image the media pipeline accepts is 64×64.
   const PNG = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAGAAAABACAIAAABqVuVZAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAwElEQVR4nO3ZwQnDQADEQNejRtL6lZV/IP6EsH4MXAVCK5/t67xyzncIFzrnVhGAAqhfVsKgAIpB/e9RY2IBFIMysVYXWg0KoBiUiaVBPfO7gkgHUAzKxNKg5j0W6QCKQZlY8+64KAZQDMrEmgfIy2oAxaBMLA1qHmORDqAYlIk1j46LYgDFoEyshxx/VgMoBmViaVDzHot0AMWgTKx5d1wUAygGZWLNA+RlNYBiUCaWBjWPsUgHUAzKxJpH5+O8ATloWbTqlBPYAAAAAElFTkSuQmCC",
@@ -268,7 +329,7 @@ fs.mkdirSync(shots, { recursive: true });
 
   await step("privacy: private trips never leak to other users", async () => {
     await C.goto(`${BASE}/u/an.nguyen`);
-    await C.getByRole("heading", { name: "An" }).waitFor();
+    await C.getByRole("heading", { name: "An", exact: true }).waitFor();
     if (await C.getByText("Japan — 7 Days").count()) throw new Error("private trip on public profile");
     await C.goto(`${BASE}/explore`);
     await C.getByLabel("Search", { exact: true }).fill("Japan — 7");
@@ -288,6 +349,7 @@ fs.mkdirSync(shots, { recursive: true });
     const runs = [
       [C, routes, false],
       [A, [trip, `${trip}?view=map`, `${trip}?tab=members`], false],
+      ...(hoianTrip ? [[B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], false], [B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], true]] : []),
       [A, [trip, `${trip}?view=map`, "/home", "/explore", "/settings", "/notifications"], true],
     ];
     for (const [page, list, viDark] of runs)

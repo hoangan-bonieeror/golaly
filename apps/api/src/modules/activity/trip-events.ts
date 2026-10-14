@@ -12,7 +12,13 @@ export type TripEventType =
   | "item.status"
   | "item.voted"
   | "item.unvoted"
-  | "member.dates";
+  | "member.dates"
+  | "item.photo"
+  | "expense.added"
+  | "expense.updated"
+  | "expense.deleted"
+  | "settlement.added"
+  | "settlement.deleted";
 
 export interface TripEventInput {
   tripId: string;

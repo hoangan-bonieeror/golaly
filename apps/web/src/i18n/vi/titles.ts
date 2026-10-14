@@ -8,6 +8,7 @@ export const titles: Messages["titles"] = {
   trips: "Chuyến đi",
   newTrip: "Chuyến đi mới",
   tripSettings: "Cài đặt chuyến đi",
+  tripRecap: "Tổng kết chuyến đi",
   saved: "Đã lưu",
   notifications: "Thông báo",
   settings: "Cài đặt",

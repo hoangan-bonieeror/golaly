@@ -7,6 +7,7 @@ export const titles = {
   trips: "Trips",
   newTrip: "New trip",
   tripSettings: "Trip settings",
+  tripRecap: "Trip recap",
   saved: "Saved",
   notifications: "Notifications",
   settings: "Settings",

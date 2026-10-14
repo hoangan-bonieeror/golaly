@@ -2,7 +2,7 @@
  * Flexible plans on the client: the same rules the API applies (from @triply/shared), used for
  * optimistic updates so a drop, a vote or a move shows at once and the server only confirms.
  */
-import { ITEM_SLOTS, orderBySlot, presentOn, SLOT_RANK, slotForTime, type ItemSlot, type ItemView, type MemberView, type TripDetail, type VoteLevel } from "@triply/shared";
+import { ITEM_SLOTS, orderBySlot, presentOn, SLOT_RANK, slotForTime, type ItemSlot, type ItemStatus, type ItemView, type MemberView, type TripDetail, type VoteLevel } from "@triply/shared";
 
 export { ITEM_SLOTS };
 
@@ -63,4 +63,43 @@ export const firstName = (m: { displayName: string }) => m.displayName.split(" "
 export function nameList(names: string[], and = "&") {
   if (names.length <= 1) return names.join("");
   return `${names.slice(0, -1).join(", ")} ${and} ${names[names.length - 1]}`;
+}
+
+// ── After the trip (phase 3) ───────────────────────────────────────────
+
+/** Today on this device, as YYYY-MM-DD. */
+export function todayIso(now = new Date()) {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/** Where a trip is in time: not started, under way, over — or undated. */
+export type TripPhase = "before" | "during" | "after" | "undated";
+export function tripPhase(trip: { startDate: string | null; endDate: string | null }, today = todayIso()): TripPhase {
+  const start = trip.startDate ?? trip.endDate;
+  const end = trip.endDate ?? trip.startDate;
+  if (!start || !end) return "undated";
+  if (today < start) return "before";
+  return today > end ? "after" : "during";
+}
+
+/** Stops whose outcome is worth recording: anything but a note. */
+export const markable = (i: ItemView) => i.type !== "NOTE";
+
+/** The trip with some items' statuses set (optimistic). */
+export function applyStatuses(trip: TripDetail, changes: Map<string, ItemStatus>): TripDetail {
+  const set = (i: ItemView) => (changes.has(i.id) ? { ...i, status: changes.get(i.id)! } : i);
+  return { ...trip, pool: trip.pool.map(set), days: trip.days.map((d) => ({ ...d, items: d.items.map(set) })) };
+}
+
+/** A trip where the group actually went: places that were visited (or every place, if nothing is marked yet). */
+export function visitedOnly(trip: TripDetail): { trip: TripDetail; marked: boolean } {
+  const marked = trip.days.some((d) => d.items.some((i) => i.status !== "PLANNED"));
+  if (!marked) return { trip: { ...trip, pool: [] }, marked };
+  return { trip: { ...trip, pool: [], days: trip.days.map((d) => ({ ...d, items: d.items.filter((i) => i.status === "VISITED") })) }, marked };
+}
+
+/** Did the traveller go on this trip? Marked trips need a visited stop; unmarked ones need to be over. */
+export function wentOn(trip: { outcome: { visited: number } | null; startDate: string | null; endDate: string | null }, today = todayIso()) {
+  return trip.outcome ? trip.outcome.visited > 0 : tripPhase(trip, today) === "after";
 }

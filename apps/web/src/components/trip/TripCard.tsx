@@ -1,7 +1,7 @@
 "use client";
 
 import type { TripSummary } from "@triply/shared";
-import { Bookmark, GitFork, Link2, Lock, MapPin } from "lucide-react";
+import { Bookmark, Check, GitFork, Link2, Lock, MapPin } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ViewTransition } from "react";
@@ -44,8 +44,16 @@ export function TripCard({ trip, compact, showRole, level = "h3", morph }: { tri
         <Cover palette={trip.cover} seed={trip.id} image={trip.coverImage} imageUrl={trip.coverUrl} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className={cx("w-full transition-transform duration-300 group-hover:scale-[1.01]", compact ? "aspect-[4/3]" : "aspect-[5/4]")}>
           <div className="flex h-full flex-col justify-between p-3.5">
             <div className="flex items-start justify-between gap-2">
-              <span className="rounded-full bg-black/35 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">
-                {t.format.days(s.days)}
+              <span className="flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-black/35 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur">{t.format.days(s.days)}</span>
+                {/* What the group actually did, once someone marked it. */}
+                {trip.outcome && trip.outcome.visited > 0 && (
+                  <span className="flex items-center gap-1 rounded-full bg-black/35 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur" title={t.after.outcome.label(trip.outcome.visited, trip.outcome.planned)}>
+                    <Check className="size-3" aria-hidden />
+                    <span aria-hidden>{t.after.outcome.badge(trip.outcome.visited, trip.outcome.planned)}</span>
+                    <span className="sr-only">{t.after.outcome.label(trip.outcome.visited, trip.outcome.planned)}</span>
+                  </span>
+                )}
               </span>
               {trip.visibility !== "PUBLIC" && (
                 <span className="flex items-center gap-1 rounded-full bg-black/35 px-2 py-1 text-xs font-semibold text-white backdrop-blur">

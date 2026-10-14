@@ -26,6 +26,8 @@ export type ItineraryItemType =
 export type ItemSlot = "MORNING" | "AFTERNOON" | "EVENING" | "ANY";
 /** What happened to a planned item during the trip. */
 export type ItemStatus = "PLANNED" | "VISITED" | "SKIPPED";
+export type ExpenseCategory = "FOOD" | "LODGING" | "TRANSPORT" | "ACTIVITY" | "SHOPPING" | "OTHER";
+
 /** A member's interest in a pool item. */
 export type VoteLevel = "LOVE" | "OK" | "SKIP";
 

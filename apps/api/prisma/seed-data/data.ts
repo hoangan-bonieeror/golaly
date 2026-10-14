@@ -44,6 +44,10 @@ export interface DB {
   /** Members who are only there for part of the trip. */
   memberDates: { tripId: string; userId: string; arriveOn: string | null; leaveOn: string | null }[];
   reports: { id: string; reporterId: string; target: string; targetId: string; reason: string; createdAt: string }[];
+  /** After the trip (phase 3): what happened at each stop, and the group's shared expenses (minor units). */
+  itemStatuses: { itemId: string; status: "VISITED" | "SKIPPED" }[];
+  expenses: { id: string; tripId: string; paidBy: string; amount: number; description: string; category: "FOOD" | "LODGING" | "TRANSPORT" | "ACTIVITY" | "SHOPPING" | "OTHER"; spentOn: string | null; itemId: string | null; shares: { userId: string; amount: number }[]; createdAt: string }[];
+  settlements: { id: string; tripId: string; fromId: string; toId: string; amount: number; createdAt: string }[];
 }
 
 const u = (k: string) => seedId(`user:${k}`);
@@ -260,6 +264,13 @@ const trips: Trip[] = [
     visibility: "PUBLIC", allowComments: true, allowFork: false, estimatedBudget: 1100, currency: "USD",
     cover: ["#1b4965", "#f4a259"], forkCount: 0, saveCount: 410, createdAt: ago(3100), updatedAt: ago(2900),
   },
+  {
+    id: t("hoian"), ownerId: u("an"), title: "Hội An with the crew",
+    description: "Three days of lanterns, cao lầu and a cooking class. Rain ate the basket boats — next time.",
+    destinationIds: [d("hoian")], startDate: "2026-08-14", endDate: "2026-08-16",
+    visibility: "PUBLIC", allowComments: true, allowFork: true, estimatedBudget: 12_000_000, currency: "VND",
+    cover: ["#a4471f", "#f5cd5b"], forkCount: 0, saveCount: 12, createdAt: ago(1500), updatedAt: ago(200),
+  },
 ];
 
 buildItinerary("japan", "2027-03-10", [
@@ -296,6 +307,28 @@ buildItinerary("japan", "2027-03-10", [
     ["19:00", "PLACE", "Dōtonbori night food crawl", "dotonbori"],
   ]},
   { title: "Fly home", items: [["11:00", "FLIGHT", "Depart KIX", "kix"]] },
+], "an");
+
+// A trip that already happened (phase 3): marked stops, votes and shared expenses in đồng.
+buildItinerary("hoian", "2026-08-14", [
+  { title: "Lantern town", items: [
+    ["16:00", "PLACE", "Old town walk", "ancient-town"],
+    ["17:30", "PLACE", "Phúc Kiến Assembly Hall", "phuc-kien"],
+    ["19:00", "RESTAURANT", "Cao lầu dinner", "cao-lau"],
+    ["21:00", "ACTIVITY", "Drinks at White Marble", "white-marble"],
+  ]},
+  { title: "Countryside", items: [
+    ["08:00", "ACTIVITY", "Trà Quế cooking class", "tra-que"],
+    ["13:00", "RESTAURANT", "Bánh mì lunch", "banh-mi-phuong"],
+    ["15:00", "ACTIVITY", "Basket boats, Coconut Forest", "coconut-forest"],
+    ["19:00", "RESTAURANT", "Dinner at Mót", "mot"],
+  ]},
+  { title: "Beach & home", items: [
+    ["06:00", "PLACE", "Sunrise at An Bàng", "an-bang"],
+    ["10:00", "PLACE", "Hội An Museum", "hoian-museum"],
+    ["11:30", "PLACE", "Central Market", "hoian-market"],
+    ["", "NOTE", "Grab to Đà Nẵng airport by 15:00"],
+  ]},
 ], "an");
 
 buildItinerary("vietnam", "2026-02-03", [
@@ -385,7 +418,16 @@ const members: TripMember[] = [
   { tripId: t("california"), userId: u("an"), role: "VIEWER", joinedAt: ago(2500) },
   { tripId: t("kyoto"), userId: u("sarah"), role: "OWNER", joinedAt: ago(5000) },
   { tripId: t("portugal"), userId: u("linh"), role: "OWNER", joinedAt: ago(3100) },
+  { tripId: t("hoian"), userId: u("an"), role: "OWNER", joinedAt: ago(1500) },
+  { tripId: t("hoian"), userId: u("minh"), role: "EDITOR", joinedAt: ago(1490) },
+  { tripId: t("hoian"), userId: u("linh"), role: "VIEWER", joinedAt: ago(1480) },
+  { tripId: t("hoian"), userId: u("nam"), role: "EDITOR", joinedAt: ago(1470) },
 ];
+
+const hi = (day: number, n: number) => seedId(`item:hoian:${day}:${n}`);
+const VND = (n: number) => n;
+const crew = ["an", "minh", "linh", "nam"];
+const equal = (amount: number, who: string[]) => who.map((k, i) => ({ userId: u(k), amount: Math.floor(amount / who.length) + (i < amount % who.length ? 1 : 0) }));
 
 const invitations: TripInvitation[] = [
   {
@@ -485,13 +527,46 @@ export function createSeed(): DB {
         ["shinsekai", "nam", "LOVE"], ["shinsekai", "an", "OK"], ["shinsekai", "minh", "OK"],
         ["philosophers-path", "minh", "OK"],
       ] as const
-    ).map(([k, who, level]) => ({ itemId: seedId(`pool:japan:${k}`), userId: u(who), level })),
+    )
+      .map(([k, who, level]) => ({ itemId: seedId(`pool:japan:${k}`), userId: u(who), level }))
+      .concat(
+        (
+          [
+            [0, 0, "an", "LOVE"], [0, 0, "linh", "LOVE"], [0, 0, "minh", "OK"],
+            [0, 2, "nam", "LOVE"], [0, 2, "an", "LOVE"], [0, 2, "minh", "LOVE"],
+            [1, 0, "linh", "LOVE"], [1, 0, "an", "LOVE"],
+            [1, 1, "nam", "LOVE"],
+            [1, 3, "minh", "LOVE"], [1, 3, "an", "OK"],
+            [2, 0, "linh", "LOVE"], [2, 0, "minh", "LOVE"],
+            [2, 1, "nam", "SKIP"],
+          ] as const
+        ).map(([day, n, who, level]) => ({ itemId: hi(day, n), userId: u(who), level })),
+      ),
     // Nam joins in Kyoto; Linh flies home before Osaka's last night.
     memberDates: [
       { tripId: t("japan"), userId: u("nam"), arriveOn: "2027-03-12", leaveOn: null },
       { tripId: t("japan"), userId: u("linh"), arriveOn: null, leaveOn: "2027-03-14" },
     ],
     reports: [],
+    itemStatuses: (
+      [
+        [0, 0, "VISITED"], [0, 1, "VISITED"], [0, 2, "VISITED"], [0, 3, "SKIPPED"],
+        [1, 0, "VISITED"], [1, 1, "VISITED"], [1, 2, "SKIPPED"], [1, 3, "VISITED"],
+        [2, 0, "VISITED"], [2, 1, "SKIPPED"], [2, 2, "VISITED"],
+      ] as const
+    ).map(([day, n, status]) => ({ itemId: hi(day, n), status })),
+    expenses: [
+      { key: "homestay", paidBy: "an", amount: VND(4_800_000), description: "Homestay, 2 nights", category: "LODGING" as const, spentOn: "2026-08-14", itemId: null, shares: equal(4_800_000, crew) },
+      { key: "cao-lau", paidBy: "minh", amount: VND(1_000_000), description: "Cao lầu dinner", category: "FOOD" as const, spentOn: "2026-08-14", itemId: hi(0, 2), shares: equal(1_000_000, crew) },
+      { key: "class", paidBy: "linh", amount: VND(2_400_000), description: "Cooking class ×4", category: "ACTIVITY" as const, spentOn: "2026-08-15", itemId: hi(1, 0), shares: equal(2_400_000, crew) },
+      { key: "banh-mi", paidBy: "nam", amount: VND(360_000), description: "Bánh mì round", category: "FOOD" as const, spentOn: "2026-08-15", itemId: hi(1, 1), shares: equal(360_000, crew) },
+      {
+        key: "mot", paidBy: "an", amount: VND(1_850_000), description: "Dinner at Mót", category: "FOOD" as const, spentOn: "2026-08-15", itemId: hi(1, 3),
+        shares: [{ userId: u("an"), amount: 500_000 }, { userId: u("minh"), amount: 450_000 }, { userId: u("linh"), amount: 400_000 }, { userId: u("nam"), amount: 500_000 }],
+      },
+      { key: "grab", paidBy: "minh", amount: VND(900_000), description: "Grab to Đà Nẵng airport", category: "TRANSPORT" as const, spentOn: "2026-08-16", itemId: null, shares: equal(900_000, ["an", "minh", "nam"]) },
+    ].map((x, i) => ({ ...x, id: seedId(`expense:hoian:${x.key}`), tripId: t("hoian"), paidBy: u(x.paidBy), createdAt: ago(1300 - i * 10) })),
+    settlements: [{ id: seedId("settlement:hoian:nam-an"), tripId: t("hoian"), fromId: u("nam"), toId: u("an"), amount: 1_000_000, createdAt: ago(1100) }],
   });
 }
 

@@ -125,8 +125,8 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   `primary-50` with a jade border, and the map shows a card for it.
 - **Legs:** between consecutive places, a dashed line with "Walk ≈ 8 min · 650 m" in mono.
   Estimates come from coordinates (great-circle × 1.3, typical city speeds); always shown with ≈.
-- **Phones:** a bottom action bar ("Add a place", "Share") above the tab bar — never a floating
-  button over the content.
+- **Phones:** a bottom action bar ("Add a place", then icon-only Expenses and Share for members)
+  above the tab bar — never a floating button over the content.
 - **Flexible plans:** no clock times unless something really happens at one. Each day is split
   into parts — morning (Sunrise), afternoon (Sun), evening (Moon), any time (Shuffle) — with a
   quiet mono uppercase label and a hairline; editors see every part (each with its own "+") so
@@ -139,6 +139,17 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   gold dot, under the planned stops and never on a route.
 - **Who's there:** the day chip shows "3/4" with a people icon when someone is away; the day
   header says "Not here: Nam"; a gold note on a stop says when someone who loves it isn't there.
+- **After the trip:** from the first day, each stop has two round toggles — ✓ went (fills `primary`)
+  and ✕ skipped (fills `ink-2`); a skipped title is struck through in `ink-2`. When the trip is over,
+  a `sand-2` banner with an accent flag offers "Mark what you did" (a went/skipped checklist) and the recap.
+  Remixed stops carry a small `accent-50` evidence pill with a fork icon ("The original group went · ♥ 3").
+- **Recap:** cover band, mono eyebrow, `sand-2` stat tiles (mono numbers in the display face), the
+  visited-only map, favourites (top 3 by hearts), a day-coloured timeline with photo grids (a small
+  dashed "Add photo" button when a stop has none), the trip's stamps and a `primary-50` "Share as a post" band.
+- **Expenses:** a wide sheet. A `sand-2` summary (total in the display face, per-traveller line,
+  budget bar `primary` → `danger` when over, category totals), then balances (gets back = `primary`,
+  owes = `accent-700`), the settle-up transfers with "Mark paid", and the expense list. Money is
+  always `Intl` currency format in the interface language with `tabular-nums`.
 
 ## Components (current conventions)
 

@@ -25,7 +25,8 @@ const INKS = ["var(--color-accent-700)", "var(--color-primary)", "var(--color-go
  * shrinking down with a bounce while a ring of ink spreads — the first time the section scrolls
  * into view; under reduced motion they are simply there.
  */
-export function PassportStamps({ trips }: { trips: TripSummary[] }) {
+/** `title`: a heading other than “Passport” (the trip recap's stamps). */
+export function PassportStamps({ trips, title }: { trips: TripSummary[]; title?: string }) {
   const t = useT().social.profile.passport;
   const stamps = useMemo(() => stampsFrom(trips), [trips]);
   const list = useRef<HTMLUListElement>(null);
@@ -54,7 +55,7 @@ export function PassportStamps({ trips }: { trips: TripSummary[] }) {
     <section aria-labelledby={`${uid}-h`} className="rounded-[var(--radius-card)] border border-line bg-surface p-5">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 id={`${uid}-h`} className="font-display text-xl font-semibold">
-          {t.title}
+          {title ?? t.title}
         </h2>
         <span className="font-mono text-xs uppercase tracking-wider text-muted">{t.count(stamps.length)}</span>
       </div>

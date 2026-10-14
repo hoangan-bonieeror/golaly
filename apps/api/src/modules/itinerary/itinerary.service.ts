@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { orderBySlot, slotForTime, type CreateItemInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
+import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
 import { lockTrip, writeSortOrder } from "../../common/locks";
@@ -13,6 +13,8 @@ import { insertAt } from "./itinerary.logic";
 
 /** How many ideas a trip's pool may hold (a soft guard against runaway lists). */
 export const MAX_POOL_ITEMS = 300;
+/** Photos per stop. */
+export const MAX_ITEM_PHOTOS = 24;
 
 /**
  * Days and items of a trip plan. Plans are flexible (roadmap phases 0–1): items sit in a part of
@@ -343,5 +345,61 @@ export class ItineraryService {
     });
     this.realtime.trip(trip.id, viewerId, "trip.item.voted", itemId);
     return this.itemView(itemId, viewerId);
+  }
+
+  // ── What actually happened (phase 3) ───────────────────────────────────
+  /**
+   * PATCH /trips/:id/items/status — mark many stops at once ("we went", "we skipped it"), e.g. from
+   * the after-trip review. Only items of this trip; unchanged ones are left alone.
+   */
+  async setStatuses(tripId: string, viewerId: string, input: ItemStatusBatchInput) {
+    const trip = await this.access.require("itinerary.edit", tripId, viewerId);
+    const ids = [...new Set(input.items.map((i) => i.id))];
+    const changed = await this.prisma.transaction(async (tx) => {
+      await lockTrip(tx, trip.id);
+      const rows = await tx.itineraryItem.findMany({ where: { id: { in: ids }, tripId }, select: { id: true, status: true, placeId: true } });
+      if (rows.length !== ids.length) throw Errors.invalid("Some of those items aren't on this trip any more. Refresh and try again.");
+      const want = new Map(input.items.map((i) => [i.id, i.status]));
+      const todo = rows.filter((r) => want.get(r.id) !== r.status);
+      for (const r of todo) {
+        await tx.itineraryItem.update({ where: { id: r.id }, data: { status: want.get(r.id)!, updatedById: viewerId } });
+        await this.events.log({ tripId, actorId: viewerId, type: "item.status", itemId: r.id, placeId: r.placeId, payload: { from: r.status, to: want.get(r.id)!, batch: true } }, tx);
+      }
+      if (todo.length) await this.touch(tx, trip.id);
+      return todo.length;
+    });
+    if (changed) this.realtime.trip(trip.id, viewerId, "trip.item.updated", tripId);
+    return { changed };
+  }
+
+  /** POST /items/:id/photos — a member adds one of their uploads to a stop (the trip's memories). */
+  async addPhoto(itemId: string, viewerId: string, mediaId: string): Promise<ItemView> {
+    const item = await this.item(itemId);
+    const trip = await this.access.require("itinerary.photo", item.tripId, viewerId);
+    const media = await this.prisma.media.findFirst({ where: { id: mediaId, ownerId: viewerId }, select: { id: true } });
+    if (!media) throw Errors.invalid("Upload the photo first.");
+    await this.prisma.transaction(async (tx) => {
+      const count = await tx.itemPhoto.count({ where: { itemId } });
+      if (count >= MAX_ITEM_PHOTOS) throw Errors.invalid(`A stop can have up to ${MAX_ITEM_PHOTOS} photos.`);
+      if (await tx.itemPhoto.findFirst({ where: { itemId, mediaId }, select: { id: true } })) throw Errors.conflict("That photo is already on this stop.");
+      await tx.itemPhoto.create({ data: { itemId, mediaId, uploadedBy: viewerId } });
+      await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.photo", itemId, placeId: item.placeId, payload: { added: true } }, tx);
+    });
+    this.realtime.trip(trip.id, viewerId, "trip.item.updated", itemId);
+    return this.itemView(itemId, viewerId);
+  }
+
+  /** DELETE /item-photos/:id — whoever added it, or the trip owner. */
+  async removePhoto(photoId: string, viewerId: string) {
+    const photo = await this.prisma.itemPhoto.findUnique({ where: { id: photoId }, include: { item: { select: { tripId: true, placeId: true } } } });
+    if (!photo) throw Errors.notFound("That photo");
+    const trip = await this.access.require("itinerary.photo", photo.item.tripId, viewerId);
+    if (photo.uploadedBy !== viewerId && trip.ownerId !== viewerId) throw Errors.forbidden("Only whoever added a photo, or the trip owner, can remove it.");
+    await this.prisma.transaction(async (tx) => {
+      await tx.itemPhoto.delete({ where: { id: photoId } });
+      await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.photo", itemId: photo.itemId, placeId: photo.item.placeId, payload: { added: false } }, tx);
+    });
+    this.realtime.trip(trip.id, viewerId, "trip.item.updated", photo.itemId);
+    return { ok: true };
   }
 }

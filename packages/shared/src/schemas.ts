@@ -1,4 +1,5 @@
 import { LOCALES } from "./i18n";
+import { EXPENSE_CATEGORIES, isCurrency, MAX_AMOUNT } from "./money";
 import { ITEM_SLOTS, ITEM_STATUSES, VOTE_LEVELS } from "./plan";
 /**
  * Zod schemas shared by the API (request validation) and the web app (forms).
@@ -88,6 +89,8 @@ export const updateTripSchema = z
     allowFork: z.boolean(),
     estimatedBudget: z.number().int().min(0).max(10_000_000).nullable(),
     coverMediaId: uuid.nullable(),
+    /** ISO 4217; can't change once the trip has expenses. */
+    currency: z.string().trim().toUpperCase().refine(isCurrency, "Pick a currency from the list."),
   })
   .partial()
   .refine(dateRange, dateRangeMsg);
@@ -113,6 +116,39 @@ export const updateItemSchema = itemBase.partial().refine(timeOrder, timeMsg);
 /** Move an item: `dayId` null = to the place pool; `index` is its position in the target list; `slot` its new part of the day. */
 export const reorderItemSchema = z.object({ dayId: uuid.nullable(), index: z.number().int().min(0).max(10_000), slot: z.enum(ITEM_SLOTS).optional() });
 export const voteSchema = z.object({ level: z.enum(VOTE_LEVELS) });
+/** After the trip: mark many stops at once (visited / skipped / back to planned). */
+export const itemStatusBatchSchema = z.object({
+  items: z.array(z.object({ id: uuid, status: z.enum(ITEM_STATUSES) })).min(1).max(300),
+});
+export const itemPhotoSchema = z.object({ mediaId: uuid });
+
+// ── Expenses (amounts in the currency's smallest unit) ──────────────────
+const minor = z.number().int("Amounts are whole numbers of the currency's smallest unit.").positive("Enter an amount above zero.").max(MAX_AMOUNT, "That amount is too large.");
+const splitSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("equal"), userIds: z.array(uuid).min(1, "Choose who shares it.").max(50) }),
+  z.object({ mode: z.literal("custom"), shares: z.array(z.object({ userId: uuid, amount: z.number().int().min(0).max(MAX_AMOUNT) })).min(1, "Choose who shares it.").max(50) }),
+]);
+export const expenseSchema = z
+  .object({
+    description: z.string().trim().min(1, "Say what it was for.").max(120),
+    amount: minor,
+    category: z.enum(EXPENSE_CATEGORIES).default("OTHER"),
+    paidById: uuid,
+    spentOn: isoDate.nullable().optional(),
+    itemId: uuid.nullable().optional(),
+    split: splitSchema,
+  })
+  .refine((v) => (v.split.mode === "equal" ? new Set(v.split.userIds).size === v.split.userIds.length : new Set(v.split.shares.map((s) => s.userId)).size === v.split.shares.length), {
+    message: "Each person can only appear once.",
+    path: ["split"],
+  })
+  .refine((v) => v.split.mode === "equal" || v.split.shares.reduce((a, s) => a + s.amount, 0) === v.amount, {
+    message: "The shares have to add up to the total.",
+    path: ["split"],
+  });
+export const settlementSchema = z
+  .object({ fromId: uuid, toId: uuid, amount: minor })
+  .refine((v) => v.fromId !== v.toId, { message: "Choose two different people.", path: ["toId"] });
 export const memberDatesSchema = z
   .object({ arriveOn: isoDate.nullable(), leaveOn: isoDate.nullable() })
   .refine((v) => !v.arriveOn || !v.leaveOn || v.arriveOn <= v.leaveOn, { message: "The leaving date should be on or after the arrival date.", path: ["leaveOn"] });
@@ -196,6 +232,9 @@ export type CreateItemInput = z.infer<typeof createItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
 export type ReorderItemInput = z.infer<typeof reorderItemSchema>;
 export type VoteInput = z.infer<typeof voteSchema>;
+export type ItemStatusBatchInput = z.infer<typeof itemStatusBatchSchema>;
+export type ExpenseInput = z.infer<typeof expenseSchema>;
+export type SettlementInput = z.infer<typeof settlementSchema>;
 export type MemberDatesInput = z.infer<typeof memberDatesSchema>;
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>;
 export type CreatePostInput = z.input<typeof createPostSchema>;

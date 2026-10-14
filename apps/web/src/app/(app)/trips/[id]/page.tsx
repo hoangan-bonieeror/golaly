@@ -2,15 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { presentOn, type ItemSlot, type ItemView, type TripSummary } from "@triply/shared";
-import { ArrowLeft, Bookmark, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, UserPlus } from "lucide-react";
+import { ArrowLeft, Bookmark, CheckCheck, Flag, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, Sparkles, UserPlus, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { ReviewSheet } from "@/components/itinerary/AfterTrip";
 import { ItemSheet } from "@/components/itinerary/ItemSheet";
 import { Itinerary } from "@/components/itinerary/Itinerary";
 import { TripMap } from "@/components/map/TripMap";
 import { useShare } from "@/components/social/PostCard";
 import { DayBar, type DayFilter } from "@/components/trip/DayBar";
+import { ExpensesPanel, type ExpenseMode } from "@/components/trip/ExpensesPanel";
 import { ForkSheet } from "@/components/trip/ForkSheet";
 import { InviteSheet } from "@/components/trip/InviteSheet";
 import { MembersPanel } from "@/components/trip/MembersPanel";
@@ -24,6 +26,7 @@ import { api, ApiError } from "@/lib/api/client";
 import { keys, useAction, useMe, useTrip } from "@/lib/api/queries";
 import { useMediaQuery } from "@/lib/hooks";
 import { useTripRealtime } from "@/lib/realtime";
+import { markable, tripPhase } from "@/lib/plan";
 import { dayStats, formatKm } from "@/lib/trip-geo";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
@@ -67,17 +70,21 @@ function TripPlanner() {
   const [forkOpen, setForkOpen] = useState(false);
   const [sheet, setSheet] = useState<{ open: boolean; dayId?: string; slot?: ItemSlot; pool?: boolean; item?: ItemView | null }>({ open: false });
   const [day, setDay] = useState<DayFilter | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [expenseMode, setExpenseMode] = useState<ExpenseMode>({ kind: "list" });
 
-  // URL state: `?view=map` (narrow screens) and `?tab=members` (the travelers panel). Older `?tab=map` links still open the map.
-  const membersOpen = search.get("tab") === "members";
+  // URL state: `?view=map` (narrow screens), `?tab=members` (the travelers panel) and `?tab=expenses`. Older `?tab=map` links still open the map.
+  type Tab = "members" | "expenses" | null;
+  const tab: Tab = search.get("tab") === "members" ? "members" : search.get("tab") === "expenses" ? "expenses" : null;
+  const membersOpen = tab === "members";
   const view: View = search.get("view") === "map" || search.get("tab") === "map" ? "map" : "list";
   const planTop = useRef<HTMLDivElement>(null);
-  const go = (v: View, members = false) => {
+  const go = (v: View, panel: Tab = null) => {
     // Switching List ↔ Map brings the plan controls to the top, so the map fills the screen.
     if (v !== view) requestAnimationFrame(() => planTop.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
     const params = new URLSearchParams();
     if (v === "map") params.set("view", "map");
-    if (members) params.set("tab", "members");
+    if (panel) params.set("tab", panel);
     const qs = params.toString();
     router.replace(`/trips/${id}${qs ? `?${qs}` : ""}`, { scroll: false });
   };
@@ -155,6 +162,15 @@ function TripPlanner() {
           : null;
   const shareable = trip.visibility !== "PRIVATE";
   const bottomBar = canAdd;
+  const phase = tripPhase(trip);
+  const unmarked = trip.days.reduce((n, d) => n + d.items.filter((i) => markable(i) && i.status === "PLANNED").length, 0);
+  const marked = trip.days.some((d) => d.items.some((i) => i.status !== "PLANNED"));
+  const canSpend = may("expenses.manage");
+  const openExpenses = (mode: ExpenseMode = { kind: "list" }) => {
+    setExpenseMode(mode);
+    go(view, "expenses");
+  };
+  const ta = t.after;
   const hasAbout = !!(trip.description || trip.forkedFrom || trip.myRole === "VIEWER" || (trip.visibility === "PUBLIC" && trip.forkCount > 0));
 
   return (
@@ -206,7 +222,7 @@ function TripPlanner() {
               {/* The avatars open the travelers panel (roles, invites, leave). */}
               <button
                 type="button"
-                onClick={() => go(view, true)}
+                onClick={() => go(view, "members")}
                 aria-label={p.manageMembers(trip.members.length)}
                 className="mr-1 flex items-center rounded-full p-0.5 hover:bg-sand-2"
               >
@@ -234,6 +250,14 @@ function TripPlanner() {
                 {p.by.before} <span className="font-semibold">{trip.owner.displayName}</span>{p.by.after && ` ${p.by.after}`}
               </span>
             </Link>
+          )}
+          {canSpend && (
+            // Phones with the bottom action bar reach expenses there; the header keeps one row.
+            <span className={bottomBar ? "hidden sm:contents" : "contents"}>
+              <Button variant="secondary" className="h-11 w-11 px-0 sm:w-auto sm:px-[18px]" onClick={() => openExpenses()}>
+                <Wallet className="size-4" aria-hidden /> <span className="sr-only sm:not-sr-only">{ta.expenses.open}</span>
+              </Button>
+            </span>
           )}
           {may("trip.edit_details") && (
             <Button href={`/trips/${trip.id}/settings`} variant="secondary" className="h-11 w-11 px-0 sm:w-auto sm:px-[18px]">
@@ -289,7 +313,7 @@ function TripPlanner() {
                   key={v}
                   type="button"
                   aria-pressed={view === v}
-                  onClick={() => go(v, membersOpen)}
+                  onClick={() => go(v, tab)}
                   className={cx("flex h-10 items-center justify-center gap-1.5 rounded-[9px] text-sm font-semibold", view === v ? "bg-surface text-ink shadow-card" : "text-ink-2 hover:text-ink")}
                 >
                   {v === "list" ? <ListChecks className="size-4" aria-hidden /> : <MapIcon className="size-4" aria-hidden />}
@@ -302,6 +326,29 @@ function TripPlanner() {
 
           {(wide || view === "list") && (
             <div className="mx-auto max-w-3xl px-4 pb-8 pt-5 md:px-5 lg:max-w-none">
+              {phase === "after" && (trip.myRole || marked) && (
+                <div className="mb-5 rounded-2xl border border-line bg-sand-2 p-4">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Flag className="size-4 shrink-0 text-accent-700" aria-hidden /> {ta.banner.ended}
+                  </p>
+                  {canEdit && unmarked > 0 && <p className="mt-1 text-sm text-ink-2">{ta.banner.review(unmarked)}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {canEdit && unmarked > 0 && (
+                      <Button size="sm" onClick={() => setReviewOpen(true)}>
+                        <CheckCheck className="size-4" /> {ta.banner.reviewAction}
+                      </Button>
+                    )}
+                    <Button size="sm" variant={canEdit && unmarked > 0 ? "secondary" : "primary"} href={`/trips/${trip.id}/recap`}>
+                      <Sparkles className="size-4" /> {ta.banner.recap}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {phase === "during" && canEdit && (
+                <p className="mb-5 flex items-center gap-2 rounded-2xl bg-primary-50 px-4 py-3 text-sm font-medium text-primary">
+                  <CheckCheck className="size-4 shrink-0" aria-hidden /> {ta.banner.during}
+                </p>
+              )}
               {hasAbout && (
                 <div className="mb-6 space-y-2.5 border-b border-line pb-5">
                   {trip.description && <p className="line-clamp-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-2">{trip.description}</p>}
@@ -347,6 +394,7 @@ function TripPlanner() {
                 onAdd={(dayId, slot) => setSheet({ open: true, dayId, slot })}
                 onAddIdea={() => setSheet({ open: true, pool: true })}
                 onEdit={(item) => setSheet({ open: true, item })}
+                onAddExpense={canSpend ? (item) => openExpenses({ kind: "form", itemId: item.id }) : undefined}
               />
             </div>
           )}
@@ -368,9 +416,14 @@ function TripPlanner() {
           <Button size="lg" className="h-12 flex-1" onClick={() => setSheet({ open: true, dayId: addDayId() })}>
             <Plus className="size-5" /> {p.addPlace}
           </Button>
+          {canSpend && (
+            <Button variant="secondary" className="h-12 w-12 shrink-0 px-0" onClick={() => openExpenses()} aria-label={ta.expenses.open}>
+              <Wallet className="size-4" />
+            </Button>
+          )}
           {shareable && (
-            <Button size="lg" variant="secondary" className="h-12 px-4" onClick={() => share(`/trips/${trip.id}`, trip.title)}>
-              <Share2 className="size-4" /> {t.common.share}
+            <Button size={canSpend ? "md" : "lg"} variant="secondary" className={cx("h-12", canSpend ? "w-12 shrink-0 px-0" : "px-4")} onClick={() => share(`/trips/${trip.id}`, trip.title)} aria-label={canSpend ? t.common.share : undefined}>
+              <Share2 className="size-4" /> {!canSpend && t.common.share}
             </Button>
           )}
         </div>
@@ -379,6 +432,12 @@ function TripPlanner() {
       <Sheet open={membersOpen} onClose={() => go(view)} title={p.travelers} wide>
         <MembersPanel trip={trip} />
       </Sheet>
+      {canSpend && (
+        <Sheet open={tab === "expenses"} onClose={() => go(view)} title={ta.expenses.title} wide>
+          <ExpensesPanel trip={trip} mode={expenseMode} onMode={setExpenseMode} />
+        </Sheet>
+      )}
+      {canEdit && <ReviewSheet open={reviewOpen} onClose={() => setReviewOpen(false)} trip={trip} />}
       {(canAdd || canEdit) && <ItemSheet open={sheet.open} onClose={() => setSheet({ open: false })} trip={trip} defaultDayId={sheet.dayId} defaultSlot={sheet.slot} pool={sheet.pool} item={sheet.item} />}
       {may("members.invite") && <InviteSheet open={inviteOpen} onClose={() => setInviteOpen(false)} tripId={trip.id} />}
       {may("trip.fork") && <ForkSheet open={forkOpen} onClose={() => setForkOpen(false)} trip={trip} />}

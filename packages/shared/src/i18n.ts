@@ -140,6 +140,26 @@ const VI_EXACT: Record<string, string> = {
   "Pool ideas can't be duplicated; plan it into a day first.": "Không thể nhân bản ý tưởng trong kho; hãy xếp nó vào một ngày trước.",
   "Only the trip owner can change other members' dates.": "Chỉ chủ chuyến đi mới đổi được ngày của thành viên khác.",
   "The leaving date should be on or after the arrival date.": "Ngày rời đi phải cùng hoặc sau ngày đến.",
+
+  // After the trip: what happened, photos, expenses
+  "Some of those items aren't on this trip any more. Refresh and try again.": "Một vài mục không còn trong chuyến đi này. Hãy tải lại rồi thử lại.",
+  "That photo is already on this stop.": "Ảnh này đã có ở điểm dừng này.",
+  "Only whoever added a photo, or the trip owner, can remove it.": "Chỉ người đã thêm ảnh hoặc chủ chuyến đi mới xoá được ảnh.",
+  "Everyone on an expense has to be on the trip.": "Mọi người trong khoản chi đều phải là thành viên chuyến đi.",
+  "Choose who shares it.": "Hãy chọn những người cùng chia.",
+  "Say what it was for.": "Hãy ghi khoản chi này cho việc gì.",
+  "Enter an amount above zero.": "Hãy nhập số tiền lớn hơn 0.",
+  "That amount is too large.": "Số tiền quá lớn.",
+  "Amounts are whole numbers of the currency's smallest unit.": "Số tiền phải là số nguyên theo đơn vị nhỏ nhất của tiền tệ.",
+  "Each person can only appear once.": "Mỗi người chỉ xuất hiện một lần.",
+  "The shares have to add up to the total.": "Tổng các phần phải bằng số tiền của khoản chi.",
+  "Choose two different people.": "Hãy chọn hai người khác nhau.",
+  "Pick a currency from the list.": "Hãy chọn một loại tiền trong danh sách.",
+  "The currency can't change once expenses are recorded.": "Không đổi được loại tiền khi chuyến đi đã có khoản chi.",
+  "That stop isn't on this trip.": "Điểm dừng này không thuộc chuyến đi.",
+  "Only whoever added or paid an expense, or the trip owner, can change it.": "Chỉ người đã thêm hoặc đã trả khoản chi, hoặc chủ chuyến đi, mới sửa được.",
+  "Both people have to be on the trip.": "Cả hai người đều phải là thành viên chuyến đi.",
+  "Only the two people involved, or the trip owner, can undo a repayment.": "Chỉ hai người liên quan hoặc chủ chuyến đi mới huỷ được khoản trả lại.",
 };
 
 /** `${what} couldn't be found.` — by subject. */
@@ -158,6 +178,8 @@ const VI_NOT_FOUND: Record<string, string> = {
   "That traveler": "Không tìm thấy người dùng này.",
   "That content": "Không tìm thấy nội dung này.",
   "That area": "Không tìm thấy khu vực này.",
+  "That expense": "Không tìm thấy khoản chi này.",
+  "That repayment": "Không tìm thấy khoản trả lại này.",
 };
 
 const VI_PATTERNS: [RegExp, (...m: string[]) => string][] = [
@@ -167,6 +189,8 @@ const VI_PATTERNS: [RegExp, (...m: string[]) => string][] = [
   [/^Day (\d+)(?: and (\d+) more)? still has plans\. Move or delete them before shortening the trip\.$/, (_, d, more) =>
     `Ngày ${d}${more ? ` và ${more} ngày khác` : ""} vẫn còn lịch trình. Hãy chuyển hoặc xoá trước khi rút ngắn chuyến đi.`],
   [/^A trip's pool holds up to (\d+) ideas\. Plan some into days or remove a few first\.$/, (_, n) => `Kho ý tưởng của một chuyến đi chứa tối đa ${n} mục. Hãy xếp bớt vào các ngày hoặc xoá vài mục trước.`],
+  [/^A stop can have up to (\d+) photos\.$/, (_, n) => `Mỗi điểm dừng có tối đa ${n} ảnh.`],
+  [/^A trip can have up to (\d+) expenses\.$/, (_, n) => `Mỗi chuyến đi có tối đa ${n} khoản chi.`],
   [/^Photos can be up to (\d+) MB\.$/, (_, n) => `Ảnh tối đa ${n} MB.`],
   [/^Images need to be at least (\d+)×(\d+) pixels\.$/, (_, a, b) => `Ảnh cần ít nhất ${a}×${b} pixel.`],
   [/^Images can be at most (\d+) pixels on a side and ([\d.]+) megapixels\.$/, (_, a, b) => `Ảnh tối đa ${a} pixel mỗi cạnh và ${b} megapixel.`],

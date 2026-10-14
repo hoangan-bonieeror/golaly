@@ -9,7 +9,10 @@ import type {
   CommentView,
   ImageView,
   DayView,
+  ItemEvidence,
+  ItemStatus,
   ItemView,
+  TripOutcome,
   NotificationView,
   PlaceView,
   PostView,
@@ -146,7 +149,7 @@ export const tripSummaryInclude = (viewerId: string | null) =>
       orderBy: { position: "asc" },
       include: { destination: { select: { id: true, slug: true, name: true, country: true } } },
     },
-    days: { select: { id: true, items: { select: { placeId: true } } } },
+    days: { select: { id: true, items: { select: { placeId: true, status: true } } } },
     members: { select: { userId: true, role: true } },
     savedBy: { where: { userId: viewerId ?? NO_USER }, select: { userId: true } },
     forkedFrom: { select: { visibility: true, deletedAt: true } },
@@ -158,6 +161,14 @@ export function roleOf(trip: { ownerId: string; members: { userId: string; role:
   if (!viewerId) return null;
   if (trip.ownerId === viewerId) return "OWNER";
   return trip.members.find((m) => m.userId === viewerId)?.role ?? null;
+}
+
+/** How the trip went, over its planned places; null until someone has marked a stop. */
+function outcomeOf(items: { placeId: string | null; status: ItemStatus }[]): TripOutcome | null {
+  const places = items.filter((i) => i.placeId);
+  const visited = places.filter((i) => i.status === "VISITED").length;
+  const skipped = places.filter((i) => i.status === "SKIPPED").length;
+  return visited + skipped ? { planned: places.length, visited, skipped } : null;
 }
 
 export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripSummary {
@@ -189,6 +200,8 @@ export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripS
     allowFork: t.allowFork,
     allowComments: t.allowComments,
     estimatedBudget: t.estimatedBudget,
+    currency: t.currency,
+    outcome: outcomeOf(items),
     forkedFrom:
       t.forkedFromTitle && t.forkedFromOwner
         ? {
@@ -208,6 +221,9 @@ export const itemInclude = (viewerId: string | null) =>
     updatedBy: { select: userSummarySelect },
     addedBy: { select: userSummarySelect },
     votes: { select: { userId: true, level: true }, orderBy: { createdAt: "asc" } },
+    photos: { orderBy: { createdAt: "asc" }, take: 24, include: { media: true, uploader: { select: userSummarySelect } } },
+    // A fork's item: what the original group did there (only shown while the original is viewable).
+    source: { select: { status: true, votes: { select: { level: true } }, trip: { select: { visibility: true, deletedAt: true } } } },
   }) satisfies Prisma.ItineraryItemInclude;
 
 export const dayInclude = (viewerId: string | null) =>
@@ -218,6 +234,12 @@ export const dayInclude = (viewerId: string | null) =>
 export type DayRow = Prisma.TripDayGetPayload<{ include: ReturnType<typeof dayInclude> }>;
 export type ItemRow = Prisma.ItineraryItemGetPayload<{ include: ReturnType<typeof itemInclude> }>;
 
+function evidenceOf(src: ItemRow["source"]): ItemEvidence | null {
+  if (!src || src.trip.deletedAt || src.trip.visibility === "PRIVATE") return null;
+  if (src.status === "PLANNED" && !src.votes.length) return null;
+  return { status: src.status, loves: src.votes.filter((v) => v.level === "LOVE").length, votes: src.votes.length };
+}
+
 export function toItemView(i: ItemRow): ItemView {
   return {
     id: i.id,
@@ -227,6 +249,8 @@ export function toItemView(i: ItemRow): ItemView {
     status: i.status,
     votes: i.votes.map((v) => ({ userId: v.userId, level: v.level })),
     addedBy: i.addedBy ? toUserSummary(i.addedBy) : null,
+    photos: i.photos.map((p) => ({ id: p.id, image: toImage(p.media), uploadedBy: toUserSummary(p.uploader), createdAt: p.createdAt.toISOString() })),
+    evidence: evidenceOf(i.source),
     type: i.type,
     title: i.title,
     description: i.description,

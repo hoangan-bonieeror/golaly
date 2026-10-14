@@ -16,6 +16,7 @@ import type {
   TripRole,
   TripVisibility,
   VoteLevel,
+  ExpenseCategory,
 } from "./types";
 
 export interface UserSummary {
@@ -242,8 +243,32 @@ export interface TripSummary {
   allowFork: boolean;
   allowComments: boolean;
   estimatedBudget: number | null;
+  /** ISO 4217 code expenses are kept in. */
+  currency: string;
+  outcome: TripOutcome | null;
   forkedFrom: { tripId: string; title: string; ownerUsername: string } | null;
   updatedAt: string;
+}
+
+export interface ItemPhotoView {
+  id: string;
+  image: ImageView;
+  uploadedBy: UserSummary;
+  createdAt: string;
+}
+
+export interface ItemEvidence {
+  status: ItemStatus;
+  /** Members of the original trip who really wanted it. */
+  loves: number;
+  votes: number;
+}
+
+/** How a trip actually went: counts over its planned stops (places). null until someone marks one. */
+export interface TripOutcome {
+  planned: number;
+  visited: number;
+  skipped: number;
 }
 
 export interface ItemVoteView {
@@ -263,6 +288,13 @@ export interface ItemView {
   votes: ItemVoteView[];
   /** Who put it on the trip. */
   addedBy: UserSummary | null;
+  /** The trip's own photos of this stop (memories for the recap). */
+  photos: ItemPhotoView[];
+  /**
+   * For a remixed trip: what the original group did at this stop, while the original is still
+   * public or link-shared. Counts only — never who.
+   */
+  evidence: ItemEvidence | null;
   type: ItineraryItemType;
   title: string;
   description: string | null;
@@ -419,7 +451,8 @@ export type TripEventName =
   | "trip.member.joined"
   | "trip.member.role_changed"
   | "trip.member.removed"
-  | "trip.member.updated";
+  | "trip.member.updated"
+  | "trip.expenses.updated";
 
 export interface TripEvent {
   tripId: string;
@@ -446,4 +479,50 @@ export interface DirectionsView {
   /** [lng, lat] pairs, GeoJSON order. */
   geometry: [number, number][];
   attribution: string;
+}
+
+// ── Expenses (members only) ───────────────────────────────────────────────
+/** Amounts are integers of the trip currency's smallest unit (`digits` decimal places). */
+export interface ExpenseView {
+  id: string;
+  description: string;
+  amount: number;
+  category: ExpenseCategory;
+  paidBy: UserSummary;
+  spentOn: string | null;
+  item: { id: string; title: string } | null;
+  shares: { user: UserSummary; amount: number }[];
+  createdBy: UserSummary;
+  createdAt: string;
+  /** The viewer may edit or delete it (who added it, who paid, or the trip owner). */
+  canEdit: boolean;
+}
+
+export interface SettlementView {
+  id: string;
+  from: UserSummary;
+  to: UserSummary;
+  amount: number;
+  createdBy: UserSummary;
+  createdAt: string;
+  canDelete: boolean;
+}
+
+export interface ExpensesView {
+  currency: string;
+  digits: number;
+  expenses: ExpenseView[];
+  settlements: SettlementView[];
+  /** Per person: paid, their shares, and the difference (+ = is owed money). */
+  balances: { user: UserSummary; paid: number; owed: number; net: number }[];
+  /** The fewest repayments that settle everyone up. */
+  transfers: { from: UserSummary; to: UserSummary; amount: number }[];
+  total: number;
+  byCategory: { category: ExpenseCategory; amount: number }[];
+  /** Spending per day of the trip (expenses with a date). */
+  byDay: { date: string; amount: number }[];
+  /** The trip's estimated budget, in whole currency units (as entered on the trip). */
+  budget: number | null;
+  /** The currency is fixed: the trip already has expenses or repayments. */
+  currencyLocked: boolean;
 }

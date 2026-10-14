@@ -15,6 +15,8 @@ const ALL_ACTIONS: TripAction[] = [
   "itinerary.delete",
   "itinerary.reorder",
   "itinerary.vote",
+  "itinerary.photo",
+  "expenses.manage",
   "members.view",
   "members.invite",
   "members.change_role",

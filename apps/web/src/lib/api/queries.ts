@@ -12,6 +12,7 @@ import type {
   CommentView,
   DestinationPage,
   DestinationView,
+  ExpensesView,
   FollowListItem,
   HomeFeed,
   InvitationLookup,
@@ -34,6 +35,8 @@ import { api, ApiError, currentRequestLocale, qs } from "./client";
 export const keys = {
   me: ["me"] as const,
   trip: (id: string) => ["trip", id] as const,
+  /** Under the trip's key, so realtime events and trip invalidations refresh it too. */
+  expenses: (id: string) => ["trip", id, "expenses"] as const,
   myTrips: (filter: string) => ["trips", "mine", filter] as const,
   savedTrips: ["trips", "saved"] as const,
   feed: (mode: string) => ["feed", mode] as const,
@@ -76,6 +79,8 @@ export function useMe() {
   });
 }
 
+export const useExpenses = (tripId: string, enabled = true) =>
+  useQuery({ queryKey: keys.expenses(tripId), queryFn: () => api.get<ExpensesView>(`/trips/${tripId}/expenses`), enabled, retry: false });
 export const useTrip = (id: string, enabled = true) => useQuery({ queryKey: keys.trip(id), queryFn: () => api.get<TripDetail>(`/trips/${id}`), retry: false, enabled });
 /**
  * Cursor-paginated list ("Load more"). `items` is every page loaded so far, flattened.

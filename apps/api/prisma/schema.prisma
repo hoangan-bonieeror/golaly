@@ -121,35 +121,42 @@ model User {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  profile       UserProfile?
-  oauthAccounts OAuthAccount[]
-  sessions      Session[]
-  resetTokens   PasswordResetToken[]
-  verifyTokens  EmailVerificationToken[]
-  ownedTrips    Trip[]                   @relation("TripOwner")
-  memberships   TripMember[]
-  posts         Post[]
-  comments      PostComment[]
-  likes         PostLike[]
-  following     Follow[]                 @relation("Follower")
-  followers     Follow[]                 @relation("Following")
-  savedTrips    SavedTrip[]
-  savedPosts    SavedPost[]
-  savedPlaces   SavedPlace[]
-  notifications Notification[]           @relation("Recipient")
-  actedNotifs   Notification[]           @relation("Actor")
-  media         Media[]
-  reports       Report[]
-  placePhotos   PlacePhoto[]
-  invitationsBy TripInvitation[]         @relation("Inviter")
-  itemsEdited   ItineraryItem[]          @relation("ItemEditor")
-  itemsAdded    ItineraryItem[]          @relation("ItemAdder")
-  itemVotes     ItemVote[]
-  tripEvents    TripEvent[]
-  auditLogs     AuditLog[]
-  syncJobs      SyncJob[]
-  syncRuns      SyncRun[]
-  placeEdits    PlaceEdit[]
+  profile         UserProfile?
+  oauthAccounts   OAuthAccount[]
+  sessions        Session[]
+  resetTokens     PasswordResetToken[]
+  verifyTokens    EmailVerificationToken[]
+  ownedTrips      Trip[]                   @relation("TripOwner")
+  memberships     TripMember[]
+  posts           Post[]
+  comments        PostComment[]
+  likes           PostLike[]
+  following       Follow[]                 @relation("Follower")
+  followers       Follow[]                 @relation("Following")
+  savedTrips      SavedTrip[]
+  savedPosts      SavedPost[]
+  savedPlaces     SavedPlace[]
+  notifications   Notification[]           @relation("Recipient")
+  actedNotifs     Notification[]           @relation("Actor")
+  media           Media[]
+  reports         Report[]
+  placePhotos     PlacePhoto[]
+  invitationsBy   TripInvitation[]         @relation("Inviter")
+  itemsEdited     ItineraryItem[]          @relation("ItemEditor")
+  itemsAdded      ItineraryItem[]          @relation("ItemAdder")
+  itemPhotos      ItemPhoto[]              @relation("ItemPhotoUploader")
+  expensesPaid    Expense[]                @relation("ExpensePayer")
+  expensesMade    Expense[]                @relation("ExpenseCreator")
+  expenseShares   ExpenseShare[]
+  settlementsFrom Settlement[]             @relation("SettlementFrom")
+  settlementsTo   Settlement[]             @relation("SettlementTo")
+  settlementsMade Settlement[]             @relation("SettlementCreator")
+  itemVotes       ItemVote[]
+  tripEvents      TripEvent[]
+  auditLogs       AuditLog[]
+  syncJobs        SyncJob[]
+  syncRuns        SyncRun[]
+  placeEdits      PlaceEdit[]
 
   @@map("users")
 }
@@ -401,6 +408,8 @@ model Trip {
   days         TripDay[]
   items        ItineraryItem[]
   events       TripEvent[]
+  expenses     Expense[]
+  settlements  Settlement[]
   posts        Post[]
   savedBy      SavedTrip[]
 
@@ -502,36 +511,128 @@ enum VoteLevel {
 }
 
 model ItineraryItem {
-  id          String     @id @default(uuid()) @db.Uuid
-  tripId      String     @map("trip_id") @db.Uuid
+  id           String     @id @default(uuid()) @db.Uuid
+  tripId       String     @map("trip_id") @db.Uuid
   /// null = in the trip's place pool ("want to go if we can"), not yet on a day.
-  dayId       String?    @map("day_id") @db.Uuid
-  slot        ItemSlot   @default(ANY)
-  status      ItemStatus @default(PLANNED)
+  dayId        String?    @map("day_id") @db.Uuid
+  slot         ItemSlot   @default(ANY)
+  status       ItemStatus @default(PLANNED)
   /// Who put it on the trip (credited on pool cards).
-  addedById   String?    @map("added_by") @db.Uuid
-  type        ItemType
-  title       String
-  description String?
-  placeId     String?    @map("place_id") @db.Uuid
-  startTime   String?    @map("start_time")
-  endTime     String?    @map("end_time")
-  notes       String?
-  sortOrder   Int        @map("sort_order")
-  updatedById String?    @map("updated_by") @db.Uuid
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
+  addedById    String?    @map("added_by") @db.Uuid
+  /// The item this one was copied from when the trip was remixed — how a fork shows what the
+  /// original group actually did there ("visited · 4 loved it").
+  sourceItemId String?    @map("source_item_id") @db.Uuid
+  type         ItemType
+  title        String
+  description  String?
+  placeId      String?    @map("place_id") @db.Uuid
+  startTime    String?    @map("start_time")
+  endTime      String?    @map("end_time")
+  notes        String?
+  sortOrder    Int        @map("sort_order")
+  updatedById  String?    @map("updated_by") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
-  trip      Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  day       TripDay?   @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  place     Place?     @relation(fields: [placeId], references: [id], onDelete: SetNull)
-  updatedBy User?      @relation("ItemEditor", fields: [updatedById], references: [id], onDelete: SetNull)
-  addedBy   User?      @relation("ItemAdder", fields: [addedById], references: [id], onDelete: SetNull)
+  trip      Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  day       TripDay?        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  place     Place?          @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  updatedBy User?           @relation("ItemEditor", fields: [updatedById], references: [id], onDelete: SetNull)
+  addedBy   User?           @relation("ItemAdder", fields: [addedById], references: [id], onDelete: SetNull)
   votes     ItemVote[]
+  source    ItineraryItem?  @relation("ItemSource", fields: [sourceItemId], references: [id], onDelete: SetNull)
+  copies    ItineraryItem[] @relation("ItemSource")
+  photos    ItemPhoto[]
+  expenses  Expense[]
 
   @@index([dayId, sortOrder])
   @@index([tripId, dayId])
   @@map("itinerary_items")
+}
+
+/// A trip's own photos of a stop (memories for the recap), visible to whoever can see the trip.
+model ItemPhoto {
+  id         String   @id @default(uuid()) @db.Uuid
+  itemId     String   @map("item_id") @db.Uuid
+  mediaId    String   @map("media_id") @db.Uuid
+  uploadedBy String   @map("uploaded_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  item     ItineraryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  media    Media         @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  uploader User          @relation("ItemPhotoUploader", fields: [uploadedBy], references: [id])
+
+  @@unique([itemId, mediaId])
+  @@index([itemId, createdAt])
+  @@map("item_photos")
+}
+
+enum ExpenseCategory {
+  FOOD
+  LODGING
+  TRANSPORT
+  ACTIVITY
+  SHOPPING
+  OTHER
+}
+
+/// Money spent on a trip, in the trip's currency, as an integer of its smallest unit (₫ 1, ¥ 1, $0.01).
+/// Members only — never shown on public trips, never copied by a fork.
+model Expense {
+  id          String          @id @default(uuid()) @db.Uuid
+  tripId      String          @map("trip_id") @db.Uuid
+  paidById    String          @map("paid_by") @db.Uuid
+  amount      BigInt
+  description String
+  category    ExpenseCategory @default(OTHER)
+  spentOn     DateTime?       @map("spent_on") @db.Date
+  /// The stop it was for (dinner at…), when there is one.
+  itemId      String?         @map("item_id") @db.Uuid
+  createdById String          @map("created_by") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  trip      Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidBy    User           @relation("ExpensePayer", fields: [paidById], references: [id])
+  createdBy User           @relation("ExpenseCreator", fields: [createdById], references: [id])
+  item      ItineraryItem? @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  shares    ExpenseShare[]
+
+  @@index([tripId, spentOn])
+  @@map("expenses")
+}
+
+/// Who owes what of an expense; the shares always add up to its amount.
+model ExpenseShare {
+  expenseId String @map("expense_id") @db.Uuid
+  userId    String @map("user_id") @db.Uuid
+  amount    BigInt
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([expenseId, userId])
+  @@index([userId])
+  @@map("expense_shares")
+}
+
+/// A repayment between two members ("Minh paid An back 350 000 ₫").
+model Settlement {
+  id          String   @id @default(uuid()) @db.Uuid
+  tripId      String   @map("trip_id") @db.Uuid
+  fromId      String   @map("from_user") @db.Uuid
+  toId        String   @map("to_user") @db.Uuid
+  amount      BigInt
+  createdById String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  trip      Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  from      User @relation("SettlementFrom", fields: [fromId], references: [id])
+  to        User @relation("SettlementTo", fields: [toId], references: [id])
+  createdBy User @relation("SettlementCreator", fields: [createdById], references: [id])
+
+  @@index([tripId, createdAt])
+  @@map("settlements")
 }
 
 model ItemVote {
@@ -742,6 +843,7 @@ model Media {
   coverOf    Trip[]        @relation("TripCover")
   postMedia  PostMedia[]
   placePhoto PlacePhoto[]
+  itemPhotos ItemPhoto[]
 
   @@index([ownerId])
   @@map("media")

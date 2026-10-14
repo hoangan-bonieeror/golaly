@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { PostCard } from "@/components/social/PostCard";
 import { PassportStamps } from "@/components/social/PassportStamps";
+import { wentOn } from "@/lib/plan";
 import { ReportSheet } from "@/components/social/ReportSheet";
 import { TripCard } from "@/components/trip/TripCard";
 import { FoldedMap, SuitcaseArt } from "@/components/art/EmptyArt";
@@ -94,7 +95,8 @@ export default function ProfilePage() {
         </div>
       </header>
 
-      {trips.data && <PassportStamps trips={trips.data} />}
+      {/* Stamps are earned: trips the group marked as visited, or that are over. */}
+      {trips.data && <PassportStamps trips={trips.data.filter((x) => wentOn(x))} />}
 
       <Tabs
         id="profile-tabs"
