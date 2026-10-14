@@ -1,6 +1,8 @@
 /**
  * ⚠️ DEVELOPMENT / DEMO DATA ONLY (spec §54).
- *   npm run db:seed        — wipes app tables and loads demo users, trips and posts.
+ *   npm run db:seed        — WIPES app tables (users, trips, posts, media rows and ALL places, including an imported
+ *                            catalog) and loads demo users, trips and posts. To keep your data and only add the
+ *                            in-progress demo trip, use `npm run db:demo-trip` (prisma/demo-trip.ts).
  * Demo accounts: an@ / sarah@ / minh@ / linh@ / nam@triply.dev — password "demo1234".
  */
 import "dotenv/config";

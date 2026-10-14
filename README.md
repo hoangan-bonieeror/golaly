@@ -102,8 +102,17 @@ If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `
 
 ```bash
 npm run db:deploy      # creates the tables from prisma/migrations (no prompts)
-npm run db:seed        # DEV ONLY: demo users, trips, posts
+npm run db:seed        # DEV ONLY: WIPES users, trips, posts, places (incl. an imported catalog), then loads the demo
 npm run dev            # API → http://localhost:4000   Web → http://localhost:3000
+```
+
+Already have data you want to keep (your own account, an imported catalog)? Add only the in-progress demo trip
+instead — it touches nothing else, reuses catalog places with the same name nearby, and can be re-run to move its
+dates to today:
+
+```bash
+npm run db:demo-trip -w @triply/api                           # owner: an@triply.dev
+npm run db:demo-trip -w @triply/api -- --owner you@example.com  # owner: your own account
 ```
 
 Open **http://localhost:3000** and log in with a demo account (password `demo1234`):

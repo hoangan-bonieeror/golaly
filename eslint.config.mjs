@@ -32,7 +32,7 @@ export default tseslint.config(
     settings: { next: { rootDir: "apps/web" } },
   },
   {
-    files: ["**/*.spec.ts", "**/test/**/*.ts", "**/prisma/seed*.ts", "**/prisma/seed-data/**", "**/scripts/**", "**/e2e/**"],
+    files: ["**/*.spec.ts", "**/test/**/*.ts", "**/prisma/seed*.ts", "**/prisma/demo-trip.ts", "**/prisma/seed-data/**", "**/scripts/**", "**/e2e/**"],
     rules: { "no-console": "off" },
   },
 );
