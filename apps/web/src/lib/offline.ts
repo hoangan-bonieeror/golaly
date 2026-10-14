@@ -135,11 +135,28 @@ export function useOffline(tripId: string, onSynced?: (n: number) => void) {
   return { online, pending };
 }
 
-/** Registers the service worker (production builds, or dev with NEXT_PUBLIC_SW=1 — it would fight hot reload). */
+/**
+ * Registers the service worker (production builds, or dev with NEXT_PUBLIC_SW=1 — it would fight hot reload).
+ *
+ * Its scope is /trips only: offline matters for trip pages (their scripts and data still go through it, since
+ * a controlled page's requests do). Other pages stay uncontrolled on purpose — under a service worker the home page
+ * now and then failed to hydrate (React #418, the hydration cursor ending up in <head>), and nothing else needs it.
+ * An earlier registration for the whole site ("/") is removed.
+ */
+const SW_SCOPE = "/trips";
 export function registerServiceWorker() {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   if (process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_SW !== "1") return;
-  void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => undefined);
+  const sw = navigator.serviceWorker;
+  void (async () => {
+    try {
+      const wanted = new URL(SW_SCOPE, location.origin).href;
+      for (const r of await sw.getRegistrations()) if (r.scope !== wanted) await r.unregister();
+      await sw.register("/sw.js", { scope: SW_SCOPE });
+    } catch {
+      /* offline support is best-effort */
+    }
+  })();
 }
 
 /** Forget cached trips (on logout: the next person on this device mustn't see them). */
@@ -149,5 +166,11 @@ export function clearOfflineData() {
   } catch {
     /* ignore */
   }
+  // The cache is the origin's, so any page can drop it — logout often happens outside the worker's /trips scope.
+  if (typeof caches !== "undefined")
+    void caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("triply-data-")).map((k) => caches.delete(k))))
+      .catch(() => undefined);
   navigator.serviceWorker?.controller?.postMessage({ type: "clear" });
 }

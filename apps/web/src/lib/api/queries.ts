@@ -5,6 +5,7 @@
  * Keys are centralised so mutations and realtime events can invalidate precisely.
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
 import { localizeMessage } from "@triply/shared";
 import type {
   CategoryView,
@@ -64,9 +65,24 @@ export const keys = {
   invitation: (by: string) => ["invitation", by] as const,
 };
 
-/** The signed-in user, or null when logged out (a 401 is not an error here). */
+const noopSubscribe = () => () => {};
+/**
+ * False while React is hydrating server HTML, true afterwards (and from the start for anything mounted later).
+ * The server never knows who is signed in, so it renders "nobody yet".
+ */
+export const useHydrated = () => useSyncExternalStore(noopSubscribe, () => true, () => false);
+
+/**
+ * The signed-in user, or null when logged out (a 401 is not an error here).
+ *
+ * While a component is hydrating it always sees "loading, nobody yet" — exactly what the server rendered.
+ * Pages are code-split: the app shell hydrates first and starts this request, and if it answers before a page's
+ * code has loaded (fast networks, the offline service worker), that page would otherwise hydrate with the user
+ * already known and not match the server's HTML (React #418). Anything mounted after hydration gets the data at once.
+ */
 export function useMe() {
-  return useQuery({
+  const hydrated = useHydrated();
+  const q = useQuery({
     queryKey: keys.me,
     queryFn: async () => {
       try {
@@ -78,6 +94,7 @@ export function useMe() {
     },
     staleTime: 60_000,
   });
+  return hydrated ? q : ({ ...q, data: undefined, isLoading: true, isPending: true, isSuccess: false, status: "pending" } as typeof q);
 }
 
 export const useExpenses = (tripId: string, enabled = true) =>
