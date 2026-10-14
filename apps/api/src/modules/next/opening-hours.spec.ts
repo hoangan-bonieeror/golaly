@@ -1,4 +1,4 @@
-import { openStateAt, parseOpeningHours, weekdayOf } from "@triply/shared";
+import { localNowAt, openStateAt, parseOpeningHours, timeZoneAt, weekdayOf } from "@triply/shared";
 
 // 2026-10-12 is a Monday.
 const MON = "2026-10-12";
@@ -54,5 +54,20 @@ describe("opening hours", () => {
       expect(openStateAt(spec, MON, "10:00")).toEqual({ state: "unknown" });
     }
     expect(parseOpeningHours("PH off")).toBeNull();
+  });
+});
+
+describe("local time at a place", () => {
+  it("infers the zone from coordinates", () => {
+    expect(timeZoneAt(21.03, 105.85)).toBe("Asia/Ho_Chi_Minh"); // Hanoi
+    expect(timeZoneAt(35.01, 135.77)).toBe("Asia/Tokyo"); // Kyoto
+    expect(timeZoneAt(38.72, -9.14)).toBe("Europe/Lisbon");
+    expect(timeZoneAt(36.27, -121.81)).toBe("America/Los_Angeles"); // Big Sur
+    expect(timeZoneAt(-33.87, 151.21)).toBe("Etc/GMT-10"); // elsewhere: solar time
+  });
+  it("gives that place's date and clock", () => {
+    // 19:16 UTC on a Wednesday is 02:16 on Thursday in Hanoi.
+    expect(localNowAt(21.03, 105.85, new Date("2026-10-14T19:16:00Z"))).toEqual({ date: "2026-10-15", time: "02:16", zone: "Asia/Ho_Chi_Minh" });
+    expect(localNowAt(36.27, -121.81, new Date("2026-10-14T19:16:00Z")).time).toBe("12:16");
   });
 });

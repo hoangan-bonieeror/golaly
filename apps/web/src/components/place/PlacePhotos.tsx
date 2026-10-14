@@ -108,7 +108,8 @@ const TILE: Record<number, string[]> = {
 };
 
 /** Place page gallery: a large first photo and up to four more; every photo opens a viewer with its credit. */
-export function PlaceGallery({ place }: { place: PlaceDetail }) {
+/** `slimEmpty`: with no photos, a one-line strip (the page already leads with a map) instead of the big empty panel. */
+export function PlaceGallery({ place, slimEmpty }: { place: PlaceDetail; slimEmpty?: boolean }) {
   const t = useT();
   const ph = t.explore.photos;
   const [open, setOpen] = useState<number | null>(null);
@@ -118,7 +119,12 @@ export function PlaceGallery({ place }: { place: PlaceDetail }) {
 
   return (
     <section aria-label={ph.label} className="space-y-2">
-      {photos.length === 0 ? (
+      {photos.length === 0 && slimEmpty ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-line bg-sand-2/50 px-4 py-2.5">
+          <span className="min-w-[12rem] flex-1 text-sm text-ink-2">{ph.none(place.name)}</span>
+          <AddPhotoButton place={place} onOpen={() => setAdding(true)} label={ph.beFirst} />
+        </div>
+      ) : photos.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-[var(--radius-card)] border border-dashed border-line bg-sand-2/50 px-6 py-10 text-center">
           <CategoryIcon categoryKey={place.categoryKey} size="lg" />
           <p className="text-sm text-ink-2">{ph.none(place.name)}</p>

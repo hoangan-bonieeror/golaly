@@ -54,6 +54,22 @@ describe("what happened", () => {
     expect(await t.prisma.tripEvent.count({ where: { tripId: trip.id, type: "item.status" } })).toBe(3);
   });
 
+  it("a place counts the public trips that went or skipped it", async () => {
+    const { owner, trip, days } = await crew();
+    const oldTown = await place("Hội An Ancient Town");
+    const roastery = await place("Hoi An Roastery");
+    const visits = async (id: string) => (await owner.get(`/places/${id}`)).body.visits as { visited: number; skipped: number };
+    const [town0, roast0] = [await visits(oldTown), await visits(roastery)];
+    const a = (await owner.post(`/days/${days[0].id}/items`, { type: "PLACE", title: "Old town", placeId: oldTown })).body;
+    const b = (await owner.post(`/days/${days[0].id}/items`, { type: "RESTAURANT", title: "Coffee", placeId: roastery })).body;
+    await owner.patch(`/trips/${trip.id}/items/status`, { items: [{ id: a.id, status: "VISITED" }, { id: b.id, status: "SKIPPED" }] });
+    // A private trip says nothing to strangers.
+    expect(await visits(oldTown)).toEqual(town0);
+    expect((await owner.patch(`/trips/${trip.id}`, { visibility: "PUBLIC" })).status).toBe(200);
+    expect(await visits(oldTown)).toEqual({ visited: town0.visited + 1, skipped: town0.skipped });
+    expect(await visits(roastery)).toEqual({ visited: roast0.visited, skipped: roast0.skipped + 1 });
+  });
+
   it("members (viewers too) add photos of stops; only the uploader or the owner removes them", async () => {
     const { owner, editor, viewer, trip, days } = await crew();
     const item = (await owner.post(`/days/${days[0].id}/items`, { type: "PLACE", title: "Old town", placeId: await place("Hội An Ancient Town") })).body;

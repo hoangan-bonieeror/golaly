@@ -5,13 +5,14 @@ import { BinocularsArt } from "@/components/art/EmptyArt";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { DestinationsMap } from "@/components/map/DestinationsMap";
 import { PlaceBrowser } from "@/components/place/PlaceBrowser";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
 import { Avatar, Chip, EmptyState, ErrorState, PageLoader, SectionTitle, Skeleton, cx, inputCls } from "@/components/ui";
 import { useT } from "@/i18n/client";
-import { useSearch } from "@/lib/api/queries";
+import { useDestinations, useSearch } from "@/lib/api/queries";
 import { useRecentSearches } from "@/lib/recentSearches";
 import { useDebounced } from "@/lib/hooks";
 
@@ -64,6 +65,9 @@ function Explore() {
   const res = useSearch(dq, cat, !browsing);
   const r = res.data;
   const show = (c: Cat) => cat === "all" || cat === c;
+  // The atlas leads Explore before anything's typed: every destination with shared trips, sized by how many.
+  const atlas = (useDestinations().data ?? []).filter((d) => d.tripCount > 0);
+  const showAtlas = !browsing && !dq && (cat === "all" || cat === "destinations") && atlas.length > 0;
   const total = r ? r.trips.length + r.places.length + r.people.length + r.destinations.length : 0;
 
   return (
@@ -106,6 +110,18 @@ function Explore() {
           ))}
         </div>
       </header>
+
+      {showAtlas && (
+        <section aria-labelledby="atlas-title">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4">
+            <h2 id="atlas-title" className="font-display text-xl font-semibold">
+              {t.explore.atlas.title}
+            </h2>
+            <p className="text-sm text-muted">{t.explore.atlas.hint}</p>
+          </div>
+          <DestinationsMap destinations={atlas} />
+        </section>
+      )}
 
       {browsing && <PlaceBrowser q={dq} />}
 

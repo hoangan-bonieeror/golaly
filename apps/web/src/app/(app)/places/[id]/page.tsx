@@ -1,12 +1,12 @@
 "use client";
 
 import type { Locale, PlaceView } from "@triply/shared";
-import { ArrowLeft, Bookmark, Clock, ExternalLink, Globe, MapPin, Navigation, Phone, Share2, Star } from "lucide-react";
+import { ArrowLeft, Bookmark, Check, ExternalLink, Globe, MapPin, Navigation, Phone, Share2, Star } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PlacesMap } from "@/components/map/PlacesMap";
 import { AddToTripButton } from "@/components/place/AddToTripSheet";
-import { CategoryIcon, formatOpeningHours } from "@/components/place/categoryMeta";
+import { OpenNowPill, WeekHours } from "@/components/place/OpenNow";
 import { PlaceGallery } from "@/components/place/PlacePhotos";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { TripCard } from "@/components/trip/TripCard";
@@ -57,54 +57,56 @@ export default function PlacePage() {
       /* share sheet dismissed */
     }
   };
-  const hours = p.openingHours ? formatOpeningHours(p.openingHours, locale) : [];
   const where = [p.address, p.areaName && p.areaName !== p.destinationName ? p.areaName : null].filter(Boolean).join(", ");
+  const hasPhotos = p.photos.length > 0;
+  const map = <PlacesMap places={[p, ...p.nearby]} focusId={p.id} label={pl.mapLabel(p.name)} className={hasPhotos ? undefined : "h-[280px]! md:h-[400px]!"} />;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div className="space-y-5">
         <Link href={back} className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary hover:underline">
           <ArrowLeft className="size-4" aria-hidden /> {p.destinationName ? pl.placesIn(p.destinationName) : pl.explorePlaces}
         </Link>
 
-        <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div className="flex items-start gap-4">
-            <CategoryIcon categoryKey={p.categoryKey} size="lg" />
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                {p.groupLabel && <Badge tone="primary">{p.groupLabel}</Badge>}
-                {p.status === "CLOSED" && <Badge tone="gold">{pl.permanentlyClosed}</Badge>}
-              </div>
-              <h1 className="font-display text-3xl font-bold leading-tight md:text-4xl">{p.name}</h1>
-              {p.localName && (
-                <p className="text-base text-ink-2">
-                  {p.localName} <span className="text-xs text-muted">· {pl.localName}</span>
-                </p>
+        {/* Atlas header: an eyebrow (kind · where), the name, then what matters right now — open?, rating, did people go. */}
+        <header className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-x-2 font-mono text-xs font-semibold uppercase tracking-wider text-accent-700">
+              <span>{p.categoryLabel}</span>
+              {p.destinationName && (
+                <>
+                  <span aria-hidden>·</span>
+                  {p.destinationSlug ? (
+                    <Link href={`/explore/${p.destinationSlug}`} className="hover:underline">
+                      {p.destinationName}
+                    </Link>
+                  ) : (
+                    <span>{p.destinationName}</span>
+                  )}
+                </>
               )}
-              <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-2">
-                <span>{p.categoryLabel}</span>
-                {p.destinationName && (
-                  <>
-                    <span aria-hidden>·</span>
-                    {p.destinationSlug ? (
-                      <Link href={`/explore/${p.destinationSlug}`} className="font-semibold text-primary hover:underline">
-                        {p.destinationName}
-                      </Link>
-                    ) : (
-                      <span>{p.destinationName}</span>
-                    )}
-                  </>
-                )}
-                {p.rating && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Star className="size-4 fill-gold text-gold" aria-hidden />
-                      <span className="sr-only">{pl.rated}</span> {p.rating}
-                    </span>
-                  </>
-                )}
+            </p>
+            <h1 className="mt-1.5 font-display text-3xl font-extrabold leading-tight md:text-[44px]">{p.name}</h1>
+            {p.localName && (
+              <p className="mt-1 text-base text-ink-2">
+                {p.localName} <span className="text-xs text-muted">· {pl.localName}</span>
               </p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {p.status === "CLOSED" ? <Badge tone="gold">{pl.permanentlyClosed}</Badge> : <OpenNowPill place={p} />}
+              {p.rating && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1 text-[13px] font-semibold">
+                  <Star className="size-3.5 fill-gold text-gold" aria-hidden />
+                  <span className="sr-only">{pl.rated}</span> {p.rating}
+                </span>
+              )}
+              {p.visits.visited > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-sand-2 px-2.5 py-1 text-[13px] font-semibold text-ink-2" title={pl.visits.hint}>
+                  <Check className="size-3.5 text-primary" aria-hidden /> {pl.visits.went(p.visits.visited)}
+                  {p.visits.skipped > 0 && <span className="font-normal text-muted"> · {pl.visits.skipped(p.visits.skipped)}</span>}
+                </span>
+              )}
+              {p.groupLabel && <span className="text-[13px] text-muted">{p.groupLabel}</span>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -119,16 +121,18 @@ export default function PlacePage() {
             </Button>
           </div>
         </header>
-        {p.status === "CLOSED" && (
-          <p className="rounded-2xl bg-gold-50 px-4 py-3 text-sm text-gold-700">
-            {pl.closedNotice}
-          </p>
-        )}
+        {p.status === "CLOSED" && <p className="rounded-2xl bg-gold-50 px-4 py-3 text-sm text-gold-700">{pl.closedNotice}</p>}
       </div>
 
-      <PlaceGallery place={p} />
+      {/* Photos lead when there are some; otherwise the map does, with a slim "add a photo" strip under it. */}
+      {/* The gallery keeps its place in the tree either way: the first photo arriving mustn't remount it
+          (that would close the "add a photo" sheet mid-way). */}
+      <div className="space-y-2">
+        {!hasPhotos && map}
+        <PlaceGallery place={p} slimEmpty />
+      </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,480px)]">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)]">
         <section aria-labelledby="details" className="space-y-1 rounded-[var(--radius-card)] border border-line bg-surface p-5 shadow-card">
           <h2 id="details" className="font-display text-[22px] font-semibold">
             {pl.details}
@@ -137,15 +141,6 @@ export default function PlacePage() {
             {where && (
               <Row icon={MapPin} label={pl.address}>
                 {where}
-              </Row>
-            )}
-            {hours.length > 0 && (
-              <Row icon={Clock} label={pl.openingHours}>
-                <ul>
-                  {hours.map((h) => (
-                    <li key={h}>{h}</li>
-                  ))}
-                </ul>
               </Row>
             )}
             {p.phone && (
@@ -184,7 +179,10 @@ export default function PlacePage() {
             </div>
           )}
         </section>
-        <PlacesMap places={[p, ...p.nearby]} focusId={p.id} label={pl.mapLabel(p.name)} />
+        <div className="space-y-6">
+          <WeekHours place={p} />
+          {hasPhotos && map}
+        </div>
       </div>
 
       {p.nearby.length > 0 && (

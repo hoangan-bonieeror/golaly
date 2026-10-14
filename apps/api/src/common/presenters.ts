@@ -93,6 +93,7 @@ export function toPlaceView(p: PlaceRow): PlaceView {
     lat: p.lat,
     lng: p.lng,
     rating: p.rating,
+    openingHours: p.openingHours,
     status: p.status,
     savedByMe: p.savedBy.length > 0,
     categoryKey: p.categoryRef?.key ?? null,

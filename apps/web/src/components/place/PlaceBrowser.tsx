@@ -1,7 +1,7 @@
 "use client";
 
-import type { CategoryView } from "@triply/shared";
-import { List, LocateFixed, Map as MapIcon, MapPinned } from "lucide-react";
+import { localNowAt, openStateAt, type CategoryView } from "@triply/shared";
+import { Clock, List, LocateFixed, Map as MapIcon, MapPinned } from "lucide-react";
 import { BinocularsArt } from "../art/EmptyArt";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useState } from "react";
@@ -9,7 +9,8 @@ import { PlacesMap } from "@/components/map/PlacesMap";
 import { PlaceRow } from "@/components/social/PlaceRow";
 import { Chip, EmptyState, ErrorState, LoadMore, Skeleton, cx, inputCls } from "@/components/ui";
 import { useFormat, useT } from "@/i18n/client";
-import { useCategories, useDestinations, useGeoAreas, usePlaceBrowse } from "@/lib/api/queries";
+import { useCategories, useDestinations, useGeoAreas, useHydrated, usePlaceBrowse } from "@/lib/api/queries";
+import { useNow } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { groupMeta } from "./categoryMeta";
 import { WherePicker, type WhereValue } from "./WherePicker";
@@ -59,7 +60,19 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
 
   const browse = usePlaceBrowse({ q: q || undefined, destination: dest, area, near, radius, group, category, sort, limit: 24 });
   const meta = browse.meta;
-  const items = browse.items ?? [];
+  const loaded = browse.items ?? [];
+  // "Open now" is judged here, in each place's own local time, over the results loaded so far (the server
+  // can't filter on opening_hours text); the note under the list says so.
+  const openOnly = params.get("open") === "1";
+  const hydrated = useHydrated();
+  const now = useNow();
+  const items =
+    openOnly && hydrated
+      ? loaded.filter((p) => {
+          const l = localNowAt(p.lat, p.lng, now);
+          return openStateAt(p.openingHours, l.date, l.time).state === "open";
+        })
+      : loaded;
   const facet = new Map(meta?.facets.map((f) => [f.key, f.count]) ?? []);
   const groups = categories.filter((g) => facet.get(g.key) || g.key === group);
   const activeGroup: CategoryView | undefined = categories.find((g) => g.key === group);
@@ -196,10 +209,13 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ink-2" aria-live="polite">
           {summary}
         </p>
+        <Chip active={openOnly} onClick={() => set({ open: openOnly ? undefined : "1" })} className="h-9 shrink-0 px-3 lg:ml-auto">
+          <Clock className="size-4" aria-hidden /> {b.openNow}
+        </Chip>
         <div className="flex rounded-full border border-line bg-surface p-0.5 lg:hidden" role="group" aria-label={b.showAs}>
           {(["list", "map"] as const).map((v) => (
             <button
@@ -218,7 +234,12 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
 
       {browse.isError && <ErrorState error={browse.error} onRetry={() => browse.refetch()} />}
       {browse.isLoading && <Skeleton className="h-72" />}
-      {meta && items.length === 0 && (
+      {openOnly && hydrated && loaded.length > 0 && (
+        <p className="text-xs text-muted" aria-live="polite">
+          {b.openNote(items.length, loaded.length)}
+        </p>
+      )}
+      {meta && loaded.length === 0 && (
         <EmptyState
           art={<BinocularsArt />}
           level="h3"
@@ -235,7 +256,7 @@ export function PlaceBrowser({ q = "" }: { q?: string }) {
         />
       )}
 
-      {items.length > 0 && (
+      {loaded.length > 0 && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,440px)]">
           <div className={cx("space-y-4", view === "map" && "hidden lg:block")}>
             {/* Previous results stay visible (dimmed) while new filters load, so the page doesn't jump. */}

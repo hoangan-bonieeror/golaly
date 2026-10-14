@@ -1,16 +1,19 @@
 "use client";
 
 import type { TripSummary } from "@triply/shared";
-import { ArrowRight, Users } from "lucide-react";
+import { GitFork, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import { NowCard, YourTrips, focusTrip } from "@/components/home/NowCard";
 import { PostCard } from "@/components/social/PostCard";
 import { DestinationTile } from "@/components/trip/DestinationTile";
 import { TripCard } from "@/components/trip/TripCard";
+import { useQueryClient } from "@tanstack/react-query";
 import { FoldedMap } from "@/components/art/EmptyArt";
 import { Button, EmptyState, ErrorState, SectionTitle, Skeleton, TabPanel, Tabs } from "@/components/ui";
-import { useFormat, useT } from "@/i18n/client";
-import { useExplore, useFeed, useMe, useMyTrips } from "@/lib/api/queries";
+import { useT } from "@/i18n/client";
+import { useExplore, useFeed, useHydrated, useMe, useMyTrips } from "@/lib/api/queries";
+import { todayIso } from "@/lib/plan";
 
 export default function HomePage() {
   const me = useMe().data;
@@ -18,8 +21,10 @@ export default function HomePage() {
   const feed = useFeed(mode);
   const explore = useExplore();
   const mine = useMyTrips("all", !!me);
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = (mine.items ?? []).find((x) => !x.endDate || x.endDate >= today);
+  const hydrated = useHydrated();
+  const myTrips = mine.items ?? [];
+  // Which trip leads depends on today's date on this device, so it's picked after hydration.
+  const focus = hydrated ? focusTrip(myTrips, todayIso()) : null;
   const recommended = (explore.data?.trips ?? []).filter((x) => !x.myRole).slice(0, 4);
   const trending = (explore.data?.destinations ?? []).slice(0, 6);
   const posts = feed.data?.pages.flatMap((p) => p.posts) ?? [];
@@ -39,7 +44,8 @@ export default function HomePage() {
           <h1 className="font-display text-3xl font-semibold md:text-4xl">{t.home.title}</h1>
         </header>
 
-        {upcoming && <ContinuePlanning trip={upcoming} />}
+        {me && <NowCard trips={myTrips} />}
+        {me && <YourTrips trips={myTrips} exclude={focus?.trip.id} />}
         {!me && (
           <div className="flex flex-col gap-3 rounded-[var(--radius-card)] border border-line bg-surface p-4 sm:flex-row sm:items-center">
             <p className="flex-1 text-sm text-ink-2">{t.home.guestPitch}</p>
@@ -121,8 +127,15 @@ export default function HomePage() {
         <section>
           <SectionTitle>{t.home.recommendedTrips}</SectionTitle>
           <div className="space-y-5">
-            {explore.isLoading ? <FoldedMap className="aspect-[4/3]" /> : recommended.slice(0, 3).map((r) => <TripCard key={r.id} trip={r} compact morph />)}
+            {explore.isLoading ? <FoldedMap className="aspect-[4/3]" /> : recommended.slice(0, 1).map((r) => <TripCard key={r.id} trip={r} compact morph />)}
           </div>
+          {recommended.length > 1 && (
+            <ul className="mt-3 divide-y divide-line">
+              {recommended.slice(1, 4).map((r) => (
+                <RailTrip key={r.id} trip={r} />
+              ))}
+            </ul>
+          )}
         </section>
         <section>
           <SectionTitle
@@ -145,24 +158,32 @@ export default function HomePage() {
   );
 }
 
-function ContinuePlanning({ trip }: { trip: TripSummary }) {
+/** A recommended trip as one compact line in the right rail: swatch, title, route, remixes. */
+function RailTrip({ trip }: { trip: TripSummary }) {
   const t = useT();
-  const f = useFormat();
+  const qc = useQueryClient();
   return (
-    <Link
-      href={`/trips/${trip.id}`}
-      className="group flex items-center gap-4 rounded-[var(--radius-card)] border border-line bg-surface p-3 pr-5 shadow-card transition-colors hover:border-primary"
-    >
-      <span className="size-16 shrink-0 overflow-hidden rounded-2xl" style={{ background: `linear-gradient(135deg, ${trip.cover[0]}, ${trip.cover[1]})` }} />
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-semibold uppercase tracking-wide text-accent-700">{t.home.continuePlanning}</div>
-        <div className="truncate font-semibold">{trip.title}</div>
-        <div className="truncate text-sm text-muted">
-          {trip.route || t.home.destinationTbd} · {f.dateRange(trip.startDate, trip.endDate)} · {t.format.travelers(trip.stats.travelers)}
-        </div>
-      </div>
-      <ArrowRight className="size-5 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-    </Link>
+    <li>
+      <Link href={`/trips/${trip.id}`} onClick={() => qc.setQueryData(["trip-preview", trip.id], trip)} className="group flex items-center gap-3 py-2.5">
+        <span
+          aria-hidden
+          className="size-11 shrink-0 rounded-xl bg-cover bg-center"
+          style={trip.coverImage || trip.coverUrl ? { backgroundImage: `url(${trip.coverImage?.thumbUrl ?? trip.coverUrl})` } : { background: `linear-gradient(135deg, ${trip.cover[0]}, ${trip.cover[1]})` }}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold group-hover:underline">{trip.title}</span>
+          <span className="block truncate text-xs text-muted">
+            {trip.route || t.home.destinationTbd} · {t.format.days(trip.stats.days)}
+          </span>
+        </span>
+        {trip.forkCount > 0 && (
+          <span className="flex shrink-0 items-center gap-1 text-xs text-muted" title={t.home.forks(trip.forkCount)}>
+            <GitFork className="size-3.5" aria-hidden /> <span aria-hidden>{trip.forkCount}</span>
+            <span className="sr-only">{t.home.forks(trip.forkCount)}</span>
+          </span>
+        )}
+      </Link>
+    </li>
   );
 }
 

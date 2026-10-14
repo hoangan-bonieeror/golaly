@@ -20,4 +20,22 @@ export const home = {
   recommendedTrips: "Recommended trips",
   continuePlanning: "Continue planning",
   destinationTbd: "Destination TBD",
+  /** The "now" block at the top: the trip that matters today. */
+  now: {
+    label: "Your trip right now",
+    during: (day: number, total: number) => `Day ${day} of ${total}`,
+    nextUp: "Next up",
+    then: "Then",
+    doneToday: "Nothing left on today's plan — find somewhere nearby.",
+    openToday: "Today's plan",
+    before: "Next trip",
+    countdown: (n: number) => (n === 0 ? "Starts today" : n === 1 ? "Tomorrow" : `In ${n} days`),
+    after: "Just back",
+    allMarked: "Everything's marked — see how it went.",
+    undated: "Still planning",
+  },
+  yourTrips: "Your trips",
+  allTrips: "All trips",
+  phase: { before: "Upcoming", during: "On now", after: "Done", undated: "No dates" },
+  forks: (n: number) => (n === 1 ? "1 remix" : `${n} remixes`),
 };

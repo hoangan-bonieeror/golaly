@@ -8,6 +8,7 @@ import { useAction, useMe } from "@/lib/api/queries";
 import { useI18n, useT } from "@/i18n/client";
 import { AddToTripButton } from "../place/AddToTripSheet";
 import { CategoryIcon, formatDistance } from "../place/categoryMeta";
+import { useOpenState } from "../place/OpenNow";
 import { cx } from "../ui";
 
 /**
@@ -23,6 +24,8 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
     success: (r) => (r.savedByMe ? t.social.place.saved : t.social.place.unsaved),
   });
   const distance = formatDistance(place.distanceM, locale);
+  const open = useOpenState(place)?.state.state;
+  const openLabel = open === "open" ? t.explore.place.now.short.open : open === "closed" ? t.explore.place.now.short.closed : null;
   return (
     <div
       className={cx(
@@ -64,8 +67,14 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
           {place.categoryLabel}
           {place.destinationName && ` · ${place.destinationName}`}
         </div>
-        {(place.rating || distance) && (
+        {(place.rating || distance || openLabel) && (
           <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-2">
+            {openLabel && (
+              <span className={cx("inline-flex items-center gap-1 font-semibold", open === "open" ? "text-primary" : "text-accent-700")}>
+                <span aria-hidden className={cx("size-1.5 rounded-full", open === "open" ? "bg-primary" : "bg-accent-700")} />
+                {openLabel}
+              </span>
+            )}
             {place.rating && (
               <span className="inline-flex items-center gap-0.5">
                 <Star className="size-3 fill-gold text-gold" aria-hidden />
@@ -73,7 +82,13 @@ export function PlaceRow({ place, index, active, onHover }: { place: PlaceView; 
                 {place.rating}
               </span>
             )}
-            {distance && <span>{t.social.place.away(distance)}</span>}
+            {distance && (
+              <span>
+                {t.social.place.away(distance)}
+                {/* A short walk: say how long (≈ 1.3 × straight line at 4.8 km/h). */}
+                {place.distanceM != null && place.distanceM <= 2000 && ` · ${t.explore.place.walk(Math.round((place.distanceM * 1.3) / 80))}`}
+              </span>
+            )}
           </div>
         )}
       </div>

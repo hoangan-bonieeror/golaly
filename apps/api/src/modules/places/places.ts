@@ -323,7 +323,7 @@ export class PlacesService {
       },
     });
     const tripWhere = { ...DISCOVERABLE, days: { some: { items: { some: { placeId } } } } };
-    const [nearIds, trips, tripCount, photos] = await Promise.all([
+    const [nearIds, trips, tripCount, photos, visited, skipped] = await Promise.all([
       // The 6 nearest by a KNN walk of the GIST index (`<->`), then cut at NEARBY_METRES. Collecting everything within
       // the radius first and sorting it took seconds in dense cities (Tokyo: ~6,500 places within 1.5 km).
       this.prisma.$queryRaw<{ id: string; dist: number }[]>`
@@ -342,6 +342,9 @@ export class PlacesService {
         take: 12,
         include: placePhotoInclude,
       }),
+      // What groups actually did here (public trips only, like `inTrips`): trips that marked it went / skipped.
+      this.prisma.trip.count({ where: { ...DISCOVERABLE, items: { some: { placeId, status: "VISITED" } } } }),
+      this.prisma.trip.count({ where: { ...DISCOVERABLE, items: { some: { placeId, status: "SKIPPED" } } } }),
     ]);
     const nearRows = await this.prisma.place.findMany({ where: { id: { in: nearIds.map((n) => n.id) } }, include: placeInclude(viewerId) });
     const nearDist = new Map(nearIds.map((n) => [n.id, n.dist]));
@@ -351,6 +354,7 @@ export class PlacesService {
       phone: p.phone,
       website: p.website,
       openingHours: p.openingHours,
+      visits: { visited, skipped },
       groupKey: p.categoryRef?.parent?.key ?? p.categoryRef?.key ?? null,
       groupLabel: (requestLocale() === "vi" ? p.categoryRef?.parent?.labelVi : p.categoryRef?.parent?.labelEn) ?? null,
       destinationSlug: p.destination?.slug ?? null,

@@ -27,10 +27,18 @@ export const explore = {
     around: (name: string) => `Around ${name}`,
     seeAll: (count: string | null) => (count ? `See all ${count}` : "See all"),
   },
+  /** Explore's map of destinations. */
+  atlas: {
+    label: "Map of destinations, sized by number of trips",
+    title: "Where people go",
+    hint: "Bigger circles, more trips. Tap one to see its trips and places.",
+  },
   /** Destination tiles. */
   tripCount: (n: number) => (n === 1 ? `${n} trip` : `${n} trips`),
   /** Explore → Places browser. */
   browser: {
+    openNow: "Open now",
+    openNote: (n: number, of: number) => `${n} of the ${of} places shown are open now (local time). Load more to see others.`,
     where: "Where",
     destination: "Destination",
     area: "Area",
@@ -115,6 +123,29 @@ export const explore = {
     nearby: "Nearby",
     inTrips: (n: number) => `In ${n} traveler${n === 1 ? "’s trip" : "s’ trips"}`,
     placeData: (sources: string) => `Place data: ${sources}`,
+    /** Open right now, from the opening hours in the place's own local time. */
+    now: {
+      openUntil: (t: string) => `Open now · until ${t}`,
+      open24: "Open 24 hours",
+      closed: "Closed now",
+      closedOpens: (t: string) => `Closed · opens ${t}`,
+      localTime: (t: string) => `${t} local time`,
+      short: { open: "Open", closed: "Closed" },
+    },
+    week: {
+      title: "Opening hours",
+      today: "Today",
+      closed: "Closed",
+      allDay: "Open 24 hours",
+      raw: "As listed",
+    },
+    visits: {
+      went: (n: number) => `${n} ${n === 1 ? "group" : "groups"} went`,
+      skipped: (n: number) => `${n} skipped`,
+      hint: "From public trips that marked what they actually did.",
+    },
+    walk: (min: number) => (min < 1 ? "< 1 min walk" : `${min} min walk`),
+    noPhotos: "No photos yet",
   },
   /** Opening hours (OpenStreetMap syntax rendered for people). */
   hours: {

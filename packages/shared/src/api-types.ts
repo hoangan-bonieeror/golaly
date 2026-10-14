@@ -90,6 +90,8 @@ export interface PlaceView {
   categoryKey: string | null;
   /** Human label of that category ("Café"); falls back to the item type label. */
   categoryLabel: string;
+  /** OpenStreetMap opening_hours syntax, e.g. "Mo-Su 07:00-22:00" (for "open now"). */
+  openingHours: string | null;
   /** Metres from the search centre, when the list was searched around a point. */
   distanceM?: number;
   /** The place's best approved photo (null → show the category icon), with its one-line credit. */
@@ -173,8 +175,6 @@ export interface PlaceBrowse extends Paged<PlaceView> {
 export interface PlaceDetail extends PlaceView {
   phone: string | null;
   website: string | null;
-  /** OpenStreetMap opening_hours syntax, e.g. "Mo-Su 07:00-22:00". */
-  openingHours: string | null;
   groupKey: string | null;
   groupLabel: string | null;
   destinationSlug: string | null;
@@ -189,6 +189,8 @@ export interface PlaceDetail extends PlaceView {
   /** Public trips that include this place (most saved first) and how many there are in total. */
   inTrips: TripSummary[];
   tripCount: number;
+  /** Public trips whose group marked this place as visited / skipped (after the trip). */
+  visits: { visited: number; skipped: number };
 }
 
 /** A trip the viewer may add items to, as offered by "Add to trip". */

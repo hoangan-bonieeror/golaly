@@ -160,6 +160,28 @@ Scale: 11–12 (mono meta) · 13 (meta) · 14 (UI) · 15–16 (body) · 20–22 
   owes = `accent-700`), the settle-up transfers with "Mark paid", and the expense list. Money is
   always `Intl` currency format in the interface language with `tabular-nums`.
 
+## Home, Explore and places
+
+- **Home:** greeting, then a "now" card for the trip that matters today — under way, else just back with stops
+  to mark (≤ 7 days), else the next one, else a draft. It pairs a 112px `RouteThumb` (sky-tinted before and
+  during) with a mono eyebrow ("DAY 3 OF 3 · MORNING" in jade with a pulsing dot; "NEXT TRIP · IN 12 DAYS" or
+  "JUST BACK" in `accent-700`). During a trip a `sand-2` band shows the next stop, "Then: …", the day's
+  progress bar and "Where to now?" (primary). Below: "Your trips" as a scrolling row of swatch cards with the
+  phase ("On now" in jade). The right rail is one featured `TripCard` and compact rows (swatch, title, route,
+  fork count).
+- **Explore:** before anything is typed, an atlas map leads — one pin per destination with shared trips,
+  diameter ∝ √trips (22–56px), the count in mono, the name underneath; names that would collide are hidden
+  (biggest destinations win) and show on hover/focus. Pins are links.
+- **Destination page:** mono country eyebrow, the name in the display face (extrabold), the blurb, then a
+  map of its places as the hero. No places yet → the illustrated cover as before.
+- **Place page:** mono eyebrow (category · destination), name, local name, then a row of facts: open-now pill
+  (jade "Open now · until 22:30"; closed in `accent-50`/`accent-700` "Closed · opens 07:00", always in the
+  place's local time, title says so), rating chip, "N groups went" chip (public trips that marked it). Photos
+  lead when there are some; otherwise the map, with a one-line dashed "be the first" strip. Details card and
+  a weekly hours table (mono times, today marked) side by side.
+- **Place rows:** a small jade "Open" / `accent-700` "Closed" dot-label before the rating; within 2 km the
+  distance adds "N min walk". Explore → Places has an "Open now" chip that filters the loaded results.
+
 ## Components (current conventions)
 
 - **Button:** `font-semibold`, `rounded-xl`, no shadow. One `primary` per screen; `accent` only for

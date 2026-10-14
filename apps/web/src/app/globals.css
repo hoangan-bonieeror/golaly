@@ -185,6 +185,60 @@ body {
 
 /* Map pins (MapLibre markers). MapLibre positions the button with an inline transform, so all
    visual state (size, hover lift, pop-in) lives on the inner span. */
+/* Explore's atlas: a destination pin sized by its trip count (--size), with the name under it. */
+.triply-dest {
+  --size: 28px;
+  position: relative;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  text-decoration: none;
+}
+.triply-dest .dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 85%, transparent);
+  border: 2px solid var(--color-pin-ring);
+  box-shadow: 0 1px 4px rgb(31 26 22 / 0.35);
+  color: var(--color-on-primary);
+  font: 700 12px/1 var(--font-mono);
+  transition: transform 150ms ease;
+}
+.triply-dest .name {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font: 600 12px/1.2 var(--font-sans);
+  color: var(--color-ink);
+  text-shadow: 0 0 3px var(--color-surface), 0 0 3px var(--color-surface), 0 0 3px var(--color-surface);
+}
+.triply-dest.no-label .name {
+  display: none;
+}
+.triply-dest.no-label:hover .name,
+.triply-dest.no-label:focus-visible .name {
+  display: block;
+  z-index: 3;
+}
+.triply-dest:hover .dot,
+.triply-dest:focus-visible .dot {
+  transform: scale(1.12);
+  background: var(--color-primary);
+}
+.triply-dest:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .triply-dest .dot { transition: none; }
+}
 .triply-pin {
   --pin: var(--color-primary);
   display: block;
