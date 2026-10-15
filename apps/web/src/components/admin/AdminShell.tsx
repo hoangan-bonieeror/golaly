@@ -1,12 +1,13 @@
 "use client";
 
-import { Boxes, CalendarClock, Copy, Globe2, Image as ImageIcon, MapPin, ShieldAlert, Tags } from "lucide-react";
+import { BarChart3, Boxes, CalendarClock, Copy, Globe2, Image as ImageIcon, MapPin, ShieldAlert, Tags } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { EmptyState, PageLoader, cx } from "@/components/ui";
 import { useMe } from "@/lib/api/queries";
 
 const NAV = [
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin", label: "Areas", icon: Globe2, exact: true },
   { href: "/admin/jobs", label: "Sync jobs", icon: CalendarClock },
   { href: "/admin/runs", label: "Runs", icon: Boxes },

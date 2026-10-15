@@ -29,7 +29,8 @@ export type AuditAction =
   | "catalog.merge.decided"
   | "catalog.merge.undone"
   | "catalog.place.edited"
-  | "catalog.category_map.changed";
+  | "catalog.category_map.changed"
+  | "admin.analytics.viewed";
 
 /** Append-only log of sensitive permission changes (spec §42). Never stores tokens or passwords. */
 @Injectable()

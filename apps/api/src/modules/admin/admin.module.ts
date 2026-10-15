@@ -3,6 +3,7 @@ import { Client } from "pg";
 import { env } from "../../config/env";
 import { RealtimeService } from "../realtime/realtime";
 import { AirflowClient } from "./airflow";
+import { AnalyticsController, AnalyticsService } from "./analytics";
 import { AdminGuard, CatalogAdminController, CatalogAdminService } from "./catalog";
 
 /**
@@ -73,7 +74,7 @@ export class SyncRunListener implements OnModuleInit, OnModuleDestroy {
 }
 
 @Module({
-  controllers: [CatalogAdminController],
-  providers: [CatalogAdminService, AdminGuard, SyncRunListener, { provide: AirflowClient, useFactory: () => new AirflowClient() }],
+  controllers: [CatalogAdminController, AnalyticsController],
+  providers: [CatalogAdminService, AnalyticsService, AdminGuard, SyncRunListener, { provide: AirflowClient, useFactory: () => new AirflowClient() }],
 })
 export class AdminModule {}

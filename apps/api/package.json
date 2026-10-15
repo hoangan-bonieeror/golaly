@@ -12,6 +12,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:demo-trip": "tsx prisma/demo-trip.ts",
+    "db:analytics-demo": "tsx prisma/analytics-demo.ts",
     "db:reset": "prisma migrate reset --force",
     "photos:ingest": "node dist/scripts/ingest-photos.js",
     "media:push": "node dist/scripts/push-media.js",

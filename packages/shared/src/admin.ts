@@ -287,3 +287,81 @@ export interface AdminCategoryView {
   places: number;
   maps: number;
 }
+
+// ── Analytics (admin dashboard) ─────────────────────────────────────────
+
+export const ANALYTICS_RANGES = [7, 30, 90] as const;
+export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
+
+export type AnalyticsKpiKey = "newUsers" | "activeUsers" | "tripsCreated" | "collabRate" | "tripsHappened";
+
+/** One headline number for the period, the same number for the period before, and a per-day trend (oldest first). */
+export interface AnalyticsKpi {
+  key: AnalyticsKpiKey;
+  value: number;
+  previous: number;
+  /** Per day over the period; null for rates (no meaningful daily value). */
+  series: number[] | null;
+}
+
+export interface AnalyticsDay {
+  /** UTC day, YYYY-MM-DD. */
+  date: string;
+  signups: number;
+  /** Distinct people who did something that day (planned, logged in, posted, commented, liked). */
+  active: number;
+  trips: number;
+}
+
+export type AnalyticsFunnelStep = "registered" | "createdTrip" | "plannedStop" | "collaborated" | "tripHappened" | "markedStop" | "shared";
+
+/** People who signed up in the period, and how many of them reached each step since. */
+export interface AnalyticsFunnelRow {
+  step: AnalyticsFunnelStep;
+  users: number;
+}
+
+export interface AnalyticsDestinationRow {
+  slug: string;
+  name: string;
+  country: string;
+  /** Trips created in the period that go there. */
+  trips: number;
+}
+
+export interface AnalyticsOverview {
+  range: { days: AnalyticsRange; from: string; to: string };
+  generatedAt: string;
+  kpis: AnalyticsKpi[];
+  daily: AnalyticsDay[];
+  funnel: AnalyticsFunnelRow[];
+  topDestinations: AnalyticsDestinationRow[];
+  catalog: {
+    places: number;
+    withPhoto: number;
+    withHours: number;
+    photosPending: number;
+    duplicatesPending: number;
+    lastRun: { status: string; finishedAt: string | null; startedAt: string } | null;
+  };
+  ops: {
+    /** Accounts locked right now after failed logins. */
+    lockedNow: number;
+    /** Lockouts in the period (5 wrong passwords). */
+    loginLocks: number;
+    /** Refresh tokens replayed after rotation in the period (a theft signal: the session was revoked). */
+    tokenReuse: number;
+    /** Sessions revoked in the period (logouts, password changes, reuse). */
+    revokedSessions: number;
+    /** Reports filed in the period. */
+    reports: number;
+  };
+}
+
+export const analyticsQuerySchema = z.object({
+  days: z.coerce
+    .number()
+    .int()
+    .refine((n): n is AnalyticsRange => (ANALYTICS_RANGES as readonly number[]).includes(n), "Pick 7, 30 or 90 days.")
+    .default(30),
+});
