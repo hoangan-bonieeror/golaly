@@ -66,6 +66,7 @@ export function DailyChart({
   data,
   kind,
   height = 220,
+  format = (n: number) => nf.format(n),
 }: {
   title: string;
   /** e.g. "sign-ups" — read in the tooltip and table. */
@@ -73,6 +74,8 @@ export function DailyChart({
   data: { date: string; value: number }[];
   kind: "columns" | "line";
   height?: number;
+  /** How a value reads in the tooltip, table and description (axis ticks stay compact numbers). */
+  format?: (n: number) => string;
 }) {
   const [box, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
@@ -138,7 +141,7 @@ export function DailyChart({
               {[...data].reverse().map((d) => (
                 <tr key={d.date} className="border-t border-line">
                   <td className="px-3 py-1.5">{dayLabel(d.date, true)}</td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">{nf.format(d.value)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{format(d.value)}</td>
                 </tr>
               ))}
             </tbody>
@@ -162,7 +165,7 @@ export function DailyChart({
               className="block touch-pan-y rounded-lg outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
             >
               <desc id={`${id}-d`}>
-                {`${n} days. Latest ${last ? `${dayLabel(last.date)}: ${nf.format(last.value)} ${unit}` : "none"}. Peak ${nf.format(Math.max(0, ...data.map((d) => d.value)))}. Use the arrow keys to read each day, or Show table.`}
+                {`${n} days. Latest ${last ? `${dayLabel(last.date)}: ${format(last.value)} ${unit}` : "none"}. Peak ${format(Math.max(0, ...data.map((d) => d.value)))}. Use the arrow keys to read each day, or Show table.`}
               </desc>
               {/* Gridlines + y ticks: hairline, solid, recessive. */}
               {ticks.map((t) => (
@@ -219,7 +222,7 @@ export function DailyChart({
               className="pointer-events-none absolute top-1 z-10 min-w-28 rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-card"
               style={{ left: Math.min(Math.max(xAt(active) - 56, 0), w - 128) }}
             >
-              <div className="text-base font-semibold tabular-nums">{nf.format(cur.value)}</div>
+              <div className="text-base font-semibold tabular-nums">{format(cur.value)}</div>
               <div className="flex items-center gap-1.5 text-xs text-muted">
                 <span aria-hidden className="inline-block h-0.5 w-3 rounded bg-primary" />
                 {unit} · {dayLabel(cur.date, true)}
@@ -279,6 +282,64 @@ export function Meter({ label, value, total }: { label: string; value: number; t
       <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-primary-50" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
         <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Retention by sign-up week as a heat table: one hue, light → dark with the share (a sequential ramp mixed from the
+ * primary into the surface). Every cell prints its value, so nothing hides behind a hover; it's a real <table>.
+ */
+export function RetentionTable({ rows }: { rows: { cohortWeek: string; size: number; weeks: (number | null)[] }[] }) {
+  const cols = Math.max(0, ...rows.map((r) => r.weeks.reduce<number>((n, v, i) => (v !== null ? i + 1 : n), 0)));
+  const week = (iso: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-separate border-spacing-0.5 text-xs">
+        <caption className="sr-only">Share of each sign-up week&apos;s people active N weeks later</caption>
+        <thead>
+          <tr className="text-muted">
+            <th scope="col" className="px-2 py-1 text-left font-medium">
+              Joined week of
+            </th>
+            <th scope="col" className="px-2 py-1 text-right font-medium">
+              People
+            </th>
+            {Array.from({ length: cols }, (_, i) => (
+              <th key={i} scope="col" className="px-1 py-1 text-center font-medium">
+                <span className="sr-only">Week </span>
+                {i === 0 ? "W0" : `W${i}`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.cohortWeek}>
+              <th scope="row" className="whitespace-nowrap px-2 py-1 text-left font-medium text-ink-2">
+                {week(r.cohortWeek)}
+              </th>
+              <td className="px-2 py-1 text-right tabular-nums text-muted">{nf.format(r.size)}</td>
+              {Array.from({ length: cols }, (_, i) => {
+                const v = r.weeks[i];
+                if (v === null || v === undefined) return <td key={i} aria-label="not over yet" />;
+                const pct = Math.round(v * 100);
+                // Light → dark of one hue; text flips to the on-primary ink once the fill is dark enough.
+                const mix = Math.round(8 + v * 92);
+                return (
+                  <td
+                    key={i}
+                    className="min-w-10 rounded-md px-1 py-1.5 text-center font-semibold tabular-nums"
+                    style={{ background: `color-mix(in srgb, var(--color-primary) ${mix}%, var(--color-surface))`, color: mix >= 62 ? "var(--color-on-primary)" : "var(--color-ink)" }}
+                  >
+                    {pct}%
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

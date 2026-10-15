@@ -160,6 +160,7 @@ model User {
   placeEdits      PlaceEdit[]
 
   @@map("users")
+  productEvents   ProductEvent[]
 }
 
 model UserProfile {
@@ -1252,3 +1253,21 @@ model PlaceMerge {
   @@index([loserId])
   @@map("place_merges")
 }
+
+/// Product analytics events (see migration 20261020000000_product_events). Facts only — never free text or PII.
+model ProductEvent {
+  id     BigInt   @id @default(autoincrement())
+  type   String
+  userId String?  @map("user_id") @db.Uuid
+  /// Not a foreign key: the event outlives the trip.
+  tripId String?  @map("trip_id") @db.Uuid
+  props  Json     @default("{}")
+  at     DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([at])
+  @@index([type, at])
+  @@map("product_events")
+}
+

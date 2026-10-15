@@ -64,4 +64,41 @@ describe("admin analytics", () => {
     const me = (await an.get("/users/me")).body;
     expect(await t.prisma.auditLog.count({ where: { action: "admin.analytics.viewed", actorId: me.id } })).toBeGreaterThanOrEqual(2);
   });
+
+  it("records product events: facts only, after the change commits", async () => {
+    const since = new Date();
+    const owner = await t.register("pev1", { verified: true });
+    const friend = await t.register("pev2", { verified: true });
+    const ownerId = (await owner.get("/users/me")).body.id as string;
+    const trip = (await owner.post("/trips", { title: "Events trip", startDate: "2027-06-01", endDate: "2027-06-02" })).body;
+    await owner.patch(`/trips/${trip.id}`, { visibility: "PUBLIC" });
+    const inv = (await owner.post(`/trips/${trip.id}/invitations`, { role: "VIEWER" })).body;
+    await friend.post(`/invitations/${inv.token}/accept`);
+    await friend.post(`/trips/${trip.id}/fork`);
+    await owner.post("/posts", { title: "Hello", body: "A secret body text", tripId: trip.id, visibility: "PUBLIC" });
+    await t.anon().post("/auth/login").send({ email: "nobody@example.com", password: "wrong-password" }); // refused: no event
+    await new Promise((r) => setTimeout(r, 200)); // events are written after commit, out of band
+
+    const rows = await t.prisma.productEvent.findMany({ where: { at: { gte: since } }, orderBy: { id: "asc" } });
+    const types = rows.map((r) => r.type);
+    expect(types.filter((x) => x === "user.registered")).toHaveLength(2);
+    for (const type of ["trip.created", "trip.published", "invite.accepted", "trip.forked", "post.created"]) expect(types).toContain(type);
+    expect(types).not.toContain("user.login");
+    const created = rows.find((r) => r.type === "trip.created")!;
+    expect(created.userId).toBe(ownerId);
+    expect(created.tripId).toBe(trip.id);
+    // Facts only: no titles, bodies or e-mails in props.
+    const raw = JSON.stringify(rows.map((r) => r.props));
+    for (const secret of ["Events trip", "Hello", "secret body", "@"]) expect(raw).not.toContain(secret);
+  });
+
+  it("serves the nightly cohorts, or says the pipeline hasn't run", async () => {
+    const minh = await t.as("minh@triply.dev");
+    expect((await minh.get("/admin/analytics/cohorts")).status).toBe(403);
+    const res = await an.get("/admin/analytics/cohorts?days=30");
+    expect(res.status).toBe(200);
+    // The test database is built from the migrations only: no dbt marts.
+    expect(res.body).toEqual({ builtAt: null, stickiness: [], retention: [], activation: [] });
+  });
 });
+

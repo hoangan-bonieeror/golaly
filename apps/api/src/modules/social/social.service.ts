@@ -6,6 +6,7 @@ import type { Prisma } from "../../generated/prisma/client";
 import { pageOf } from "../../common/paging";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications";
+import { ProductEventsService } from "../activity/product-events";
 
 /** Separate reports that hide a place photo until a moderator looks at it. */
 export const PHOTO_REPORTS_TO_HIDE = 3;
@@ -15,6 +16,7 @@ export class SocialService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly product: ProductEventsService,
   ) {}
 
   /** Who may read a post: author always; PUBLIC everyone; FOLLOWERS followers; DRAFT author only. */
@@ -86,6 +88,7 @@ export class SocialService {
     const post = await this.prisma.post.create({
       data: { userId: viewerId, tripId: input.tripId ?? null, destinationId, title: input.title, body: input.body, visibility: input.visibility, media: { create: media } },
     });
+    this.product.track({ type: "post.created", userId: viewerId, tripId: input.tripId ?? null, props: { visibility: input.visibility, photos: media.length } });
     return this.get(post.id, viewerId);
   }
 

@@ -365,3 +365,20 @@ export const analyticsQuerySchema = z.object({
     .refine((n): n is AnalyticsRange => (ANALYTICS_RANGES as readonly number[]).includes(n), "Pick 7, 30 or 90 days.")
     .default(30),
 });
+
+/** Built nightly by the analytics pipeline (dbt marts in the `analytics` schema). `builtAt` null = never run. */
+export interface AnalyticsCohorts {
+  builtAt: string | null;
+  /** Rolling active people per day over the period (DAU, 7-day WAU, 28-day MAU). */
+  stickiness: { date: string; dau: number; wau: number; mau: number }[];
+  /** Share (0–1) of each sign-up week's people active N whole weeks later; null = that week isn't over yet. */
+  retention: { cohortWeek: string; size: number; weeks: (number | null)[] }[];
+  /** How many of each sign-up week's people reached each step within 30 days. */
+  activation: {
+    signupWeek: string;
+    size: number;
+    /** Joined less than 30 days ago: still growing. */
+    maturing: boolean;
+    steps: Record<Exclude<AnalyticsFunnelStep, "registered">, number>;
+  }[];
+}

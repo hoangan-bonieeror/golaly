@@ -1,0 +1,45 @@
+name: Analytics
+
+# Rebuilds the analytics marts (analytics/, dbt) on the production database every night, so the admin dashboard's
+# cohorts and stickiness are fresh. Also runnable by hand. Uses the same Neon secret as the deploy.
+on:
+  schedule:
+    - cron: "17 2 * * *" # 02:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: analytics-production
+  cancel-in-progress: false
+
+jobs:
+  dbt:
+    name: dbt build → Neon (analytics schema)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    defaults:
+      run:
+        working-directory: analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: analytics/uv.lock
+      - run: uv sync --locked
+      - name: dbt build
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::Secret NEON_DATABASE_URL is not set"; exit 1; fi
+          uv run python run.py build
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f target/run_results.json ]; then
+            python3 -c "import json;r=json.load(open('target/run_results.json'));from collections import Counter;c=Counter(x['status'] for x in r['results']);print('dbt:',dict(c))" >> "$GITHUB_STEP_SUMMARY"
+          fi

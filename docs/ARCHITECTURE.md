@@ -195,6 +195,30 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
 - `trip.event` `{ tripId, actorId, event, entityId? }`, where `event` is one of `trip.item.created|updated|deleted|reordered`, `trip.day.created`, `trip.updated` or `trip.member.joined|role_changed|removed`.
 - `notification.new` (sent to the `user:<id>` room).
 
+## Analytics
+
+Two layers behind `/admin/analytics` (admins only; every view is written to `audit_logs`):
+
+- **Live** — `GET /admin/analytics/overview?days=7|30|90` (`apps/api/src/modules/admin/analytics.ts`): headline numbers
+  for the period and the one before, per-day sign-ups / active people / trips, the activation funnel of the period's
+  sign-ups, top destinations, catalog health, security signals. Computed from the app tables in a few aggregate
+  queries (UTC days), cached 5 minutes per range.
+- **Nightly** — `GET /admin/analytics/cohorts`: reads the dbt marts in schema `analytics` (`analytics/`, see its
+  README): `fct_daily_activity` (DAU/WAU/MAU), `fct_retention_weekly`, `fct_activation_weekly`,
+  `fct_destination_trips_daily`. Returns `builtAt: null` until the pipeline has run. Built by
+  `.github/workflows/analytics.yml` on the demo and the Airflow DAG `analytics_daily` locally; CI runs `dbt build` on
+  the API test database.
+
+**Events.** Plan changes are already in `trip_events`. Everything else that matters for growth (`user.registered`,
+`user.login`, `trip.created|forked|published`, `invite.accepted`, `post.created`) goes to `product_events` through
+`ProductEventsService.track()`: after the transaction commits, best-effort, never failing the request, facts only
+(ids and small enums — no titles, bodies, names or e-mails). "Active" = any of: a trip event, a sign-in (session),
+a product event, a post, comment or like.
+
+**Privacy.** Stored marts hold aggregates only (per-person rows live only in ephemeral dbt models), cohorts under 5
+people are dropped, and dbt tests enforce both. This is service-level measurement; `analytics_consent` remains the
+opt-in for using someone's activity to personalise planning suggestions.
+
 ## Extension points
 
 | Interface | Today | Later |

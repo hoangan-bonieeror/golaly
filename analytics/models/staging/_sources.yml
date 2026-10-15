@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: app
+    description: The TRIPLY app's own tables (written by the NestJS API; schema owned by Prisma migrations).
+    schema: public
+    tables:
+      - name: users
+      - name: sessions
+        description: One row per sign-in (refresh rotates the same row).
+      - name: trips
+      - name: trip_members
+      - name: trip_destinations
+      - name: destinations
+      - name: itinerary_items
+      - name: trip_events
+        description: Append-only log of changes to a trip's plan (facts only).
+      - name: product_events
+        description: Sign-ups, logins, trips created/remixed/published, invitations accepted, posts (facts only).
+      - name: posts
+      - name: post_comments
+      - name: post_likes

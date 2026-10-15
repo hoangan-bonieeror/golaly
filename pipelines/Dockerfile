@@ -12,5 +12,11 @@ RUN pip install --no-cache-dir /opt/triply/pipelines \
       --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.1.8/constraints-3.12.txt" \
  && python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"
 
+# Analytics (dbt) in its own virtualenv so its dependencies never touch Airflow's. The DAG analytics_daily runs it.
+USER root
+RUN python -m venv /opt/dbt && /opt/dbt/bin/pip install --no-cache-dir "dbt-core>=1.12,<1.13" "dbt-postgres>=1.11,<1.12" && chown -R airflow:root /opt/dbt
+USER airflow
+COPY --chown=airflow:root analytics /opt/triply/analytics
+
 COPY --chown=airflow:root pipelines/dags /opt/airflow/dags
 ENV CATALOG_DATA_DIR=/data/catalog

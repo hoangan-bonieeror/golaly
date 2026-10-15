@@ -13,6 +13,7 @@ import { SearchIndexService } from "../search/search-index";
 import { AuditService } from "../audit/audit";
 import { RealtimeService } from "../realtime/realtime";
 import { AuthService } from "./auth";
+import { ProductEventsService } from "../activity/product-events";
 
 const STATE_COOKIE = "triply_oauth";
 const STATE_PATH = "/api/v1/auth/google";
@@ -160,6 +161,7 @@ export class GoogleAuthController {
     private readonly auth: AuthService,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly product: ProductEventsService,
   ) {}
 
   @Public()
@@ -200,6 +202,7 @@ export class GoogleAuthController {
       const profile = await this.google.profile(q.code, saved.verifier);
       const user = await this.googleAuth.resolveUser(profile);
       setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+      this.product.track({ type: user.isNew ? "user.registered" : "user.login", userId: user.id, props: { method: "google" } });
       res.clearCookie(STATE_COOKIE, { path: STATE_PATH });
       const onboarded = (await this.prisma.userProfile.findUnique({ where: { userId: user.id }, select: { onboardedAt: true } }))?.onboardedAt;
       return res.redirect(`${env.WEB_ORIGIN}${user.isNew || !onboarded ? "/onboarding" : saved.next}`);

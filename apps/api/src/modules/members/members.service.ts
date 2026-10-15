@@ -15,6 +15,7 @@ import { MailService } from "../mail/mail";
 import { NotificationsService } from "../notifications/notifications";
 import { RealtimeService } from "../realtime/realtime";
 import { TripAccessService } from "../trips/trip-access.service";
+import { ProductEventsService } from "../activity/product-events";
 
 const INVITE_TTL_MS = 7 * 86_400_000;
 type InvRole = Exclude<TripRole, "OWNER">;
@@ -29,6 +30,7 @@ export class MembersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly events: TripEventsService,
+    private readonly product: ProductEventsService,
   ) {}
 
   async members(tripId: string, viewerId: string): Promise<MemberView[]> {
@@ -198,7 +200,10 @@ export class MembersService {
       await tx.notification.updateMany({ where: { invitationId: inv.id, userId: viewerId, readAt: null }, data: { readAt: new Date() } });
       return !existing;
     });
-    if (joined) this.realtime.trip(inv.tripId, viewerId, "trip.member.joined", viewerId);
+    if (joined) {
+      this.realtime.trip(inv.tripId, viewerId, "trip.member.joined", viewerId);
+      this.product.track({ type: "invite.accepted", userId: viewerId, tripId: inv.tripId, props: { role: inv.role, kind: inv.email ? "email" : "link" } });
+    }
     return { tripId: inv.tripId };
   }
 

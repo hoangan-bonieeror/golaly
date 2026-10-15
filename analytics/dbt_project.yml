@@ -1,0 +1,29 @@
+name: triply_analytics
+version: "0.1.0"
+config-version: 2
+profile: triply
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  # Cohorts smaller than this are left out of the marts, so no figure can point at one person.
+  min_cohort: 5
+  # How far back the daily mart goes.
+  history_days: 400
+
+models:
+  triply_analytics:
+    +on_schema_change: sync_all_columns
+    staging:
+      +schema: analytics_staging
+      +materialized: view
+    intermediate:
+      # Per-person rows are never stored: they only exist inside the queries that aggregate them.
+      +materialized: ephemeral
+    marts:
+      +schema: analytics
+      +materialized: table

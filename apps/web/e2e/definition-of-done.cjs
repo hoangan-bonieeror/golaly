@@ -410,10 +410,10 @@ fs.mkdirSync(shots, { recursive: true });
     // …and once more in Vietnamese with the dark theme (contrast is re-checked in Atlas Night).
     const runs = [
       [C, routes, false],
-      [A, [trip, `${trip}?view=map`, `${trip}?tab=members`], false],
+      [A, [trip, `${trip}?view=map`, `${trip}?tab=members`, "/admin/analytics", "/admin/analytics?days=90"], false],
       ...(saigonTrip ? [[B, [saigonTrip], false], [B, [saigonTrip], true]] : []),
       ...(hoianTrip ? [[B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], false], [B, [hoianTrip, `${hoianTrip}?tab=expenses`, `${hoianTrip}/recap`], true]] : []),
-      [A, [trip, `${trip}?view=map`, "/home", "/explore", "/settings", "/notifications"], true],
+      [A, [trip, `${trip}?view=map`, "/home", "/explore", "/settings", "/notifications", "/admin/analytics"], true],
     ];
     for (const [page, list, viDark] of runs)
       for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {

@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/generated/**", "apps/web/public/**", "**/*.cjs", "**/next-env.d.ts", "apps/web/e2e/artifacts/**", "pipelines/**"],
+    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/generated/**", "apps/web/public/**", "**/*.cjs", "**/next-env.d.ts", "apps/web/e2e/artifacts/**", "pipelines/**", "analytics/**"],
   },
   ...tseslint.configs.recommended,
   {

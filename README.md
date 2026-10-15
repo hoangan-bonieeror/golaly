@@ -33,6 +33,7 @@ TRIPLY is a full-stack MVP. You can discover public trips, remix one into your o
 | API | NestJS 11 (modular), Prisma 7 (`prisma-client` generator + `pg` driver adapter), Socket.IO, argon2id, JWT in HTTP-only cookies |
 | Database | PostgreSQL 16 + PostGIS |
 | Place catalog | `pipelines/`: Python 3.12, DuckDB, pyosmium, Apache Airflow 3: imports open place data (Overture Maps, OpenStreetMap) per country/province |
+| Analytics | `analytics/`: dbt (dbt-core 1.12, dbt-postgres) builds aggregate marts in Postgres nightly (GitHub Actions on the demo, Airflow locally) for the admin dashboard |
 | Shared | `packages/shared`: domain types, the **permission matrix**, **Zod schemas** used by both API and forms, and the API response contract |
 | Tests | Jest (unit + integration against a real Postgres test DB), Playwright (Definition-of-Done journey) |
 | Ops | Docker Compose, Dockerfiles, GitHub Actions CI/CD (Neon → Render → Vercel) |
@@ -53,6 +54,7 @@ triply/
 │       └── e2e/              definition-of-done.cjs (Playwright)
 ├── packages/shared/          types · permissions · schemas · api-types · fixtures/ (cases shared with Python)
 ├── pipelines/                place catalog: triply_catalog (Python) · dags/ (Airflow) · tests/
+├── analytics/                dbt project: staging views → ephemeral intermediates → aggregate marts (see its README)
 ├── docs/                     ARCHITECTURE.md · screenshots
 ├── docker-compose.yml        PostGIS (dev) + optional full stack + optional Airflow
 └── .github/workflows/       ci.yml: lint · tests · build · pipelines → deploy on main · e2e.yml (manual)
@@ -240,6 +242,7 @@ addresses; open the same one on the computer too, or keep using `http://localhos
 | **Accessibility** | WCAG AA colour contrast, focus-trapped dialogs that return focus, ARIA tabs and menus with arrow-key support, labelled and described form errors, skip link, one `<title>` per page, logical headings, 44px touch targets. An axe-core gate in the E2E run fails the build on any serious/critical issue (desktop and mobile). |
 
 | **Place catalog** | Admin-driven import of places for a whole country, a province or one destination from **open data** (Overture Maps + OpenStreetMap), Python + Airflow. Records from every source are kept, matched across sources (names in any language, within 50 m) and merged field by field with recorded provenance; existing place ids and itineraries never change; re-runs are idempotent; closures need 3 missed runs and a safety brake stops mass closures. PostGIS boundaries per country (Vietnam's 34 provinces, or any country Overture covers); names per language for locale-aware display; duplicates scored across sources (auto-merge ≥ 0.85, review queue below that, exact undo). See **[pipelines/README.md](pipelines/README.md)**. |
+| **Admin analytics** | `/admin/analytics`: headline numbers with the previous period (new and active people, trips created, % planned together, trips that started), daily sign-ups and active people, the activation funnel of the period's sign-ups, where new trips go, catalog health and security signals (lockouts, refresh-token reuse), live from the app tables with a 5-minute cache. Below it, **cohorts & stickiness** from the nightly dbt marts: DAU ÷ MAU, weekly retention heat table, activation by sign-up week. Aggregates only, cohorts under 5 people left out, server-side product events (no client tracker), every view audit-logged. Hand-drawn SVG charts with keyboard crosshair and table views. |
 | **Catalog admin** | `/admin` for ADMIN accounts: **areas** with place counts and *Sync now* / *Dry run*; **sync jobs** on a cron schedule (an Airflow `catalog_scheduler` DAG starts the due ones; never two runs of a job at once); **runs** with live progress over Socket.IO, resumable after a crash (per-batch cursors), (Postgres `NOTIFY` → API → admin room), quality warnings, record-level errors and cancel; **duplicate review** side by side with merge / reject / undo; a **place editor** whose edits lock fields against imports (with history and unlock); **category mapping** for source categories that aren't published yet. Every action is checked against the database role and audit-logged. |
 
 Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense splitting, offline mode, live tracking.
@@ -340,6 +343,7 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 - **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
 - **Show the data platform:** `pipelines/` is a small, real ETL: Overture GeoParquet read straight from S3 with DuckDB, OSM streamed with pyosmium, PostGIS, idempotent upserts by content hash, cross-source entity matching, field-level survivorship with provenance, and an Airflow DAG with one mapped task per province.
+- **Show the analytics engineering:** `analytics/` is a dbt project on the app's own Postgres: server-side product events → staging views → ephemeral per-person intermediates → aggregate marts (DAU/WAU/MAU, weekly retention cohorts, activation within 30 days), with data tests that also enforce privacy (no person-level columns in marts, no cohort under 5). It runs nightly from GitHub Actions and Airflow, is checked in CI, and feeds `/admin/analytics`. Seed it with `npm run db:analytics-demo -w @triply/api` for screenshots and the lineage graph (`dbt docs`).
 - **Show the operator side:** the admin console turns the pipeline into a product: schedule a country, watch its run progress live, review duplicates side by side, fix a place by hand and see the field stay locked through the next import.
 - **Show the performance work:** the before/after table above, made reproducible by `perf/synthetic.sql` + `npm run perf`. It's a measured story: a 31-second typo search down to 170 ms, and why (EXPLAIN plans, Prisma's enum casts vs partial indexes, `_count` aggregating a 2M-row table).
 - **Show Explore as a product loop:** *"near me" → coffee → open a café → Add to trip → Day 2* in 15 seconds, then the same place appearing on the trip map. The category facets and PostGIS radius query sit behind it.

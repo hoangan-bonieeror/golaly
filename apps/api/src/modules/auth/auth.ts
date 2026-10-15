@@ -27,6 +27,7 @@ import { MailService } from "../mail/mail";
 import { UsersService } from "../users/users.service";
 import { SearchIndexService } from "../search/search-index";
 import { RealtimeService } from "../realtime/realtime";
+import { ProductEventsService } from "../activity/product-events";
 
 const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
 const RESET_TTL_MS = 30 * 60_000;
@@ -253,7 +254,10 @@ export class AuthService {
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly product: ProductEventsService,
+  ) {}
 
   @Public()
   @Throttle(AUTH_LIMIT)
@@ -261,6 +265,7 @@ export class AuthController {
   async register(@Body(new ZodPipe(registerSchema)) body: RegisterInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.register(body);
     setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+    this.product.track({ type: "user.registered", userId: user.id, props: { method: "password" } });
     return this.auth.me(user.id);
   }
 
@@ -271,6 +276,7 @@ export class AuthController {
   async login(@Body(new ZodPipe(loginSchema)) body: LoginInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.login(body);
     setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+    this.product.track({ type: "user.login", userId: user.id, props: { method: "password" } });
     return this.auth.me(user.id);
   }
 

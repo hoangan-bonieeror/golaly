@@ -4,7 +4,7 @@ All automation lives in GitHub Actions (`.github/workflows/`).
 
 ```
 PR / push ─┬─ Lint + typecheck ───────────┐
-           ├─ API tests (PostGIS 16) ─────┤
+           ├─ API tests (PostGIS 16) + dbt┤
            ├─ Build + API Docker image ───┼─ all green & branch = main ─▶ 1. Neon: prisma migrate deploy
            └─ Pipelines (ruff + pytest) ──┘                              2. Render: deploy this commit, wait for "live", /health
                                                                          3. Vercel: build + deploy web (production), smoke /welcome
@@ -14,6 +14,7 @@ PR / push ─┬─ Lint + typecheck ───────────┐
 |---|---|---|
 | `ci.yml` (CI/CD) | every PR, every push to `main`, manual | 4 check jobs in parallel; on `main` the 3 deploy jobs run in order |
 | `e2e.yml` (E2E) | manual only | full-stack Playwright Definition-of-Done + axe (~10 min) |
+| `analytics.yml` (Analytics) | nightly 02:17 UTC, manual | `dbt build` of the analytics marts on Neon (environment `production`, secret `NEON_DATABASE_URL`) |
 | `dependabot.yml` | monthly | one grouped PR to bump the GitHub Actions versions |
 
 Pull requests never touch production. Vercel's Git integration still builds a **preview** for every PR branch;

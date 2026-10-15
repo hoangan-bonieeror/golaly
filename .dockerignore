@@ -10,3 +10,5 @@ apps/web/e2e/artifacts
 **/.venv
 **/__pycache__
 pipelines/data
+analytics/target
+analytics/logs

@@ -1,6 +1,7 @@
 import { Controller, Get, Injectable, Query, UseGuards } from "@nestjs/common";
 import {
   analyticsQuerySchema,
+  type AnalyticsCohorts,
   type AnalyticsDay,
   type AnalyticsDestinationRow,
   type AnalyticsFunnelRow,
@@ -47,6 +48,51 @@ export class AnalyticsService {
   /** For tests. */
   clearCache() {
     this.cache.clear();
+  }
+
+  /**
+   * Cohorts and rolling actives from the nightly marts (analytics/ — dbt). Read as they are: they hold aggregates
+   * only, cohorts under 5 people are already left out. Before the pipeline has run, `builtAt` is null.
+   */
+  async cohorts(days: AnalyticsRange): Promise<AnalyticsCohorts> {
+    const [ok] = await this.prisma.$queryRaw<{ ready: boolean }[]>`
+      SELECT to_regclass('analytics.fct_daily_activity') IS NOT NULL
+         AND to_regclass('analytics.fct_retention_weekly') IS NOT NULL
+         AND to_regclass('analytics.fct_activation_weekly') IS NOT NULL AS ready`;
+    if (!ok?.ready) return { builtAt: null, stickiness: [], retention: [], activation: [] };
+    const [daily, retention, activation] = await Promise.all([
+      this.prisma.$queryRaw<{ date: string; dau: number; wau: number; mau: number; built_at: Date }[]>`
+        SELECT to_char(day, 'YYYY-MM-DD') AS date, dau::int, wau::int, mau::int, built_at
+        FROM analytics.fct_daily_activity WHERE day > current_date - ${days}::int ORDER BY day`,
+      this.prisma.$queryRaw<{ cohort_week: string; weeks_since: number; cohort_size: number; retention_rate: number }[]>`
+        SELECT to_char(cohort_week, 'YYYY-MM-DD') AS cohort_week, weeks_since::int, cohort_size::int, retention_rate::float AS retention_rate
+        FROM analytics.fct_retention_weekly
+        WHERE cohort_week >= (SELECT max(cohort_week) FROM analytics.fct_retention_weekly) - 7 * 11
+        ORDER BY cohort_week, weeks_since`,
+      this.prisma.$queryRaw<
+        { signup_week: string; cohort_size: number; maturing: boolean; created_trip: number; planned_stop: number; collaborated: number; trip_started: number; marked_stop: number; shared: number }[]
+      >`
+        SELECT to_char(signup_week, 'YYYY-MM-DD') AS signup_week, cohort_size::int, maturing,
+          created_trip::int, planned_stop::int, collaborated::int, trip_started::int, marked_stop::int, shared::int
+        FROM analytics.fct_activation_weekly ORDER BY signup_week DESC LIMIT 12`,
+    ]);
+    const byWeek = new Map<string, { size: number; weeks: (number | null)[] }>();
+    for (const r of retention) {
+      const row = byWeek.get(r.cohort_week) ?? { size: r.cohort_size, weeks: Array<number | null>(13).fill(null) };
+      row.weeks[r.weeks_since] = Math.round(r.retention_rate * 1000) / 1000;
+      byWeek.set(r.cohort_week, row);
+    }
+    return {
+      builtAt: daily.at(-1)?.built_at.toISOString() ?? null,
+      stickiness: daily.map(({ date, dau, wau, mau }) => ({ date, dau, wau, mau })),
+      retention: [...byWeek].map(([cohortWeek, v]) => ({ cohortWeek, ...v })),
+      activation: activation.map((a) => ({
+        signupWeek: a.signup_week,
+        size: a.cohort_size,
+        maturing: a.maturing,
+        steps: { createdTrip: a.created_trip, plannedStop: a.planned_stop, collaborated: a.collaborated, tripHappened: a.trip_started, markedStop: a.marked_stop, shared: a.shared },
+      })),
+    };
   }
 
   private async compute(days: AnalyticsRange, now: Date): Promise<AnalyticsOverview> {
@@ -217,5 +263,10 @@ export class AnalyticsController {
     // Who looked at the numbers, and when (aggregates only, but still worth a trail).
     await this.audit.log(me, "admin.analytics.viewed", "user", me, { days: q.days });
     return data;
+  }
+
+  @Get("cohorts")
+  cohorts(@Query(new ZodPipe(analyticsQuerySchema)) q: { days: AnalyticsRange }) {
+    return this.analytics.cohorts(q.days);
   }
 }

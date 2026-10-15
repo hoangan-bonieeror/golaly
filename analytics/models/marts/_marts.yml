@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: fct_daily_activity
+    description: One row per UTC day over the last var('history_days') days. Aggregates only.
+    columns:
+      - name: day
+        tests: [unique, not_null]
+      - name: dau
+        description: People active that day (planned, signed in, posted/commented/liked, any product event).
+        tests: [not_null]
+      - name: wau
+        description: Distinct people active in the 7 days ending that day.
+      - name: mau
+        description: Distinct people active in the 28 days ending that day.
+      - name: signups
+        tests: [not_null]
+      - name: trips_together
+        description: Trips created that day that have two or more members now.
+
+  - name: fct_retention_weekly
+    description: Share of each sign-up week's people active N whole weeks later (0–12). Cohorts under var('min_cohort') are left out.
+    columns:
+      - name: cohort_week
+        tests: [not_null]
+      - name: weeks_since
+        tests: [not_null]
+      - name: retention_rate
+        tests: [not_null]
+    tests:
+      - dbt_unique_combination:
+          arguments:
+            columns: [cohort_week, weeks_since]
+
+  - name: fct_activation_weekly
+    description: How many of each sign-up week's people reached each step within 30 days. Cohorts under var('min_cohort') are left out.
+    columns:
+      - name: signup_week
+        tests: [unique, not_null]
+      - name: cohort_size
+        tests: [not_null]
+
+  - name: fct_destination_trips_daily
+    description: Trips created per day and destination.
+    columns:
+      - name: day
+        tests: [not_null]
+      - name: destination_id
+        tests: [not_null]

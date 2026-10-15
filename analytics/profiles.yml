@@ -1,0 +1,15 @@
+# Connection from the environment (run.py fills PG* from DATABASE_URL).
+triply:
+  target: default
+  outputs:
+    default:
+      type: postgres
+      host: "{{ env_var('PGHOST') }}"
+      port: "{{ env_var('PGPORT', '5432') | as_number }}"
+      user: "{{ env_var('PGUSER') }}"
+      password: "{{ env_var('PGPASSWORD', '') }}"
+      dbname: "{{ env_var('PGDATABASE') }}"
+      sslmode: "{{ env_var('PGSSLMODE', 'prefer') }}"
+      schema: analytics
+      threads: 4
+      connect_timeout: 30

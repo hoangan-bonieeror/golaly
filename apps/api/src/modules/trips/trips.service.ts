@@ -12,6 +12,7 @@ import { NotificationsService } from "../notifications/notifications";
 import { RealtimeService } from "../realtime/realtime";
 import { SearchIndexService } from "../search/search-index";
 import { TripAccessService } from "./trip-access.service";
+import { ProductEventsService } from "../activity/product-events";
 
 const FALLBACK_COVER: [string, string] = ["#6b3a1f", "#e0662d"];
 
@@ -24,6 +25,7 @@ export class TripsService {
     private readonly realtime: RealtimeService,
     private readonly audit: AuditService,
     private readonly searchIndex: SearchIndexService,
+    private readonly events: ProductEventsService,
   ) {}
 
   // ── Reads ──────────────────────────────────────────────────────────────
@@ -171,6 +173,7 @@ export class TripsService {
       await this.searchIndex.trip(t.id, tx);
       return t;
     });
+    this.events.track({ type: "trip.created", userId: ownerId, tripId: trip.id, props: { destinations: input.destinationIds.length, dated: !!input.startDate } });
     return this.summary(trip.id, ownerId);
   }
 
@@ -230,6 +233,7 @@ export class TripsService {
         trip.members.map((m) => m.userId),
       );
     this.realtime.trip(tripId, viewerId, "trip.updated");
+    if (input.visibility === "PUBLIC" && trip.visibility !== "PUBLIC") this.events.track({ type: "trip.published", userId: viewerId, tripId });
     return this.summary(tripId, viewerId);
   }
 
@@ -408,6 +412,7 @@ export class TripsService {
       await this.notifications.notify([src.ownerId], viewerId, "TRIP_FORKED", { k: "trip_forked", trip: source.title }, { tripId: source.id }, tx);
       return created;
     });
+    this.events.track({ type: "trip.forked", userId: viewerId, tripId: fork.id, props: { sourceTripId: tripId } });
     return this.summary(fork.id, viewerId);
   }
 

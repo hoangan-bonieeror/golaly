@@ -158,7 +158,7 @@ async function main() {
               const added = at(tCreated + between(5, 60 * 24 * 3) * 60_000);
               const status = happened ? (r() < 0.78 ? "VISITED" : "SKIPPED") : "PLANNED";
               items.push({ id: itemId, tripId, dayId: dayIds[s % len], type: (place?.category ?? "NOTE") as ItemType, title: place?.name ?? "Free time", sortOrder: s, placeId: place?.id ?? null, addedById: who, status, createdAt: added });
-              events.push({ tripId, actorId: who, itemId, type: "item.created", at: added });
+              events.push({ tripId, actorId: who, itemId, type: "item.added", at: added });
               if (status !== "PLANNED") events.push({ tripId, actorId: pick(crew), itemId, type: "item.status", at: at(end.getTime() + between(10, 40) * 3_600_000) });
             }
             if (happened && r() < 0.3) {

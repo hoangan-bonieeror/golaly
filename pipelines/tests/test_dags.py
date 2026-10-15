@@ -24,6 +24,9 @@ def test_dags_parse():
     photos = bag.get_dag("catalog_photos")
     assert {t.task_id for t in photos.tasks} == {"queue_photos"} and set(photos.params.keys()) == {"area", "bbox", "only_due"}
     assert photos.max_active_runs == 1
+    analytics = bag.get_dag("analytics_daily")
+    assert {t.task_id for t in analytics.tasks} == {"dbt_build"} and analytics.max_active_runs == 1
+    assert "run.py build" in analytics.get_task("dbt_build").bash_command
 
 
 def test_sync_announces_places_and_photos_follow():

@@ -116,6 +116,8 @@ services:
     volumes:
       - ./pipelines/dags:/opt/airflow/dags:ro
       - ./pipelines/triply_catalog:/opt/triply/src/triply_catalog:ro
+      # dbt models apply without a rebuild too (target/ and logs/ stay in the container).
+      - ./analytics/models:/opt/triply/analytics/models:ro
       - triply-catalog:/data/catalog
     ports:
       - "127.0.0.1:8080:8080"

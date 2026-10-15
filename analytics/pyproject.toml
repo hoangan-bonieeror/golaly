@@ -1,0 +1,12 @@
+[project]
+name = "triply-analytics"
+version = "0.1.0"
+description = "TRIPLY product analytics: dbt models that turn the app's tables into aggregate marts for the admin dashboard."
+requires-python = ">=3.11"
+dependencies = [
+  "dbt-core>=1.12,<1.13",
+  "dbt-postgres>=1.11,<1.12",
+]
+
+[tool.uv]
+package = false
