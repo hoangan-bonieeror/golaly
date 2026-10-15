@@ -43,8 +43,14 @@ Optional: *Required reviewers* = yourself, if you want to click **Approve** befo
 | Variable | Example |
 |---|---|
 | `RENDER_SERVICE_ID` | `srv-…` (in the Render dashboard URL of *triply-api*) |
-| `API_URL` | `https://triply-api.onrender.com` |
+| `API_URL` | `https://triply-api.onrender.com` — **required**: the web build's `API_ORIGIN` and `NEXT_PUBLIC_REALTIME_URL` |
+| `MEDIA_ORIGIN` | the R2 bucket's public URL (optional; without it `/media` goes through the API, which redirects) |
 | `WEB_URL` | `https://triply.vercel.app` (optional; defaults to the deployment URL) |
+
+> Why the web build takes these from GitHub and not from Vercel: `vercel pull` can't read env vars marked
+> **Sensitive** (it gets empty strings), and the `/api/v1` rewrite is compiled in at build time — an empty
+> `API_ORIGIN` deployed a site where every API call was a 404. `next.config.ts` now refuses to build on Vercel
+> without `API_ORIGIN`, and the smoke test calls `/api/v1/auth/providers` through the rewrite.
 
 ### 2. Render (*triply-api*)
 

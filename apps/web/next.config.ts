@@ -11,7 +11,10 @@ import path from "node:path";
  * front that OVERWRITES it with the real client address (Vercel does; nginx: deploy/nginx.conf).
  * The API's per-IP rate limits rely on that; per-account login lockout does not.
  */
-const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:4000";
+const API_ORIGIN = process.env.API_ORIGIN || "http://localhost:4000";
+// A Vercel build without API_ORIGIN would ship a site whose /api/v1 rewrites go nowhere (every call a 404):
+// fail the build instead.
+if (process.env.VERCEL && !process.env.API_ORIGIN) throw new Error("API_ORIGIN must be set for a Vercel build (the API's https URL).");
 /**
  * Where /media/* comes from. Unset: the API (MEDIA_DRIVER=local). With the API on MEDIA_DRIVER=s3, set it to the
  * bucket's public URL (same value as the API's MEDIA_PUBLIC_URL) so images skip the API hop; the API would

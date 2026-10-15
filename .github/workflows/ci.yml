@@ -265,8 +265,28 @@ jobs:
             if [ -z "${!v}" ]; then echo "::error::Secret $v is not set (see docs/CI-CD.md)"; exit 1; fi
           done
       - run: npm install --global vercel@latest
-      # Production env vars (API_ORIGIN, NEXT_PUBLIC_REALTIME_URL, …) come from the Vercel project settings.
       - run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      # The rewrites (/api/v1 → API, /media → bucket) are compiled in at build time, so these must be right.
+      # They come from GitHub variables, not from `vercel pull`: Vercel never hands out the values of
+      # "Sensitive" env vars, and an empty API_ORIGIN builds a site whose /api/v1 is a 404.
+      - name: Build-time env (API_ORIGIN, NEXT_PUBLIC_REALTIME_URL, MEDIA_ORIGIN)
+        env:
+          API_URL: ${{ vars.API_URL }}
+          MEDIA_ORIGIN: ${{ vars.MEDIA_ORIGIN }}
+        run: |
+          if [ -z "$API_URL" ]; then echo "::error::Variable API_URL is not set (see docs/CI-CD.md)"; exit 1; fi
+          f=.vercel/.env.production.local
+          touch "$f"
+          put() {
+            grep -v "^$1=" "$f" > "$f.tmp" || true
+            mv "$f.tmp" "$f"
+            echo "$1=\"$2\"" >> "$f"
+            echo "$1=$2" >> "$GITHUB_ENV"
+          }
+          put API_ORIGIN "$API_URL"
+          put NEXT_PUBLIC_REALTIME_URL "$API_URL"
+          if [ -n "$MEDIA_ORIGIN" ]; then put MEDIA_ORIGIN "$MEDIA_ORIGIN"; fi
+          echo "API_ORIGIN=$API_URL MEDIA_ORIGIN=${MEDIA_ORIGIN:-(via the API)}"
       - run: vercel build --prod --token="$VERCEL_TOKEN"
       - name: Deploy prebuilt output
         id: deploy
@@ -279,10 +299,14 @@ jobs:
           WEB_URL: ${{ vars.WEB_URL }}
         run: |
           url="${WEB_URL:-${{ steps.deploy.outputs.url }}}"
-          for i in $(seq 1 10); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url/welcome")
-            echo "[$i] $url/welcome → $code"
-            [ "$code" = "200" ] && exit 0
-            sleep 6
+          # A page, and the API through the web app's rewrite (a broken rewrite is a 404 here).
+          for path in /welcome /api/v1/auth/providers; do
+            ok=
+            for i in $(seq 1 10); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "$url$path")
+              echo "[$i] $url$path → $code"
+              [ "$code" = "200" ] && ok=1 && break
+              sleep 6
+            done
+            [ -n "$ok" ] || { echo "::error::$url$path did not return 200"; exit 1; }
           done
-          echo "::error::$url/welcome did not return 200"; exit 1
