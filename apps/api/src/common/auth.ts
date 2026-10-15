@@ -25,8 +25,11 @@ export interface AuthUser {
 export interface JwtPayload {
   sub: string;
   sid: string;
-  /** Token type: other JWTs signed with the same secret (e.g. the OAuth state cookie) are never accepted as access tokens. */
-  typ: "access";
+  /**
+   * Token type: other JWTs signed with the same secret (e.g. the OAuth state cookie) are never accepted as access tokens.
+   * "socket" is a one-minute token only the realtime handshake accepts (see AuthController.socketToken).
+   */
+  typ: "access" | "socket";
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,7 +39,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Checking the session on every request makes logout, password changes and account deletion take
  * effect immediately instead of when the 15-minute access token expires. It's one primary-key lookup.
  */
-export async function verifyAccess(jwt: JwtService, prisma: PrismaService, token: string | null | undefined): Promise<AuthUser | null> {
+export async function verifyAccess(
+  jwt: JwtService,
+  prisma: PrismaService,
+  token: string | null | undefined,
+  accept: readonly JwtPayload["typ"][] = ["access"],
+): Promise<AuthUser | null> {
   if (!token) return null;
   let payload: Partial<JwtPayload>;
   try {
@@ -44,7 +52,7 @@ export async function verifyAccess(jwt: JwtService, prisma: PrismaService, token
   } catch {
     return null;
   }
-  if (payload.typ !== "access" || !UUID_RE.test(payload.sub ?? "") || !UUID_RE.test(payload.sid ?? "")) return null;
+  if (!payload.typ || !accept.includes(payload.typ) || !UUID_RE.test(payload.sub ?? "") || !UUID_RE.test(payload.sid ?? "")) return null;
   const session = await prisma.session.findUnique({
     where: { id: payload.sid },
     select: { userId: true, revokedAt: true, expiresAt: true, user: { select: { deletedAt: true } } },

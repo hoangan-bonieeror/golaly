@@ -200,6 +200,32 @@ describe("realtime privacy", () => {
     expect(err.message).toBe("unauthorized");
     sock.close();
   });
+
+  it("opens a socket with a one-minute token instead of the cookie (web app on another domain)", async () => {
+    await t.app.listen(0).catch(() => undefined);
+    const port = (t.app.getHttpServer().address() as AddressInfo).port;
+    const handshake = (auth: Record<string, unknown>) =>
+      new Promise<string>((resolve) => {
+        const s = io(`http://localhost:${port}`, { path: "/socket.io", transports: ["websocket"], reconnection: false, auth });
+        s.on("connect", () => (s.close(), resolve("ok")));
+        s.on("connect_error", (e) => (s.close(), resolve(e.message)));
+      });
+    const user = await t.register("rtk");
+    expect((await t.anon().post("/auth/socket-token")).status).toBe(401);
+    const res = await user.post("/auth/socket-token");
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toBe("no-store");
+    expect(res.body.expiresIn).toBe(60);
+    // No cookie on the socket, only the token.
+    expect(await handshake({ token: res.body.token })).toBe("ok");
+    expect(await handshake({ token: "not-a-token" })).toBe("unauthorized");
+    // A socket token is not an access token: HTTP routes refuse it.
+    const asBearer = await t.anon().get("/users/me").set("Authorization", `Bearer ${res.body.token}`);
+    expect(asBearer.status).toBe(401);
+    // Logging out ends the session, and with it every token minted for it.
+    await user.post("/auth/logout");
+    expect(await handshake({ token: res.body.token })).toBe("unauthorized");
+  });
 });
 
 describe("consistent privacy when a trip goes private", () => {

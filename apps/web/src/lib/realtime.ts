@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { NotificationView, TripEvent, TripPresence } from "@triply/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
-import { refreshSession } from "./api/client";
+import { api, ApiError, refreshSession } from "./api/client";
 import { keys } from "./api/queries";
 
 let socket: Socket | null = null;
@@ -27,6 +27,23 @@ function realtimeUrl() {
   return configured || direct;
 }
 
+/**
+ * A one-minute token for the handshake, fetched through the web app's own origin (so the HTTP-only
+ * cookie goes with it). It's what lets the socket authenticate when the API is on another domain —
+ * the browser won't send the API's cookie there (e.g. web on Vercel, API on Render). An expired
+ * session is refreshed once; without a session the socket goes without a token (and is refused).
+ */
+async function socketToken(): Promise<string | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return (await api.post<{ token: string }>("/auth/socket-token")).token;
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 401) || attempt || !(await refreshSession())) return null;
+    }
+  }
+  return null;
+}
+
 /** One socket per signed-in user; replaced when the user changes. */
 export function getSocket(userId: string | null): Socket | null {
   if (typeof window === "undefined") return null;
@@ -39,8 +56,15 @@ export function getSocket(userId: string | null): Socket | null {
   if (socket && ownerId === userId) return socket;
   socket?.close();
   ownerId = userId;
-  const s = io(realtimeUrl(), { path: "/socket.io", withCredentials: true, transports: ["websocket", "polling"], reconnectionDelayMax: 10_000 });
-  // The socket authenticates with the 15-minute access cookie. When the server rejects it
+  const s = io(realtimeUrl(), {
+    path: "/socket.io",
+    withCredentials: true,
+    transports: ["websocket", "polling"],
+    reconnectionDelayMax: 10_000,
+    // Called before every (re)connect, so each handshake gets a fresh token.
+    auth: (cb) => void socketToken().then((token) => cb(token ? { token } : {})),
+  });
+  // The socket authenticates with the access cookie or the token above. When the server rejects it
   // (expired on reconnect, or the session was revoked), refresh and reconnect; if the
   // refresh fails the user really is signed out and the next REST call sends them to login.
   let retrying = false;

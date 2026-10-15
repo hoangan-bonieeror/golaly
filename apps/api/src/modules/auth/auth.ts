@@ -40,6 +40,9 @@ const REFRESH_RACE_GRACE_MS = 30_000;
 let dummyHash: Promise<string> | null = null;
 const getDummyHash = () => (dummyHash ??= hashPassword(randomToken()));
 
+/** Socket tokens only need to outlive the handshake (and a slow reconnect). */
+const SOCKET_TOKEN_TTL_S = 60;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -155,6 +158,11 @@ export class AuthService {
       data: { userId, tokenHash: sha256(refresh), userAgent: userAgent?.slice(0, 200), expiresAt: new Date(Date.now() + env.REFRESH_TOKEN_TTL_DAYS * 86_400_000) },
     });
     return { access: await this.signAccess(userId, session.id), refresh };
+  }
+
+  /** A one-minute token that only opens a realtime socket for this session (never accepted by HTTP routes). */
+  signSocket(userId: string, sessionId: string) {
+    return this.jwt.signAsync({ sub: userId, sid: sessionId, typ: "socket" } satisfies JwtPayload, { secret: env.JWT_SECRET, expiresIn: SOCKET_TOKEN_TTL_S });
   }
 
   signAccess(userId: string, sessionId: string) {
@@ -289,6 +297,19 @@ export class AuthController {
     await this.auth.logout(req.cookies?.[REFRESH_COOKIE], user?.sessionId);
     clearAuthCookies(res);
     return { ok: true };
+  }
+
+  /**
+   * A short-lived token for the realtime handshake. The web app asks for it through its own origin
+   * (with the HTTP-only cookie) and hands it to Socket.IO, so realtime works when the API lives on
+   * another domain. POST + no-store: it must never be cached or prefetched.
+   */
+  @HttpCode(200)
+  @Post("socket-token")
+  async socketToken(@CurrentUser() user: AuthUser | null, @Res({ passthrough: true }) res: Response) {
+    if (!user) throw Errors.unauthorized();
+    res.setHeader("Cache-Control", "no-store");
+    return { token: await this.auth.signSocket(user.id, user.sessionId), expiresIn: SOCKET_TOKEN_TTL_S };
   }
 
   @Throttle(AUTH_LIMIT)

@@ -43,11 +43,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayInit {
    * Authenticate in a handshake middleware, not in handleConnection: middleware finishes before
    * the client sees "connect", so no event can arrive from a socket whose user isn't known yet.
    * A rejected handshake surfaces on the client as `connect_error` with message "unauthorized".
+   *
+   * Two ways in: the access cookie, when the socket shares a site with the API; or `auth.token` — a
+   * one-minute socket token from POST /auth/socket-token (or an access token, for non-browser clients).
+   * The token is what makes realtime work when the web app is on another domain than the API
+   * (e.g. Vercel → Render): the browser won't send the API's cookie there, and Vercel's rewrites
+   * don't carry WebSockets, but the token request does go through the rewrite with the cookie.
    */
   afterInit(server: Server) {
     server.use((socket, next) => {
-      const token = parseCookies(socket.handshake.headers.cookie)[ACCESS_COOKIE] ?? (socket.handshake.auth?.token as string | undefined);
-      verifyAccess(this.jwt, this.prisma, token)
+      const cookie = parseCookies(socket.handshake.headers.cookie)[ACCESS_COOKIE];
+      const handed = socket.handshake.auth?.token;
+      // An expired cookie can come with a fresh token (same-site setups that also send one): try both.
+      verifyAccess(this.jwt, this.prisma, cookie)
+        .then((user) => user ?? verifyAccess(this.jwt, this.prisma, typeof handed === "string" ? handed : null, ["access", "socket"]))
         .then((user) => {
           if (!user) return next(new Error("unauthorized"));
           socket.data.userId = user.id;

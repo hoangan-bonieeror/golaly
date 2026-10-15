@@ -11,7 +11,7 @@ Browser ──► Next.js (apps/web, :3000)
               │  → Service → TripAccessService.require(action) → Prisma → PostgreSQL
               │  → RealtimeService.emit(trip:<id>) / NotificationsService
               ▼
-Browser ◄── Socket.IO (direct to :4000, same cookie) ── "trip.event" → TanStack Query refetch
+Browser ◄── Socket.IO (direct to the API: cookie, or a 1-min socket token) ── "trip.event" → TanStack Query refetch
 ```
 
 - The browser only talks to its own origin for REST, so auth cookies are first-party and REST calls need no CORS.
@@ -182,6 +182,13 @@ List endpoints that can grow without bound (`GET /trips`, `/trips/saved`, `/post
 **Explore → Places.** The area is a destination's centre (default 10 km) or a point from the browser's geolocation (default 5 km; rounded to ~10 m before it is sent, and only `geolocation=(self)` is allowed by `Permissions-Policy`). Filtering uses PostGIS (`ST_DWithin` on `places.location`, GIST-indexed) plus the taxonomy (group = the category's parent). "Recommended" around a point blends rating (unrated ≈ 3.8), data quality and closeness; "Nearest" and "Top rated" are plain sorts. Adding a place to a trip reuses `POST /days/:dayId/items`, so the role check, row lock, ordering, realtime event and notification are the same as in the itinerary editor; `trip-targets` only decides what to offer. The taxonomy ships as a data migration (`20261006000000_taxonomy`), so the filters work before the catalog pipeline has ever run.
 
 ### WebSocket (`/socket.io`)
+
+**Handshake.** The socket authenticates with the access cookie when it shares a site with the API, otherwise with
+`auth.token`: a one-minute JWT (`typ: "socket"`) from `POST /auth/socket-token`. The web app fetches it through its
+own origin — the Next rewrite, so the HTTP-only cookie goes along — before every (re)connect. This is what makes
+realtime work with the web app and the API on different domains (Vercel → Render): the browser won't send the API's
+cookie there, and Vercel rewrites don't carry WebSockets. A socket token is bound to the session (logout or a
+revoked session kills it) and HTTP routes never accept it; the access token is never exposed to scripts.
 
 The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknowledged with `{ ok }`. The server emits:
 
