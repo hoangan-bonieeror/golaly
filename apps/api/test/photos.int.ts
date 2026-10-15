@@ -180,6 +180,15 @@ describe("imported photos (Wikimedia Commons)", () => {
     expect((await ingest.ingestBatch(10)).stored).toBe(1);
   });
 
+  it("accepts Commons' resized copies on thumb.wikimedia.org", async () => {
+    const row = await queue("jade-emperor", {
+      sourceId: "File:thumb.jpg",
+      remoteUrl: "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ec/X.jpg/3840px-X.jpg?utm_source=commons.wikimedia.org",
+    });
+    expect(await ingest.ingestBatch(10)).toMatchObject({ stored: 1, failed: 0 });
+    expect((await t.prisma.placePhoto.findUniqueOrThrow({ where: { id: row.id } })).mediaId).not.toBeNull();
+  });
+
   it("never fetches other hosts, plain http or non-images, and backs off", async () => {
     const n = calls.length;
     const evil = await queue("white-marble", { sourceId: "File:evil", remoteUrl: "https://169.254.169.254/latest/meta-data" });

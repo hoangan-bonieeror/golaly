@@ -49,10 +49,13 @@ const schema = z.object({
    * "off" disables it (e.g. on extra replicas; the queue is safe to share either way).
    */
   PHOTO_INGEST: z.enum(["on", "off"]).default("on"),
-  /** Only these hosts are ever fetched (SSRF guard). Comma-separated. */
+  /**
+   * Only these hosts are ever fetched (SSRF guard). Comma-separated. Wikimedia Commons' imageinfo API hands out
+   * originals on upload.wikimedia.org and (since 2026) resized copies on thumb.wikimedia.org.
+   */
   PHOTO_HOSTS: z
     .string()
-    .default("upload.wikimedia.org")
+    .default("upload.wikimedia.org,thumb.wikimedia.org")
     .transform((v) => v.split(",").map((h) => h.trim().toLowerCase()).filter(Boolean)),
   /**
    * Wikimedia refuses clients that don't say how to reach their operator (403). Set CATALOG_CONTACT to a URL or

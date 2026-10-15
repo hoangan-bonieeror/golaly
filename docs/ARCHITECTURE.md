@@ -239,7 +239,7 @@ image 1.5, Commons quality images ~1) and one credit format:
 
 The pipeline never writes image files: it queues rows with `remote_url`. `PhotoIngestService` in the API claims them
 with `FOR UPDATE SKIP LOCKED` (safe with several instances), downloads only over https from `PHOTO_HOSTS`
-(default `upload.wikimedia.org`) without following redirects and with a size cap, and stores them through the same
+(default `upload.wikimedia.org,thumb.wikimedia.org`) without following redirects and with a size cap, and stores them through the same
 `MediaService.store()` as uploads (validation, EXIF removal, three WebP sizes). Failures back off 5→40 min and stop
 after 5 attempts; the same Commons file used by two places is downloaded once. Env: `PHOTO_INGEST=on|off`,
 `PHOTO_HOSTS`, `CATALOG_CONTACT` (a URL or email; Wikimedia answers 403 to clients that don't give one, so
