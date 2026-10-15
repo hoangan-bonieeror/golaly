@@ -24,8 +24,25 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
-  MEDIA_DRIVER: z.enum(["local"]).default("local"),
+  /** "local": files in MEDIA_DIR served by the API. "s3": an S3-compatible bucket (Cloudflare R2, B2, MinIO, S3). */
+  MEDIA_DRIVER: z.enum(["local", "s3"]).default("local"),
   MEDIA_DIR: z.string().default("./storage/media"),
+  /**
+   * MEDIA_DRIVER=s3 only. R2: endpoint https://<account id>.r2.cloudflarestorage.com, region "auto",
+   * an API token with Object Read & Write on the bucket. MEDIA_PUBLIC_URL is the bucket's public
+   * address (r2.dev subdomain or a custom domain), without a trailing slash.
+   */
+  S3_ENDPOINT: z.string().url().optional().or(z.literal("").transform(() => undefined)),
+  S3_REGION: z.string().default("auto"),
+  S3_BUCKET: z.string().optional().transform((v) => v?.trim() || undefined),
+  S3_ACCESS_KEY_ID: z.string().optional().transform((v) => v?.trim() || undefined),
+  S3_SECRET_ACCESS_KEY: z.string().optional().transform((v) => v?.trim() || undefined),
+  MEDIA_PUBLIC_URL: z
+    .string()
+    .url()
+    .optional()
+    .or(z.literal("").transform(() => undefined))
+    .transform((v) => v?.replace(/\/+$/, "")),
   MEDIA_MAX_BYTES: z.coerce.number().int().default(8 * 1024 * 1024),
   /**
    * Imported place photos (Wikimedia Commons) are downloaded by a background worker in the API.
@@ -83,7 +100,10 @@ const schema = z.object({
     .transform((v) => (/^\d+$/.test(v) ? Number(v) : v === "false" ? false : v)),
 });
 
-export type Env = z.infer<typeof schema>;
+export type Env = z.infer<typeof schema> & {
+  /** Present when MEDIA_DRIVER=s3 (validated at boot). */
+  S3?: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicUrl: string };
+};
 
 function load(): Env {
   const parsed = schema.safeParse(process.env);
@@ -98,6 +118,12 @@ function load(): Env {
     throw new Error("Set COOKIE_SECURE=true in production (serve over HTTPS). For a local HTTP-only demo set ALLOW_INSECURE_COOKIES=1.");
   }
   if (parsed.data.TRUST_PROXY === "true") throw new Error('TRUST_PROXY=true lets clients spoof their IP. Use a subnet like "loopback" or a hop count.');
+  if (parsed.data.MEDIA_DRIVER === "s3") {
+    const d = parsed.data;
+    const missing = (["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "MEDIA_PUBLIC_URL"] as const).filter((k) => !d[k]);
+    if (missing.length) throw new Error(`MEDIA_DRIVER=s3 needs ${missing.join(", ")}. See apps/api/.env.example`);
+    return { ...d, S3: { endpoint: d.S3_ENDPOINT!, region: d.S3_REGION, bucket: d.S3_BUCKET!, accessKeyId: d.S3_ACCESS_KEY_ID!, secretAccessKey: d.S3_SECRET_ACCESS_KEY!, publicUrl: d.MEDIA_PUBLIC_URL! } };
+  }
   return parsed.data;
 }
 

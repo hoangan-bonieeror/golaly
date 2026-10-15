@@ -12,6 +12,12 @@ import path from "node:path";
  * The API's per-IP rate limits rely on that; per-account login lockout does not.
  */
 const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:4000";
+/**
+ * Where /media/* comes from. Unset: the API (MEDIA_DRIVER=local). With the API on MEDIA_DRIVER=s3, set it to the
+ * bucket's public URL (same value as the API's MEDIA_PUBLIC_URL) so images skip the API hop; the API would
+ * otherwise redirect there itself. Images stay on this origin, so the offline service worker can cache them.
+ */
+const MEDIA_ORIGIN = (process.env.MEDIA_ORIGIN ?? "").replace(/\/+$/, "");
 
 /** Baseline hardening for every page. `frame-ancestors 'none'` + X-Frame-Options stop clickjacking. */
 const SECURITY_HEADERS = [
@@ -42,7 +48,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       { source: "/api/v1/:path*", destination: `${API_ORIGIN}/api/v1/:path*` },
-      { source: "/media/:path*", destination: `${API_ORIGIN}/media/:path*` },
+      { source: "/media/:path*", destination: MEDIA_ORIGIN ? `${MEDIA_ORIGIN}/:path*` : `${API_ORIGIN}/media/:path*` },
     ];
   },
 };

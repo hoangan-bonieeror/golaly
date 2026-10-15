@@ -14,6 +14,7 @@
     "db:demo-trip": "tsx prisma/demo-trip.ts",
     "db:reset": "prisma migrate reset --force",
     "photos:ingest": "node dist/scripts/ingest-photos.js",
+    "media:push": "node dist/scripts/push-media.js",
     "test": "jest --runInBand",
     "test:unit": "jest --selectProjects unit",
     "test:int": "jest --selectProjects integration --runInBand",

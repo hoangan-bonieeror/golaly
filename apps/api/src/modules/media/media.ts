@@ -1,5 +1,5 @@
 import { Throttle } from "@nestjs/throttler";
-import { Controller, Delete, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Controller, Delete, HttpCode, Inject, Injectable, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { MediaView } from "@triply/shared";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
@@ -11,11 +11,28 @@ import { AppError, Errors } from "../../common/http";
 import { toImage } from "../../common/presenters";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
+import { S3StorageDriver } from "./s3";
 
-/** Storage boundary (spec §32). Local disk for development; add S3/R2 with signed URLs for production. */
+/**
+ * Storage boundary (spec §32). MEDIA_DRIVER=local writes to MEDIA_DIR (development, a VM with a disk);
+ * MEDIA_DRIVER=s3 writes to an S3-compatible bucket such as Cloudflare R2 (hosts without a persistent disk).
+ * Either way the app serves images at /media/<key>: the API's static handler (local) or a redirect /
+ * the web's MEDIA_ORIGIN rewrite to the bucket's public URL (s3).
+ */
 export interface StorageDriver {
   put(key: string, body: Buffer): Promise<void>;
   delete(key: string): Promise<void>;
+}
+
+/** Injection token for the configured StorageDriver. */
+export const STORAGE = Symbol("StorageDriver");
+
+export function createStorageDriver(): StorageDriver {
+  if (env.MEDIA_DRIVER === "s3") {
+    const s3 = env.S3!;
+    return new S3StorageDriver({ endpoint: s3.endpoint, region: s3.region, bucket: s3.bucket, accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey });
+  }
+  return new LocalStorageDriver();
 }
 
 @Injectable()
@@ -51,7 +68,7 @@ const THUMB_DIM = 640;
 export class MediaService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly storage: LocalStorageDriver,
+    @Inject(STORAGE) private readonly storage: StorageDriver,
   ) {}
 
   /**
@@ -130,5 +147,5 @@ export class MediaController {
   }
 }
 
-@Module({ controllers: [MediaController], providers: [MediaService, LocalStorageDriver], exports: [MediaService] })
+@Module({ controllers: [MediaController], providers: [MediaService, { provide: STORAGE, useFactory: createStorageDriver }], exports: [MediaService] })
 export class MediaModule {}

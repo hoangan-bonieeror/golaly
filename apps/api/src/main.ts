@@ -3,6 +3,7 @@ import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import cookieParser from "cookie-parser";
+import type { Request, Response } from "express";
 import helmet from "helmet";
 import path from "node:path";
 import { AppModule } from "./app.module";
@@ -20,8 +21,15 @@ export async function createApp() {
   app.use(localeMiddleware);
   app.enableCors({ origin: corsOrigins, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
   app.setGlobalPrefix("api/v1", { exclude: ["health"] });
-  // Local media driver serves files directly; S3/R2 would hand out signed URLs instead.
-  app.useStaticAssets(path.resolve(env.MEDIA_DIR), { prefix: "/media/", maxAge: "30d", immutable: true, index: false, dotfiles: "deny" });
+  if (env.S3) {
+    // Bucket storage: the web normally rewrites /media/* straight to the bucket (MEDIA_ORIGIN); anything that
+    // still reaches the API (old links, a web without MEDIA_ORIGIN) is sent there permanently.
+    const publicUrl = env.S3.publicUrl;
+    app.use("/media", (req: Request, res: Response) => res.redirect(301, `${publicUrl}${req.path}`));
+  } else {
+    // Local media driver serves files directly.
+    app.useStaticAssets(path.resolve(env.MEDIA_DIR), { prefix: "/media/", maxAge: "30d", immutable: true, index: false, dotfiles: "deny" });
+  }
   app.enableShutdownHooks();
   return app;
 }

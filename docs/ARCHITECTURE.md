@@ -193,7 +193,7 @@ The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknow
 | Interface | Today | Later |
 |---|---|---|
 | `SearchProvider` (`modules/search`) | Postgres `pg_trgm` over an accent-free `search_text` column | OpenSearch / Algolia / Meilisearch |
-| `StorageDriver` (`modules/media`) | Local disk + static `/media` | S3/R2 + signed URLs |
+| `StorageDriver` (`modules/media`) | Local disk + static `/media`, or S3-compatible bucket (R2/B2/MinIO/S3, `MEDIA_DRIVER=s3`) behind the same `/media` URLs | Signed URLs for private media |
 | `MailService` (`modules/mail`) | Dev outbox files | SMTP / Resend / SES |
 | `TripMap` (`web/components/map`) | MapLibre tiles (OpenFreeMap) with SVG fallback | Routing API for real travel paths |
 | AI (spec §49) | — | Suggests structured operations; the user confirms; the API validates and applies them through the same services and permission checks |
