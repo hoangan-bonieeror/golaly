@@ -7,9 +7,8 @@ import path from "node:path";
  * Realtime (Socket.IO) connects to the API directly — see NEXT_PUBLIC_REALTIME_URL — or, in
  * Docker, through the same origin via the nginx edge (deploy/nginx.conf).
  *
- * Client IPs: Next passes X-Forwarded-For through untouched, so in production put an edge in
- * front that OVERWRITES it with the real client address (Vercel does; nginx: deploy/nginx.conf).
- * The API's per-IP rate limits rely on that; per-account login lockout does not.
+ * Client IPs: src/proxy.ts hands the API each visitor's address with the shared EDGE_SECRET
+ * (see docs/ARCHITECTURE.md → client IP).
  */
 const API_ORIGIN = process.env.API_ORIGIN || "http://localhost:4000";
 // A Vercel build without API_ORIGIN would ship a site whose /api/v1 rewrites go nowhere (every call a 404):
@@ -22,9 +21,54 @@ if (process.env.VERCEL && !process.env.API_ORIGIN) throw new Error("API_ORIGIN m
  */
 const MEDIA_ORIGIN = (process.env.MEDIA_ORIGIN ?? "").replace(/\/+$/, "");
 
+const DEV = process.env.NODE_ENV !== "production";
+const originOf = (url: string | undefined) => {
+  try {
+    return url && /^https?:/.test(url) ? new URL(url).origin : null;
+  } catch {
+    return null;
+  }
+};
+/** http(s)://host → also ws(s)://host (the realtime socket upgrades on the same host). */
+const withSocket = (origin: string | null) => (origin ? [origin, origin.replace(/^http/, "ws")] : []);
+
+/**
+ * Content Security Policy (security review S21) — a second line of defence if a script ever gets injected: it can't
+ * send data anywhere but our own origin, the realtime API and the map tiles, can't load scripts or frames from
+ * elsewhere, and can't be framed. Scripts stay 'unsafe-inline' for now (Next's inline bootstrap and the theme script;
+ * moving to nonces means rendering every page dynamically). Development is looser: the dev socket host is dynamic
+ * (dev-phone, tunnels) and React refresh needs eval.
+ */
+const CONNECT = DEV
+  ? ["'self'", "http:", "https:", "ws:", "wss:"]
+  : [
+      "'self'",
+      ...withSocket(originOf(process.env.NEXT_PUBLIC_REALTIME_URL)),
+      originOf(process.env.NEXT_PUBLIC_MAP_STYLE_URL) ?? "https://tiles.openfreemap.org",
+      ...[originOf(process.env.NEXT_PUBLIC_MAP_STYLE_URL_DARK)],
+      // Extra hosts a custom map style loads tiles or glyphs from (space-separated origins).
+      ...(process.env.CSP_CONNECT_EXTRA ?? "").split(/\s+/),
+    ];
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  `connect-src ${[...new Set(CONNECT.filter(Boolean))].join(" ")}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "media-src 'self'",
+  "frame-src 'none'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join("; ");
+
 /** Baseline hardening for every page. `frame-ancestors 'none'` + X-Frame-Options stop clickjacking. */
 const SECURITY_HEADERS = [
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" },
+  { key: "Content-Security-Policy", value: CSP },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

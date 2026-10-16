@@ -1,3 +1,4 @@
+import { MediaService } from "../media/media";
 import { Injectable } from "@nestjs/common";
 import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type ItemAssigneesInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
@@ -29,6 +30,7 @@ export class ItineraryService {
     private readonly notifications: NotificationsService,
     private readonly realtime: RealtimeService,
     private readonly events: TripEventsService,
+    private readonly media: MediaService,
   ) {}
 
   private async dayWithTrip(dayId: string, tx: Tx = this.prisma) {
@@ -425,6 +427,8 @@ export class ItineraryService {
       await tx.itemPhoto.delete({ where: { id: photoId } });
       await this.events.log({ tripId: trip.id, actorId: viewerId, type: "item.photo", itemId: photo.itemId, placeId: photo.item.placeId, payload: { added: false } }, tx);
     });
+    // Not shown anywhere else → the files go now (public bucket URLs would otherwise keep working).
+    await this.media.releaseIfUnused(photo.mediaId);
     this.realtime.trip(trip.id, viewerId, "trip.item.updated", photo.itemId);
     return { ok: true };
   }

@@ -206,8 +206,9 @@ export function toTripSummary(t: TripSummaryRow, viewerId: string | null): TripS
     forkedFrom:
       t.forkedFromTitle && t.forkedFromOwner
         ? {
-            // Credit always stays; the link only while the source is still viewable (not deleted, not private).
-            tripId: t.forkedFrom && !t.forkedFrom.deletedAt && t.forkedFrom.visibility !== "PRIVATE" ? (t.forkedFromId ?? "") : "",
+            // Credit always stays; the link only while the source is public. A link-only original's id *is* its share
+            // link, so a (possibly public) remix must not hand it out.
+            tripId: t.forkedFrom && !t.forkedFrom.deletedAt && t.forkedFrom.visibility === "PUBLIC" ? (t.forkedFromId ?? "") : "",
             title: t.forkedFromTitle,
             ownerUsername: t.forkedFromOwner,
           }
@@ -224,7 +225,7 @@ export const itemInclude = (viewerId: string | null) =>
     votes: { select: { userId: true, level: true }, orderBy: { createdAt: "asc" } },
     assignees: { select: { userId: true }, orderBy: { userId: "asc" } },
     photos: { orderBy: { createdAt: "asc" }, take: 24, include: { media: true, uploader: { select: userSummarySelect } } },
-    // A fork's item: what the original group did there (only shown while the original is viewable).
+    // A fork's item: what the original group did there (only shown while the original is public).
     source: { select: { status: true, votes: { select: { level: true } }, trip: { select: { visibility: true, deletedAt: true } } } },
   }) satisfies Prisma.ItineraryItemInclude;
 
@@ -237,7 +238,7 @@ export type DayRow = Prisma.TripDayGetPayload<{ include: ReturnType<typeof dayIn
 export type ItemRow = Prisma.ItineraryItemGetPayload<{ include: ReturnType<typeof itemInclude> }>;
 
 function evidenceOf(src: ItemRow["source"]): ItemEvidence | null {
-  if (!src || src.trip.deletedAt || src.trip.visibility === "PRIVATE") return null;
+  if (!src || src.trip.deletedAt || src.trip.visibility !== "PUBLIC") return null;
   if (src.status === "PLANNED" && !src.votes.length) return null;
   return { status: src.status, loves: src.votes.filter((v) => v.level === "LOVE").length, votes: src.votes.length };
 }

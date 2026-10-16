@@ -8,8 +8,20 @@ import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications";
 import { ProductEventsService } from "../activity/product-events";
 
-/** Separate reports that hide a place photo until a moderator looks at it. */
+/** Separate reports from established accounts that hide a place photo until a moderator looks at it. */
 export const PHOTO_REPORTS_TO_HIDE = 3;
+/** "Established": a confirmed e-mail and an account at least this old — three throwaway sign-ups can't hide a photo. */
+export const REPORTER_MIN_AGE_MS = 7 * 86_400_000;
+
+/**
+ * Per-account daily limits on what others see (security review S19): generous for people, tight for scripts.
+ * Accounts that haven't confirmed their e-mail get the smaller number.
+ */
+export const DAILY_LIMITS = {
+  post: { confirmed: 20, unconfirmed: 3 },
+  comment: { confirmed: 200, unconfirmed: 20 },
+  report: { confirmed: 30, unconfirmed: 10 },
+} as const;
 
 @Injectable()
 export class SocialService {
@@ -18,6 +30,28 @@ export class SocialService {
     private readonly notifications: NotificationsService,
     private readonly product: ProductEventsService,
   ) {}
+
+  /** Throws 429 once the account has done `kind` its daily number of times (rolling 24 hours). */
+  private async assertDailyQuota(userId: string, kind: keyof typeof DAILY_LIMITS) {
+    const since = new Date(Date.now() - 86_400_000);
+    const [user, done] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { emailVerifiedAt: true } }),
+      {
+        post: () => this.prisma.post.count({ where: { userId, createdAt: { gt: since } } }),
+        comment: () => this.prisma.postComment.count({ where: { userId, createdAt: { gt: since } } }),
+        report: () => this.prisma.report.count({ where: { reporterId: userId, createdAt: { gt: since } } }),
+      }[kind](),
+    ]);
+    const limit = DAILY_LIMITS[kind][user?.emailVerifiedAt ? "confirmed" : "unconfirmed"];
+    if (done < limit) return;
+    const noun = { post: "posts", comment: "comments", report: "reports" }[kind];
+    throw new AppError(
+      429,
+      user?.emailVerifiedAt
+        ? `You've reached today's limit of ${limit} ${noun}. Try again tomorrow.`
+        : `You've reached today's limit of ${limit} ${noun}. Confirm your email to raise it.`,
+    );
+  }
 
   /** Who may read a post: author always; PUBLIC everyone; FOLLOWERS followers; DRAFT author only. */
   private async visibleWhere(viewerId: string | null): Promise<Prisma.PostWhereInput> {
@@ -64,6 +98,7 @@ export class SocialService {
   }
 
   async create(viewerId: string, input: CreatePostInput & { mediaIds: string[]; visibility: PostView["visibility"]; body: string }): Promise<PostView> {
+    await this.assertDailyQuota(viewerId, "post");
     let destinationId: string | null = null;
     let palettes: [string, string][] = [["#6b3a1f", "#e0662d"]];
     if (input.tripId) {
@@ -163,6 +198,7 @@ export class SocialService {
     const post = await this.loadVisible(postId, viewerId);
     if (post.trip && !post.trip.allowComments) throw new AppError(403, "Comments are turned off for this trip.");
     if (post.visibility === "DRAFT") throw Errors.invalid("You can't comment on a draft.");
+    await this.assertDailyQuota(viewerId, "comment");
     const [c] = await this.prisma.$transaction([
       this.prisma.postComment.create({ data: { postId, userId: viewerId, body }, include: commentInclude }),
       this.prisma.post.update({ where: { id: postId }, data: { commentCount: { increment: 1 } } }),
@@ -200,17 +236,26 @@ export class SocialService {
       PLACE_PHOTO: () => this.prisma.placePhoto.count({ where: { id: input.targetId, OR: [{ status: "APPROVED" }, { uploadedById: viewerId }] } }),
     }[input.target]();
     if (!exists) throw Errors.notFound("That content");
+    const already = await this.prisma.report.count({ where: { reporterId: viewerId, target: input.target, targetId: input.targetId } });
+    if (!already) await this.assertDailyQuota(viewerId, "report");
     await this.prisma.report.upsert({
       where: { reporterId_target_targetId: { reporterId: viewerId, target: input.target, targetId: input.targetId } },
       create: { reporterId: viewerId, ...input },
       update: { reason: input.reason, details: input.details },
     });
     if (input.target === "PLACE_PHOTO") {
-      // Community moderation: enough separate reports take a photo down until a moderator reviews it.
-      const n = await this.prisma.report.count({ where: { target: "PLACE_PHOTO", targetId: input.targetId } });
+      // Community moderation: enough separate reports from established accounts take a photo down until a moderator
+      // reviews it. Every report still counts towards the moderation queue.
+      const where = { target: "PLACE_PHOTO" as const, targetId: input.targetId };
+      const [n, trusted] = await Promise.all([
+        this.prisma.report.count({ where }),
+        this.prisma.report.count({
+          where: { ...where, reporter: { deletedAt: null, emailVerifiedAt: { not: null }, createdAt: { lt: new Date(Date.now() - REPORTER_MIN_AGE_MS) } } },
+        }),
+      ]);
       await this.prisma.placePhoto.update({
         where: { id: input.targetId },
-        data: { reportCount: n, ...(n >= PHOTO_REPORTS_TO_HIDE ? { status: "HIDDEN" } : {}) },
+        data: { reportCount: n, ...(trusted >= PHOTO_REPORTS_TO_HIDE ? { status: "HIDDEN" } : {}) },
       });
     }
     return { ok: true };

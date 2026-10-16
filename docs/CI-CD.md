@@ -15,7 +15,12 @@ PR / push ─┬─ Lint + typecheck ───────────┐
 | `ci.yml` (CI/CD) | every PR, every push to `main`, manual | 4 check jobs in parallel; on `main` the 3 deploy jobs run in order |
 | `e2e.yml` (E2E) | manual only | full-stack Playwright Definition-of-Done + axe (~10 min) |
 | `analytics.yml` (Analytics) | nightly 02:17 UTC, manual | `dbt build` of the analytics marts on Neon (environment `production`, secret `NEON_DATABASE_URL`) |
-| `dependabot.yml` | monthly | one grouped PR to bump the GitHub Actions versions |
+| `backup.yml` (Backup) | nightly 03:41 UTC, manual | `pg_dump` of Neon, encrypted with `BACKUP_PASSPHRASE`, kept 14 days as an artifact — see [Restore a backup](#restore-a-backup) |
+| `dependabot.yml` | monthly / on advisories | one grouped PR a month for the GitHub Actions (releases ≥ 7 days old); npm and uv get **security** PRs only |
+
+**Supply chain.** Every third-party action is pinned to a commit SHA (the version is in a comment; Dependabot updates
+both), the Vercel CLI that holds the deploy token is pinned to an exact version, and the lint job runs
+`npm audit --omit=dev` (critical fails the build; the rest goes to the job summary).
 
 Pull requests never touch production. Vercel's Git integration still builds a **preview** for every PR branch;
 `apps/web/vercel.json` turns off Vercel's own deploys of `main`, so production only changes after CI is green.
@@ -27,7 +32,11 @@ the later ones don't run (a failed migration → the old API and web stay live).
 
 ### 1. GitHub → Settings → Environments → New environment `production`
 
-Optional: *Required reviewers* = yourself, if you want to click **Approve** before each deploy.
+- **Deployment branches and tags → Selected branches → `main`.** Required: the deploy jobs' `if:` lives in the workflow file,
+  which a pushed branch could edit — this setting is what keeps production secrets away from every branch but `main`.
+- Optional: *Required reviewers* = yourself, if you want to click **Approve** before each deploy.
+
+Also: Settings → Code security → turn on **Dependabot alerts** and **Dependabot security updates**.
 
 **Environment secrets**
 
@@ -35,6 +44,7 @@ Optional: *Required reviewers* = yourself, if you want to click **Approve** befo
 |---|---|
 | `NEON_DATABASE_URL` | Neon → project *Triply* → branch *production* → Connect → **turn pooling OFF** (host without `-pooler`), keep `?sslmode=require` |
 | `RENDER_DEPLOY_HOOK_URL` | Render → *triply-api* → Settings → Deploy Hook (copy the whole URL) |
+| `BACKUP_PASSPHRASE` | `openssl rand -base64 48` — **keep a copy in your password manager**; without it the backups can't be opened |
 | `RENDER_API_KEY` | Render → Account settings → API keys (lets CI wait for the deploy to go live; optional) |
 | `VERCEL_TOKEN` | vercel.com/account/tokens |
 | `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | run `npx vercel link` in `apps/web` once, then read `.vercel/project.json` (`orgId`, `projectId`) — don't commit `.vercel/` |
@@ -89,6 +99,14 @@ Settings → Branches → rule for `main` → *Require status checks to pass*: `
 - API: Render → Deploys → previous deploy → *Rollback*.
 - Database: Prisma migrations only go forward. Write a new migration that undoes the change, or restore the Neon branch to a point in time
   (Neon → Branches → *production* → Restore) — that loses writes made since then.
+
+## Restore a backup
+
+1. Actions → Backup → the run → download the artifact (a zip holding `triply-<time>.dump.gpg`).
+2. Decrypt: `gpg --decrypt triply-<time>.dump.gpg > triply.dump` (asks for `BACKUP_PASSPHRASE`).
+3. Restore into a **new** Neon branch (or a local database) first, check it, then point the app at it:
+   `pg_restore --no-owner --no-privileges -d "<connection string>" triply.dump`
+   (PostGIS must be available; `pg_restore` 18 reads the dump.)
 
 ## Not included (yet)
 

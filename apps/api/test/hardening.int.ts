@@ -22,9 +22,9 @@ describe("sessions", () => {
 
   it("changing the password ends every other session at once", async () => {
     const u = await t.register("cp");
-    const other = await t.as(u.email, "password123");
+    const other = await t.as(u.email, "harbor-lantern-58");
     expect((await other.get("/users/me")).status).toBe(200);
-    expect((await u.post("/auth/password", { currentPassword: "password123", newPassword: "password456" })).status).toBe(200);
+    expect((await u.post("/auth/password", { currentPassword: "harbor-lantern-58", newPassword: "password456" })).status).toBe(200);
     expect((await other.get("/users/me")).status).toBe(401);
     expect((await u.get("/users/me")).status).toBe(200);
   });
@@ -43,7 +43,7 @@ describe("login lockout (per account, independent of IP)", () => {
   it("locks after 5 wrong passwords — even the right one is refused — and a reset unlocks it", async () => {
     const u = await t.register("lock");
     for (let i = 0; i < 5; i++) expect((await t.anon().post("/auth/login", { email: u.email, password: `wrong-${i}-pass` })).status).toBe(401);
-    const locked = await t.anon().post("/auth/login", { email: u.email, password: "password123" });
+    const locked = await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" });
     expect(locked.status).toBe(429);
     expect(locked.body.message).toMatch(/Too many failed attempts/);
 
@@ -56,7 +56,7 @@ describe("login lockout (per account, independent of IP)", () => {
   it("a successful login resets the failure counter", async () => {
     const u = await t.register("ok");
     for (let i = 0; i < 4; i++) await t.anon().post("/auth/login", { email: u.email, password: "nope-nope-1" });
-    expect((await t.anon().post("/auth/login", { email: u.email, password: "password123" })).status).toBe(200);
+    expect((await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" })).status).toBe(200);
     expect((await t.prisma.user.findUniqueOrThrow({ where: { id: u.id } })).failedLoginCount).toBe(0);
   });
 });
@@ -101,7 +101,7 @@ describe("Google sign-in vs. a squatted, unverified account", () => {
     const me = (await agent.get("/api/v1/users/me")).body;
     expect(me).toMatchObject({ id: squatter.id, emailVerified: true, hasPassword: false, providers: ["google"] });
     expect((await squatter.get("/users/me")).status).toBe(401); // squatter's session revoked
-    expect((await t.anon().post("/auth/login", { email: squatter.email, password: "password123" })).status).toBe(401);
+    expect((await t.anon().post("/auth/login", { email: squatter.email, password: "harbor-lantern-58" })).status).toBe(401);
   });
 });
 

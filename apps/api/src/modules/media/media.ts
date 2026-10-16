@@ -1,5 +1,6 @@
 import { Throttle } from "@nestjs/throttler";
-import { Controller, Delete, HttpCode, Inject, Injectable, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import { Controller, Delete, Global, HttpCode, Inject, Injectable, Logger, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
+import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { MediaView } from "@triply/shared";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
@@ -10,6 +11,7 @@ import { randomToken } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import { toImage } from "../../common/presenters";
 import { env } from "../../config/env";
+import type { Prisma } from "../../generated/prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { S3StorageDriver } from "./s3";
 
@@ -123,9 +125,83 @@ export class MediaService {
   async remove(ownerId: string, id: string) {
     const m = await this.prisma.media.findFirst({ where: { id, ownerId } });
     if (!m) throw Errors.notFound("That photo");
-    await this.prisma.media.delete({ where: { id } });
-    for (const k of [m.storageKey, m.mediumKey, m.thumbKey]) if (k) await this.storage.delete(k);
+    await this.destroy([m]);
     return { ok: true };
+  }
+
+  /**
+   * Deletes a user's upload as soon as nothing live shows it any more (e.g. a photo taken off a stop): bucket URLs
+   * are public and cached, so a photo that's gone from the app must not stay reachable by its link.
+   */
+  async releaseIfUnused(mediaId: string) {
+    await this.destroy(await this.prisma.media.findMany({ where: { id: mediaId, ...unused() } }));
+  }
+
+  /** Every upload of an account being deleted — its photos leave the trips and posts they were on, too. */
+  async purgeOwner(ownerId: string) {
+    for (let batch = await this.page(ownerId); batch.length; batch = await this.page(ownerId)) await this.destroy(batch);
+  }
+  private page(ownerId: string) {
+    return this.prisma.media.findMany({ where: { ownerId }, take: 200 });
+  }
+
+  /**
+   * Garbage collection: uploads never attached to anything, or whose trip / post was deleted more than a day ago.
+   * Only rows older than `graceMs` (an upload is attached a moment after it's made). Returns how many went.
+   */
+  async sweep(graceMs = 86_400_000, limit = 500) {
+    const rows = await this.prisma.media.findMany({ where: { createdAt: { lt: new Date(Date.now() - graceMs) }, ...unused() }, take: limit });
+    await this.destroy(rows);
+    return rows.length;
+  }
+
+  private async destroy(rows: { id: string; storageKey: string; mediumKey: string | null; thumbKey: string | null }[]) {
+    if (!rows.length) return;
+    // Rows first (stop photos and post images on them go too; covers and avatars are unset), then the files: a failed
+    // file delete leaves an unreachable object, never a broken image.
+    await this.prisma.media.deleteMany({ where: { id: { in: rows.map((m) => m.id) } } });
+    for (const m of rows) for (const k of [m.storageKey, m.mediumKey, m.thumbKey]) if (k) await this.storage.delete(k).catch(() => undefined);
+  }
+}
+
+/** A user's upload nothing live shows: no avatar, no catalog photo, no cover / stop photo / post photo on a live trip or post. */
+function unused() {
+  // Deleted trips and posts keep their photos for a day.
+  const live = { OR: [{ deletedAt: null }, { deletedAt: { gt: new Date(Date.now() - 86_400_000) } }] };
+  return {
+    ownerId: { not: null },
+    avatarOf: { none: {} },
+    placePhoto: { none: {} },
+    coverOf: { none: live },
+    postMedia: { none: { post: live } },
+    itemPhotos: { none: { item: { trip: live } } },
+  } satisfies Prisma.MediaWhereInput;
+}
+
+/** Runs MediaService.sweep every six hours (not in tests). Several instances may run it: deletes are idempotent. */
+@Injectable()
+export class MediaJanitor implements OnModuleInit, OnModuleDestroy {
+  private readonly log = new Logger("MediaJanitor");
+  private timer: ReturnType<typeof setInterval> | undefined;
+  constructor(private readonly media: MediaService) {}
+
+  onModuleInit() {
+    if (env.NODE_ENV === "test") return;
+    this.timer = setInterval(() => void this.run(), 6 * 3_600_000);
+    this.timer.unref?.();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.timer);
+  }
+
+  async run() {
+    try {
+      const n = await this.media.sweep();
+      if (n) this.log.log(`Removed ${n} unused upload(s)`);
+    } catch (e) {
+      this.log.warn(`sweep failed: ${(e as Error).message}`);
+    }
   }
 }
 
@@ -147,5 +223,7 @@ export class MediaController {
   }
 }
 
-@Module({ controllers: [MediaController], providers: [MediaService, { provide: STORAGE, useFactory: createStorageDriver }], exports: [MediaService] })
+/** Global: stops and accounts release their uploads through MediaService. */
+@Global()
+@Module({ controllers: [MediaController], providers: [MediaService, MediaJanitor, { provide: STORAGE, useFactory: createStorageDriver }], exports: [MediaService] })
 export class MediaModule {}

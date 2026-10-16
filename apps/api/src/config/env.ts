@@ -49,6 +49,8 @@ const schema = z.object({
    * "off" disables it (e.g. on extra replicas; the queue is safe to share either way).
    */
   PHOTO_INGEST: z.enum(["on", "off"]).default("on"),
+  /** Check new passwords against Have I Been Pwned (k-anonymity; fails open). Default: on, except in tests. */
+  PASSWORD_BREACH_CHECK: z.enum(["on", "off"]).default(process.env.NODE_ENV === "test" ? "off" : "on"),
   /**
    * Only these hosts are ever fetched (SSRF guard). Comma-separated. Wikimedia Commons' imageinfo API hands out
    * originals on upload.wikimedia.org and (since 2026) resized copies on thumb.wikimedia.org.
@@ -119,14 +121,27 @@ export type Env = z.infer<typeof schema> & {
   S3?: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicUrl: string };
 };
 
+const LOCAL_DB_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "postgres", "db", "host.docker.internal"]);
+function isLocalDatabase(url: string) {
+  try {
+    return LOCAL_DB_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function load(): Env {
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid environment configuration:\n${issues}\nSee apps/api/.env.example`);
   }
-  if (parsed.data.NODE_ENV === "production" && parsed.data.JWT_SECRET.startsWith("change-me")) {
-    throw new Error("Set a real JWT_SECRET in production.");
+  if (parsed.data.NODE_ENV === "production" && (parsed.data.JWT_SECRET.startsWith("change-me") || parsed.data.JWT_SECRET.length < 32)) {
+    throw new Error("Set a real JWT_SECRET (32+ random characters, e.g. `openssl rand -base64 48`) in production.");
+  }
+  // A forgotten NODE_ENV silently turns off every production check above; refuse when the database isn't local.
+  if (!process.env.NODE_ENV && !isLocalDatabase(parsed.data.DATABASE_URL)) {
+    throw new Error("NODE_ENV is not set but DATABASE_URL points at a remote database. Set NODE_ENV=production (or development for a remote dev DB).");
   }
   if (parsed.data.NODE_ENV === "production" && !parsed.data.COOKIE_SECURE && !process.env.ALLOW_INSECURE_COOKIES) {
     throw new Error("Set COOKIE_SECURE=true in production (serve over HTTPS). For a local HTTP-only demo set ALLOW_INSECURE_COOKIES=1.");

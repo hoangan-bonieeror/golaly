@@ -2,10 +2,15 @@
  * Regression tests for the 2026-10 security review (claude/triply-security-review.md). Each one reproduces the
  * problem as it was, so a regression fails here. S1 (open redirect) is covered by safe-next.spec.ts.
  */
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type { AddressInfo } from "node:net";
+import sharp from "sharp";
 import type { ExpensesView, TripDetail } from "@triply/shared";
 import { io, type Socket } from "socket.io-client";
 import { env } from "../src/config/env";
+import { BreachedPasswords } from "../src/modules/auth/breached";
+import { MediaService } from "../src/modules/media/media";
 import { createTestContext, type Agent, type TestContext } from "./helpers";
 
 let t: TestContext;
@@ -247,7 +252,7 @@ describe("S3 · guessing someone's password doesn't lock them out", () => {
 
   it("sign-in hands the browser a known-device cookie, scoped to the auth routes", async () => {
     const u = await t.register("s3c");
-    const res = await t.anon().post("/auth/login", { email: u.email, password: "password123" });
+    const res = await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" });
     const dev = (res.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_dev="));
     expect(dev).toMatch(/Path=\/api\/v1\/auth/);
     expect(dev).toMatch(/HttpOnly/);
@@ -256,8 +261,8 @@ describe("S3 · guessing someone's password doesn't lock them out", () => {
   it("a stranger's guesses lock strangers out; the owner's own browser still gets in", async () => {
     const owner = await t.register("s3o"); // signed up here, so this browser is known
     await lockOut(owner.email);
-    expect((await t.anon().post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
-    expect((await owner.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(200);
+    expect((await t.anon().post("/auth/login", { email: owner.email, password: "harbor-lantern-58" })).status).toBe(429);
+    expect((await owner.post("/auth/login", { email: owner.email, password: "harbor-lantern-58" })).status).toBe(200);
     expect((await t.prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).failedLoginCount).toBe(0);
   });
 
@@ -265,10 +270,10 @@ describe("S3 · guessing someone's password doesn't lock them out", () => {
     const owner = await t.register("s3h");
     const other = await t.register("s3x");
     await lockOut(owner.email);
-    expect((await other.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
+    expect((await other.post("/auth/login", { email: owner.email, password: "harbor-lantern-58" })).status).toBe(429);
 
     await t.prisma.user.update({ where: { id: owner.id }, data: { failedLoginCount: 20 } });
-    expect((await owner.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
+    expect((await owner.post("/auth/login", { email: owner.email, password: "harbor-lantern-58" })).status).toBe(429);
   });
 });
 
@@ -288,5 +293,127 @@ describe("S15 · sign-in doesn't reveal whether an account exists", () => {
     const b = await run(ghost);
     expect(a.map(([s]) => s)).toEqual([401, 401, 401, 401, 401, 429]);
     expect(b).toEqual(a);
+  });
+});
+
+// ─────────────────────────────────────────── Batch C ───────────────────────────────────────────
+
+async function upload(a: Agent, color = "#2f6f5e") {
+  const img = await sharp({ create: { width: 320, height: 240, channels: 3, background: color } }).jpeg().toBuffer();
+  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", img, { filename: "p.jpg", contentType: "image/jpeg" });
+  expect(res.status).toBe(201);
+  return res.body.id as string;
+}
+const fileOf = (key: string) => path.resolve(env.MEDIA_DIR, key);
+const mediaFiles = async (id: string) => {
+  const m = await t.prisma.media.findUniqueOrThrow({ where: { id } });
+  return [m.storageKey, m.mediumKey!, m.thumbKey!].map(fileOf);
+};
+
+describe("S17 · a removed photo stops being reachable", () => {
+  it("taking a photo off a stop deletes the upload and its files", async () => {
+    const owner = await t.register("s17o", { verified: true });
+    const trip = (await owner.post("/trips", { title: "S17", startDate: "2026-08-14", endDate: "2026-08-14" })).body;
+    const day = ((await owner.get(`/trips/${trip.id}`)).body as TripDetail).days[0];
+    const item = (await owner.post(`/days/${day.id}/items`, { type: "NOTE", title: "Lunch" })).body;
+    const mediaId = await upload(owner);
+    const files = await mediaFiles(mediaId);
+    const photo = (await owner.post(`/items/${item.id}/photos`, { mediaId })).body.photos[0];
+    expect(files.every(existsSync)).toBe(true);
+
+    expect((await owner.delete(`/item-photos/${photo.id}`)).status).toBe(200);
+    expect(await t.prisma.media.count({ where: { id: mediaId } })).toBe(0);
+    expect(files.some(existsSync)).toBe(false);
+  });
+
+  it("the sweep removes old uploads nothing shows; avatars and fresh uploads stay", async () => {
+    const u = await t.register("s17s");
+    const [orphan, fresh, avatar] = [await upload(u, "#111111"), await upload(u, "#222222"), await upload(u, "#333333")];
+    await t.prisma.userProfile.update({ where: { userId: u.id }, data: { avatarMediaId: avatar } });
+    const old = new Date(Date.now() - 2 * 86_400_000);
+    await t.prisma.media.updateMany({ where: { id: { in: [orphan, avatar] } }, data: { createdAt: old } });
+    const orphanFiles = await mediaFiles(orphan);
+
+    await t.app.get(MediaService).sweep();
+    const left = (await t.prisma.media.findMany({ where: { ownerId: u.id }, select: { id: true } })).map((m) => m.id);
+    expect(left.sort()).toEqual([fresh, avatar].sort());
+    expect(orphanFiles.some(existsSync)).toBe(false);
+  });
+
+  it("deleting an account deletes its uploads", async () => {
+    const u = await t.register("s17d");
+    const id = await upload(u);
+    const files = await mediaFiles(id);
+    expect((await u.delete("/users/me", { password: "harbor-lantern-58" })).status).toBe(200);
+    expect(await t.prisma.media.count({ where: { ownerId: u.id } })).toBe(0);
+    expect(files.some(existsSync)).toBe(false);
+  });
+});
+
+describe("S19 · daily limits on what others see", () => {
+  it("an unconfirmed account posts a few times a day; confirming raises the limit", async () => {
+    const u = await t.register("s19p");
+    const statuses: number[] = [];
+    for (let i = 0; i < 4; i++) statuses.push((await u.post("/posts", { title: `Post ${i}`, body: "hi" })).status);
+    expect(statuses).toEqual([201, 201, 201, 429]);
+    await t.verifyEmail(u.id);
+    expect((await u.post("/posts", { title: "Post 4", body: "hi" })).status).toBe(201);
+  });
+});
+
+describe("S20 · passwords attackers try first are refused", () => {
+  it("common, repetitive and name-based passwords", async () => {
+    const reg = (password: string, n: string) => t.anon().post("/auth/register", { email: `${n}@example.com`, username: n, password });
+    const named = `s20e${Date.now().toString(36)}`;
+    for (const [pw, n] of [["password123", "s20a"], ["12345678", "s20b"], ["aaaaaaaa", "s20c"], ["qwertyuiop", "s20d"], [`${named}-rocks`, named]]) {
+      const res = await reg(pw, n === named ? n : `${n}${Date.now().toString(36)}`);
+      expect(res.status).toBe(422);
+      expect(res.body.fields.password).toBeTruthy();
+    }
+  });
+
+  it("breached passwords (k-anonymity: only 5 hex characters leave the server); the check fails open", async () => {
+    const breached = t.app.get(BreachedPasswords);
+    const before = env.PASSWORD_BREACH_CHECK;
+    const original = breached.fetcher;
+    const asked: string[] = [];
+    // SHA-1("harbor-lantern-58") — reply as if it had been seen 42 times, among padding rows.
+    const { createHash } = await import("node:crypto");
+    const sha = createHash("sha1").update("harbor-lantern-58").digest("hex").toUpperCase();
+    const u = await t.register("s20h");
+    (env as { PASSWORD_BREACH_CHECK: string }).PASSWORD_BREACH_CHECK = "on";
+    try {
+      breached.fetcher = (async (url: string) => {
+        asked.push(String(url));
+        return new Response(`0000000000000000000000000000000000A:0\r\n${sha.slice(5)}:42\r\n`);
+      }) as typeof fetch;
+      const res = await u.post("/auth/password", { currentPassword: "harbor-lantern-58", newPassword: "harbor-lantern-58" });
+      expect(res.status).toBe(422);
+      expect(res.body.fields.newPassword).toMatch(/data breach/);
+      expect(asked.at(-1)).toBe(`https://api.pwnedpasswords.com/range/${sha.slice(0, 5)}`);
+
+      breached.fetcher = (async () => {
+        throw new Error("offline");
+      }) as typeof fetch;
+      expect((await u.post("/auth/password", { currentPassword: "harbor-lantern-58", newPassword: "quiet-meadow-7310" })).status).toBe(200);
+    } finally {
+      breached.fetcher = original;
+      (env as { PASSWORD_BREACH_CHECK: string }).PASSWORD_BREACH_CHECK = before;
+    }
+  });
+});
+
+describe("S23 · a remix doesn't hand out a link-only original", () => {
+  it("credit stays, the link and the original group's results go once the source isn't public", async () => {
+    const owner = await t.register("s23o", { verified: true });
+    const fan = await t.register("s23f", { verified: true });
+    const trip = (await owner.post("/trips", { title: "S23 original" })).body;
+    await owner.patch(`/trips/${trip.id}`, { visibility: "PUBLIC", allowFork: true });
+    const fork = (await fan.post(`/trips/${trip.id}/fork`)).body;
+    expect((await fan.get(`/trips/${fork.id}`)).body.forkedFrom.tripId).toBe(trip.id);
+
+    await owner.patch(`/trips/${trip.id}`, { visibility: "LINK_ONLY" });
+    const after = (await fan.get(`/trips/${fork.id}`)).body;
+    expect(after.forkedFrom).toMatchObject({ tripId: "", title: "S23 original" });
   });
 });

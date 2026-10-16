@@ -1,3 +1,4 @@
+import { Throttle } from "@nestjs/throttler";
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
 import {
   createCommentSchema,
@@ -27,6 +28,7 @@ export class SocialController {
   }
 
   @Post("posts")
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   create(@ViewerId() me: string | null, @Body(new ZodPipe(createPostSchema)) body: z.infer<typeof createPostSchema>) {
     return this.social.create(requireUser(me), body);
   }
@@ -54,6 +56,7 @@ export class SocialController {
   }
 
   @Post("posts/:id/like")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   like(@Param("id", Uuid) id: string, @ViewerId() me: string | null) {
     return this.social.setLiked(id, requireUser(me), true);
   }
@@ -80,6 +83,7 @@ export class SocialController {
   }
 
   @Post("posts/:id/comments")
+  @Throttle({ default: { limit: 15, ttl: 60_000 } })
   comment(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(createCommentSchema)) body: { body: string }) {
     return this.social.addComment(id, requireUser(me), body.body);
   }
@@ -91,6 +95,7 @@ export class SocialController {
   }
 
   @Post("reports")
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   report(@ViewerId() me: string | null, @Body(new ZodPipe(createReportSchema)) body: CreateReportInput) {
     return this.social.report(requireUser(me), body);
   }

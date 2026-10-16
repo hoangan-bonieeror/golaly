@@ -1,3 +1,4 @@
+import { MediaService } from "../media/media";
 import { Injectable } from "@nestjs/common";
 import { isLocale, type FollowListItem, type Me, type PostView, type ProfileView, type TripSummary, type UpdateProfileInput } from "@triply/shared";
 import { verifyPassword } from "../../common/crypto";
@@ -28,6 +29,7 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly searchIndex: SearchIndexService,
     private readonly realtime: RealtimeService,
+    private readonly media: MediaService,
   ) {}
 
   async me(userId: string): Promise<Me> {
@@ -210,5 +212,7 @@ export class UsersService {
       await this.audit.log(userId, "user.deleted", "user", userId, {}, tx);
     });
     await this.realtime.disconnectSessions({ userId });
+    // Their uploads (avatar, covers, stop photos, post photos) are deleted from storage, not just unlinked.
+    await this.media.purgeOwner(userId);
   }
 }

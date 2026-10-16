@@ -1,11 +1,25 @@
-# Keeps the GitHub Actions used by CI/CD up to date (one grouped PR per month).
-# npm / uv dependencies are left to manual updates on purpose (the lockfile is managed by hand).
+# Supply chain (security review S8/S22).
+# - GitHub Actions: pinned to commit SHAs in the workflows; one grouped PR a month, only for releases at least a week old.
+# - npm and uv: no routine version PRs (the lockfiles are updated by hand), but *security* updates still open PRs —
+#   turn on Settings → Code security → Dependabot security updates.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+  - package-ecosystem: uv
+    directories: ["/pipelines", "/analytics"]
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0

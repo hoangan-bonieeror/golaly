@@ -8,7 +8,7 @@ afterAll(() => t.app.close());
 describe("auth", () => {
   it("registers, sets HTTP-only cookies and returns the profile", async () => {
     const agent = t.anon();
-    const res = await agent.post("/auth/register", { email: "New.Person@Example.com", username: "new.person", password: "password123" });
+    const res = await agent.post("/auth/register", { email: "New.Person@Example.com", username: "new.person", password: "harbor-lantern-58" });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ email: "new.person@example.com", username: "new.person", onboarded: false });
     expect(res.body.passwordHash).toBeUndefined();
@@ -19,7 +19,7 @@ describe("auth", () => {
   });
 
   it("rejects duplicate usernames and invalid input with friendly 4xx errors", async () => {
-    const dup = await t.anon().post("/auth/register", { email: "other@example.com", username: "an.nguyen", password: "password123" });
+    const dup = await t.anon().post("/auth/register", { email: "other@example.com", username: "an.nguyen", password: "harbor-lantern-58" });
     expect(dup.status).toBe(409);
     expect(dup.body.message).toBe("That username is taken.");
     const bad = await t.anon().post("/auth/register", { email: "x", username: "!", password: "1" });
@@ -96,8 +96,8 @@ describe("auth", () => {
   it("deletes an account only with the right password", async () => {
     const user = await t.register("bye");
     expect((await user.delete("/users/me", { password: "nope" })).status).toBe(403);
-    expect((await user.delete("/users/me", { password: "password123" })).status).toBe(200);
-    expect((await t.anon().post("/auth/login", { email: user.email, password: "password123" })).status).toBe(401);
+    expect((await user.delete("/users/me", { password: "harbor-lantern-58" })).status).toBe(200);
+    expect((await t.anon().post("/auth/login", { email: user.email, password: "harbor-lantern-58" })).status).toBe(401);
     expect((await t.anon().get(`/users/${user.username}`)).status).toBe(404);
   });
 });

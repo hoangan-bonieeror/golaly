@@ -65,6 +65,7 @@ export class UsersController {
   }
 
   @Post(":handle/follow")
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   follow(@Param("handle") handle: string, @ViewerId() me: string | null) {
     return this.users.follow(requireUser(me), handle, true);
   }

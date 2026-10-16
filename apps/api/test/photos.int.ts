@@ -89,19 +89,27 @@ describe("moderation", () => {
     expect(log).not.toBeNull();
   });
 
-  it("three separate reports hide a photo until a moderator restores it", async () => {
+  it("three separate reports from established accounts hide a photo until a moderator restores it", async () => {
     const sarah = await t.as("sarah@triply.dev");
     const photo = (await sarah.post(`/places/${place("hoian-museum")}/photos`, { mediaId: await upload(sarah) })).body as PlacePhotoView;
+    const shown = async () => (await detail(t.anon(), "hoian-museum")).photos.map((p) => p.id).includes(photo.id);
+    // Fresh sign-ups are counted for moderators but can't take a photo down (S18).
     for (let i = 0; i < 3; i++) {
-      const r = await t.register(`rep${i}`);
+      const r = await t.register(`new${i}`, { verified: true });
       expect((await r.post("/reports", { target: "PLACE_PHOTO", targetId: photo.id, reason: "INAPPROPRIATE" })).status).toBe(201);
     }
-    expect((await detail(t.anon(), "hoian-museum")).photos.map((p) => p.id)).not.toContain(photo.id);
+    expect(await shown()).toBe(true);
+    for (let i = 0; i < 3; i++) {
+      const r = await t.register(`rep${i}`, { verified: true });
+      await t.prisma.user.update({ where: { id: r.id }, data: { createdAt: new Date(Date.now() - 8 * 86_400_000) } });
+      expect((await r.post("/reports", { target: "PLACE_PHOTO", targetId: photo.id, reason: "INAPPROPRIATE" })).status).toBe(201);
+      expect(await shown()).toBe(i < 2);
+    }
     // Hidden photos can't be reported (or probed) by others any more.
     expect((await (await t.register("late")).post("/reports", { target: "PLACE_PHOTO", targetId: photo.id, reason: "SPAM" })).status).toBe(404);
     const an = await t.as("an@triply.dev");
     const hidden = (await an.get("/admin/place-photos?filter=hidden")).body as Paged<ModerationPhoto>;
-    expect(hidden.items.find((p) => p.id === photo.id)?.reportCount).toBe(3);
+    expect(hidden.items.find((p) => p.id === photo.id)?.reportCount).toBe(6);
     await an.patch(`/place-photos/${photo.id}`, { status: "APPROVED" });
     // Restoring resolves those reports, so one more report doesn't immediately hide it again.
     await (await t.register("again")).post("/reports", { target: "PLACE_PHOTO", targetId: photo.id, reason: "SPAM" });

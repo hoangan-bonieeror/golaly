@@ -60,6 +60,10 @@ const VI_EXACT: Record<string, string> = {
   "Enter a valid email address.": "Hãy nhập một địa chỉ email hợp lệ.",
   "Enter your password.": "Hãy nhập mật khẩu.",
   "Use at least 8 characters for your password.": "Mật khẩu cần ít nhất 8 ký tự.",
+  "That password is too easy to guess. Try a few unrelated words.": "Mật khẩu này quá dễ đoán. Hãy thử ghép vài từ không liên quan.",
+  "Don't use your username or email in your password.": "Đừng dùng tên người dùng hoặc email trong mật khẩu.",
+  "This password has appeared in a data breach, so attackers try it first. Choose a different one.":
+    "Mật khẩu này đã từng bị lộ trong một vụ rò rỉ dữ liệu nên sẽ bị thử đầu tiên. Hãy chọn mật khẩu khác.",
   "Passwords are limited to 128 characters.": "Mật khẩu tối đa 128 ký tự.",
   "Usernames are 3–24 characters: letters, numbers, dots or underscores.": "Tên người dùng dài 3–24 ký tự, gồm chữ, số, dấu chấm hoặc gạch dưới.",
   "Display name can't be empty.": "Tên hiển thị không được để trống.",
@@ -204,6 +208,11 @@ const VI_PATTERNS: [RegExp, (...m: string[]) => string][] = [
   [/^Images can be at most (\d+) pixels on a side and ([\d.]+) megapixels\.$/, (_, a, b) => `Ảnh tối đa ${a} pixel mỗi cạnh và ${b} megapixel.`],
   [/^You've uploaded (\d+) photos today — that's the daily limit\. Try again tomorrow\.$/, (_, n) => `Hôm nay bạn đã tải lên ${n} ảnh — đó là giới hạn mỗi ngày. Hãy thử lại vào ngày mai.`],
   [/^You've shared (\d+) place photos today — that's the daily limit\.$/, (_, n) => `Hôm nay bạn đã chia sẻ ${n} ảnh địa điểm — đó là giới hạn mỗi ngày.`],
+  [
+    /^You've reached today's limit of (\d+) (posts|comments|reports)\. (Try again tomorrow|Confirm your email to raise it)\.$/,
+    (_, n, what, tail) =>
+      `Bạn đã đạt giới hạn ${n} ${{ posts: "bài viết", comments: "bình luận", reports: "báo cáo" }[what as "posts"]} hôm nay. ${tail === "Try again tomorrow" ? "Hãy thử lại vào ngày mai." : "Xác nhận email để được tăng giới hạn."}`,
+  ],
 ];
 
 /** A server/validation message in the given language (English when there's no translation). */

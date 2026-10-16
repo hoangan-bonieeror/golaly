@@ -6,6 +6,7 @@ import { ITEM_SLOTS, ITEM_STATUSES, VOTE_LEVELS } from "./plan";
  * One definition → same rules on both sides (spec §41).
  */
 import { z } from "zod";
+import { isWeakPassword, passwordContainsIdentity } from "./passwords";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -19,7 +20,8 @@ export const usernameSchema = z
 export const passwordSchema = z
   .string()
   .min(8, "Use at least 8 characters for your password.")
-  .max(128, "Passwords are limited to 128 characters.");
+  .max(128, "Passwords are limited to 128 characters.")
+  .refine((p) => p.length < 8 || !isWeakPassword(p), "That password is too easy to guess. Try a few unrelated words.");
 const isoDate = z.string().regex(ISO_DATE, "Use the format YYYY-MM-DD.");
 const hhmm = z.string().regex(HHMM, "Use the format HH:mm.");
 const uuid = z.string().uuid();
@@ -38,7 +40,9 @@ const dateRange = <T extends { startDate?: string | null; endDate?: string | nul
 const dateRangeMsg = { message: "End date can't be before the start date.", path: ["endDate"] };
 
 // ── Auth ────────────────────────────────────────────────────────────────
-export const registerSchema = z.object({ email: emailSchema, username: usernameSchema, password: passwordSchema });
+export const registerSchema = z
+  .object({ email: emailSchema, username: usernameSchema, password: passwordSchema })
+  .refine((v) => !passwordContainsIdentity(v.password, v), { path: ["password"], message: "Don't use your username or email in your password." });
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password.").max(128) });
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 export const changePasswordSchema = z.object({ currentPassword: z.string().max(128).optional(), newPassword: passwordSchema });

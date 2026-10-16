@@ -78,7 +78,7 @@ export async function createTestContext(): Promise<TestContext> {
       const n = `${prefix}${Date.now().toString(36)}${counter++}`.toLowerCase().slice(0, 24);
       const email = `${n}@example.com`;
       const raw = request.agent(server);
-      const res = await raw.post(`${API}/auth/register`).set("X-Requested-With", "triply").send({ email, username: n, password: "password123" });
+      const res = await raw.post(`${API}/auth/register`).set("X-Requested-With", "triply").send({ email, username: n, password: "harbor-lantern-58" });
       if (res.status !== 201) throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
       const a = wrap(raw);
       (a as unknown as { cookie: string }).cookie = (res.headers["set-cookie"] as unknown as string[]).map((c) => c.split(";")[0]).join("; ");

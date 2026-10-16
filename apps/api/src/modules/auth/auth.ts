@@ -28,6 +28,7 @@ import { UsersService } from "../users/users.service";
 import { SearchIndexService } from "../search/search-index";
 import { RealtimeService } from "../realtime/realtime";
 import { ProductEventsService } from "../activity/product-events";
+import { BreachedPasswords } from "./breached";
 import { assertMayTry, assertNotLocked, PhantomLockouts, recordPasswordFailure } from "./lockout";
 
 export const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
@@ -56,11 +57,13 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly searchIndex: SearchIndexService,
     private readonly realtime: RealtimeService,
+    private readonly breached: BreachedPasswords,
   ) {}
 
   async register(input: RegisterInput) {
     const taken = await this.prisma.user.findFirst({ where: { OR: [{ email: input.email }, { username: input.username }] }, select: { email: true } });
     if (taken) throw Errors.conflict(taken.email === input.email ? "An account with that email already exists." : "That username is taken.");
+    await this.breached.assertNotBreached(input.password);
     const passwordHash = await hashPassword(input.password);
     const displayName = input.username.split(/[._]/)[0].replace(/^\w/, (c) => c.toUpperCase());
     const user = await this.prisma.user.create({
@@ -127,6 +130,7 @@ export class AuthService {
         throw new AppError(403, "Your current password isn't right.", { currentPassword: "Your current password isn't right." });
       }
     }
+    await this.breached.assertNotBreached(input.newPassword, "newPassword");
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(input.newPassword), failedLoginCount: 0, lockedUntil: null } }),
       this.prisma.session.updateMany({ where: { userId, revokedAt: null, id: { not: sessionId } }, data: { revokedAt: new Date() } }),
@@ -268,6 +272,7 @@ export class AuthService {
     const expired = () => Errors.invalid("This reset link has expired. Request a new one.");
     const row = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash: sha256(token) } });
     if (!row || row.usedAt || row.expiresAt < new Date()) throw expired();
+    await this.breached.assertNotBreached(password);
     const passwordHash = await hashPassword(password);
     const now = new Date();
     await this.prisma.transaction(async (tx) => {

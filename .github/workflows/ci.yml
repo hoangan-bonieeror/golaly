@@ -45,14 +45,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci # postinstall builds @triply/shared and generates the Prisma client
       - run: npm run lint
       - run: npm run typecheck
+      # Known vulnerabilities in what ships (dev tooling excluded): critical fails the build, the rest is
+      # listed in the job summary. Fixes arrive as Dependabot security PRs (.github/dependabot.yml).
+      - name: Audit production dependencies
+        run: |
+          npm audit --omit=dev --audit-level=critical > audit.txt || { cat audit.txt; exit 1; }
+          { echo '### npm audit (production dependencies)'; echo '```'; tail -n 40 audit.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   api-tests:
     name: API tests (unit + integration)
@@ -73,8 +79,8 @@ jobs:
       # Rebuilt from the migrations and seeded by test/global-setup.ts
       TEST_DATABASE_URL: postgresql://triply:triply@localhost:5432/triply_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -87,7 +93,7 @@ jobs:
       - name: Jest (unit + integration)
         run: npm test
       # The analytics models (analytics/, dbt) build and pass their tests on the database the API tests just used.
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
           enable-cache: true
@@ -105,23 +111,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: apps/web/.next/cache
           key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**', 'packages/shared/src/**') }}
           restore-keys: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - run: npm run build
       # The same Dockerfile Render builds — a broken image fails here, before anything is deployed.
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build API Docker image (not pushed)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: apps/api/Dockerfile
@@ -149,14 +155,14 @@ jobs:
       run:
         working-directory: pipelines
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4 # the integration tests load the app's demo seed (prisma/seed.ts)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 · the integration tests load the app's demo seed (prisma/seed.ts)
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
         working-directory: .
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.12"
           enable-cache: true
@@ -180,8 +186,8 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -267,8 +273,8 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -277,7 +283,7 @@ jobs:
           for v in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             if [ -z "${!v}" ]; then echo "::error::Secret $v is not set (see docs/CI-CD.md)"; exit 1; fi
           done
-      - run: npm install --global vercel@latest
+      - run: npm install --global vercel@62.2.0   # pinned: this step holds the deploy token (bump deliberately)
       - run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
       # The rewrites (/api/v1 → API, /media → bucket) are compiled in at build time, so these must be right.
       # They come from GitHub variables, not from `vercel pull`: Vercel never hands out the values of

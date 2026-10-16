@@ -36,7 +36,7 @@ describe("shared validation (same schemas the web forms use)", () => {
   });
 
   it("normalises email and username", () => {
-    expect(registerSchema.parse({ email: " An@Example.COM ", username: "An.Nguyen", password: "12345678" })).toMatchObject({ email: "an@example.com", username: "an.nguyen" });
+    expect(registerSchema.parse({ email: " An@Example.COM ", username: "An.Nguyen", password: "lantern-river-42" })).toMatchObject({ email: "an@example.com", username: "an.nguyen" });
   });
 
   it("rejects trips that end before they start", () => {

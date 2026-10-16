@@ -57,7 +57,7 @@ fs.mkdirSync(shots, { recursive: true });
     await A.goto(`${BASE}/register`);
     await A.getByLabel("Email").fill(`tester.${stamp}@example.com`);
     await A.getByLabel("Username").fill(`tester_${stamp}`);
-    await A.getByLabel("Password").fill("supersecret");
+    await A.getByLabel("Password").fill("walnut-harbor-2026");
     await A.getByRole("button", { name: "Create account" }).click();
     await A.waitForURL("**/onboarding");
     await A.getByRole("button", { name: "Friends" }).click();
