@@ -1,6 +1,6 @@
 import { Controller, Get, Injectable, Logger, Query, Req, Res } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { normalizeSearch } from "@triply/shared";
+import { normalizeSearch, safeNext } from "@triply/shared";
 import type { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 import { createHash } from "node:crypto";
@@ -72,7 +72,6 @@ interface StatePayload {
   next: string;
 }
 
-const safeNext = (n: unknown) => (typeof n === "string" && n.startsWith("/") && !n.startsWith("//") && n.length < 300 ? n : "/home");
 
 @Injectable()
 export class GoogleAuthService {

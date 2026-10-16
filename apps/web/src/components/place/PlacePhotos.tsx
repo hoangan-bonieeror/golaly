@@ -11,6 +11,7 @@ import { keys, useAction, useMe } from "@/lib/api/queries";
 import { ReportSheet } from "../social/ReportSheet";
 import { Badge, Button, Field, Sheet, cx, inputCls } from "../ui";
 import { CategoryIcon } from "./categoryMeta";
+import { safeHref } from "@/lib/utils";
 
 /** <img> with the three stored widths, so phones don't download the 2400 px original. */
 export function Photo({ image, alt, sizes, className, eager }: { image: ImageView; alt: string; sizes: string; className?: string; eager?: boolean }) {
@@ -52,12 +53,14 @@ export function PhotoCredit({ photo, className }: { photo: PlacePhotoView; class
         )}
       </span>
     );
+  // Open-data credits are outside links: http(s) only.
+  const [src, authorHref, licenseHref] = [safeHref(c.sourceUrl), safeHref(c.authorUrl), safeHref(c.licenseUrl)];
   return (
     <span className={className}>
       {c.title && (
         <>
-          {c.sourceUrl ? (
-            <a href={c.sourceUrl} {...ext} className="underline-offset-2 hover:underline">
+          {src ? (
+            <a href={src} {...ext} className="underline-offset-2 hover:underline">
               “{c.title}”
             </a>
           ) : (
@@ -68,8 +71,8 @@ export function PhotoCredit({ photo, className }: { photo: PlacePhotoView; class
       {c.author && (
         <>
           {ph.by}{" "}
-          {c.authorUrl ? (
-            <a href={c.authorUrl} {...ext} className="font-semibold underline-offset-2 hover:underline">
+          {authorHref ? (
+            <a href={authorHref} {...ext} className="font-semibold underline-offset-2 hover:underline">
               {c.author}
             </a>
           ) : (
@@ -79,16 +82,16 @@ export function PhotoCredit({ photo, className }: { photo: PlacePhotoView; class
         </>
       )}
       {c.license &&
-        (c.licenseUrl ? (
-          <a href={c.licenseUrl} {...ext} className="underline-offset-2 hover:underline">
+        (licenseHref ? (
+          <a href={licenseHref} {...ext} className="underline-offset-2 hover:underline">
             {c.license}
           </a>
         ) : (
           c.license
         ))}
       {ph.via}
-      {c.sourceUrl ? (
-        <a href={c.sourceUrl} {...ext} className="underline-offset-2 hover:underline">
+      {src ? (
+        <a href={src} {...ext} className="underline-offset-2 hover:underline">
           {c.sourceName}
         </a>
       ) : (

@@ -65,6 +65,7 @@ export const after: Messages["after"] = {
     remove: "Xoá ảnh",
     removed: "Đã xoá ảnh",
     by: (name) => `Ảnh của ${name}`,
+    photo: (stop) => `Ảnh ${stop}`,
     count: (n) => `${n} ảnh`,
   },
   evidence: {

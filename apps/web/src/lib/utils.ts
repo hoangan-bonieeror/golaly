@@ -58,7 +58,19 @@ export function formatDateRange(start?: string, end?: string, l: Locale = fmt) {
   return `${md(start)} – ${md(end)}, ${y(end)}`;
 }
 
-/** Only allow same-site relative redirects after login (no open redirects). */
-export function safeNext(next: string | null, fallback = "/home") {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : fallback;
+/** Only same-site paths after login (no open redirects) — shared with the API's Google sign-in. */
+export { safeNext } from "@triply/shared";
+
+/**
+ * An outside link that's safe to put in an href: http(s) only. Place websites and photo credits come from users,
+ * admins and open data; a javascript: or data: URL must never become a link (React only warns about some of them).
+ */
+export function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
 }

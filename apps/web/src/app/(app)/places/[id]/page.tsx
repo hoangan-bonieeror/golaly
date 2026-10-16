@@ -17,6 +17,7 @@ import { api } from "@/lib/api/client";
 import { keys, useAction, useMe, usePlace } from "@/lib/api/queries";
 import { useToast } from "@/lib/toast";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
+import { safeHref } from "@/lib/utils";
 
 const languageName = (tag: string, locale: Locale) => {
   try {
@@ -59,6 +60,7 @@ export default function PlacePage() {
   };
   const where = [p.address, p.areaName && p.areaName !== p.destinationName ? p.areaName : null].filter(Boolean).join(", ");
   const hasPhotos = p.photos.length > 0;
+  const website = safeHref(p.website);
   const map = <PlacesMap places={[p, ...p.nearby]} focusId={p.id} label={pl.mapLabel(p.name)} className={hasPhotos ? undefined : "h-[280px]! md:h-[400px]!"} />;
 
   return (
@@ -150,10 +152,10 @@ export default function PlacePage() {
                 </a>
               </Row>
             )}
-            {p.website && (
+            {website && (
               <Row icon={Globe} label={pl.website}>
-                <a href={p.website} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 break-all font-semibold text-primary hover:underline">
-                  {p.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                <a href={website} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 break-all font-semibold text-primary hover:underline">
+                  {website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
                   <ExternalLink className="size-3.5 shrink-0" aria-hidden />
                   <span className="sr-only">{pl.newTab}</span>
                 </a>

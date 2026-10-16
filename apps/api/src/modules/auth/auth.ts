@@ -28,13 +28,11 @@ import { UsersService } from "../users/users.service";
 import { SearchIndexService } from "../search/search-index";
 import { RealtimeService } from "../realtime/realtime";
 import { ProductEventsService } from "../activity/product-events";
+import { assertNotLocked, recordPasswordFailure } from "./lockout";
 
-const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
+export const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
 const RESET_TTL_MS = 30 * 60_000;
 const VERIFY_TTL_MS = 48 * 3_600_000;
-/** Per-account brute-force protection: every LOCK_AFTER consecutive failures lock the account for LOCK_MS. */
-const LOCK_AFTER = 5;
-const LOCK_MS = 15 * 60_000;
 /** Two tabs refreshing with the same token at the same moment is a benign race, not theft. */
 const REFRESH_RACE_GRACE_MS = 30_000;
 // Verify against a real hash for unknown emails so both failure paths take the same time.
@@ -116,10 +114,15 @@ export class AuthService {
 
   /** Change password (or set a first one for Google-only accounts). Signs out every other session. */
   async changePassword(userId: string, sessionId: string, input: { currentPassword?: string; newPassword: string }) {
-    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true, lockedUntil: true } });
     if (!u) throw Errors.unauthorized();
-    if (u.passwordHash && !(await verifyPassword(u.passwordHash, input.currentPassword ?? "")))
-      throw new AppError(403, "Your current password isn't right.", { currentPassword: "Your current password isn't right." });
+    if (u.passwordHash) {
+      assertNotLocked(u.lockedUntil);
+      if (!(await verifyPassword(u.passwordHash, input.currentPassword ?? ""))) {
+        await this.passwordFailure(userId, sessionId);
+        throw new AppError(403, "Your current password isn't right.", { currentPassword: "Your current password isn't right." });
+      }
+    }
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await hashPassword(input.newPassword), failedLoginCount: 0, lockedUntil: null } }),
       this.prisma.session.updateMany({ where: { userId, revokedAt: null, id: { not: sessionId } }, data: { revokedAt: new Date() } }),
@@ -131,25 +134,24 @@ export class AuthService {
   async login(input: LoginInput) {
     const user = await this.prisma.user.findFirst({ where: { email: input.email, deletedAt: null }, select: { id: true, passwordHash: true, lockedUntil: true } });
     const ok = await verifyPassword(user?.passwordHash ?? (await getDummyHash()), input.password);
-    if (user?.lockedUntil && user.lockedUntil > new Date()) {
-      const mins = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000));
-      throw new AppError(429, `Too many failed attempts. Try again in ${mins} minute${mins === 1 ? "" : "s"}, or reset your password.`);
-    }
+    assertNotLocked(user?.lockedUntil);
     if (!user || !ok) {
-      if (user) await this.recordFailedLogin(user.id);
+      if (user) await recordPasswordFailure(this.prisma, this.audit, user.id);
       throw new AppError(401, "That email and password don't match.");
     }
     await this.prisma.user.updateMany({ where: { id: user.id, OR: [{ failedLoginCount: { gt: 0 } }, { lockedUntil: { not: null } }] }, data: { failedLoginCount: 0, lockedUntil: null } });
     return user;
   }
 
-  /** Counts failures atomically (concurrent guesses can't slip past the threshold). */
-  private async recordFailedLogin(userId: string) {
-    const { failedLoginCount } = await this.prisma.user.update({ where: { id: userId }, data: { failedLoginCount: { increment: 1 } }, select: { failedLoginCount: true } });
-    if (failedLoginCount % LOCK_AFTER === 0) {
-      await this.prisma.user.update({ where: { id: userId }, data: { lockedUntil: new Date(Date.now() + LOCK_MS) } });
-      await this.audit.log(null, "user.login_locked", "user", userId, { failures: failedLoginCount });
-    }
+  /**
+   * A wrong password from someone already signed in counts like a failed sign-in; when it locks the account, the
+   * session that was guessing is signed out too (it may be a stolen one).
+   */
+  async passwordFailure(userId: string, sessionId: string) {
+    if (!(await recordPasswordFailure(this.prisma, this.audit, userId))) return;
+    await this.prisma.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.realtime.disconnectSessions({ sessionIds: [sessionId] });
+    throw new AppError(429, "Too many wrong passwords. You've been signed out of this device.");
   }
 
   /** Creates a session and returns both tokens. Only the refresh token's hash is stored. */

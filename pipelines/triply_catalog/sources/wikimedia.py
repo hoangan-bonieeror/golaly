@@ -178,6 +178,14 @@ def _text(value: str | None) -> str | None:
     return t[:300] or None
 
 
+def _http(url: str | None) -> str | None:
+    """Only http(s) links reach a place page (never javascript:, data: or anything else from the source)."""
+    url = (url or "").strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    return url if re.match(r"^https?://", url, re.IGNORECASE) else None
+
+
 def _first_link(value: str | None) -> str | None:
     m = re.search(r'href="([^"]+)"', value or "")
     if not m:
@@ -223,13 +231,13 @@ def file_infos(wm: Wikimedia, titles: list[str]) -> dict[str, FileInfo | None]:
             out[title] = FileInfo(
                 title=title,
                 remote_url=ii.get("thumburl") if ii.get("width", 0) > STORE_WIDTH and ii.get("thumburl") else ii["url"],
-                page_url=ii.get("descriptionurl") or f"https://commons.wikimedia.org/wiki/{title.replace(' ', '_')}",
+                page_url=_http(ii.get("descriptionurl")) or f"https://commons.wikimedia.org/wiki/{title.replace(' ', '_')}",
                 width=int(ii.get("width", 0)),
                 height=int(ii.get("height", 0)),
                 author=_text(meta.get("Artist")),
                 author_url=_first_link(meta.get("Artist")),
                 license=_text(meta.get("LicenseShortName")) or "",
-                license_url=meta.get("LicenseUrl"),
+                license_url=_http(meta.get("LicenseUrl")),
                 caption=_text(meta.get("ImageDescription")),
                 quality=quality,
                 restrictions=(meta.get("Restrictions") or "").strip() or None,

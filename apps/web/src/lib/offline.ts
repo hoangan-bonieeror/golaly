@@ -159,18 +159,45 @@ export function registerServiceWorker() {
   })();
 }
 
-/** Forget cached trips (on logout: the next person on this device mustn't see them). */
-export function clearOfflineData() {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* ignore */
-  }
+/** Drop the cached trips and photos (not the queued marks). */
+function clearOfflineCaches() {
   // The cache is the origin's, so any page can drop it — logout often happens outside the worker's /trips scope.
   if (typeof caches !== "undefined")
     void caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("triply-data-")).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("triply-data-") || k.startsWith("triply-media-")).map((k) => caches.delete(k))))
       .catch(() => undefined);
   navigator.serviceWorker?.controller?.postMessage({ type: "clear" });
+}
+
+const OWNER = "triply-offline-owner";
+
+/** Forget cached trips and queued marks (on logout: the next person on this device mustn't see them). */
+export function clearOfflineData() {
+  try {
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(OWNER);
+  } catch {
+    /* ignore */
+  }
+  clearOfflineCaches();
+}
+
+/**
+ * Whose trips the offline copies are. Called whenever the server has said who is signed in: a different person
+ * (someone else logged in, Google sign-in, a new account) or nobody (the session ended or was revoked elsewhere)
+ * clears what the previous person left on this device — not only an explicit logout. Network errors don't count.
+ */
+export function syncOfflineOwner(userId: string | null) {
+  try {
+    const prev = localStorage.getItem(OWNER);
+    if (prev === userId) return;
+    if (userId === null) return clearOfflineData();
+    // Someone else's queued marks must not be sent as this person's; our own (first run) are kept.
+    if (prev !== null) localStorage.removeItem(KEY);
+    clearOfflineCaches();
+    localStorage.setItem(OWNER, userId);
+  } catch {
+    clearOfflineCaches();
+  }
 }

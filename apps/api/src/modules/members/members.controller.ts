@@ -4,6 +4,7 @@ import { Public, ViewerId, requireUser } from "../../common/auth";
 import { Errors, ZodPipe } from "../../common/http";
 import { TripsModule } from "../trips/trips.controller";
 import { MembersService } from "./members.service";
+import { Throttle } from "@nestjs/throttler";
 
 const Uuid = new ParseUUIDPipe();
 /** Tokens are opaque base64url strings; reject anything else before touching the DB. */
@@ -22,6 +23,7 @@ export class MembersController {
   }
 
   @Post("trips/:id/invitations")
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   invite(@Param("id", Uuid) id: string, @ViewerId() me: string | null, @Body(new ZodPipe(createInvitationSchema)) body: CreateInvitationInput) {
     return this.svc.invite(id, requireUser(me), body);
   }

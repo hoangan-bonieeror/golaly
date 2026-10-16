@@ -75,15 +75,17 @@ export class ItineraryService {
 
   // ── Days ───────────────────────────────────────────────────────────────
   async days(tripId: string, viewerId: string | null): Promise<DayView[]> {
-    await this.access.require("itinerary.view", tripId, viewerId);
+    const trip = await this.access.require("itinerary.view", tripId, viewerId);
     const days = await this.prisma.tripDay.findMany({ where: { tripId }, orderBy: { dayNumber: "asc" }, include: dayInclude(viewerId) });
-    return days.map(toDayView);
+    const audience = { member: trip.members.some((m) => m.userId === viewerId), ownerId: trip.ownerId };
+    return days.map((d) => toDayView(d, audience));
   }
 
   async pool(tripId: string, viewerId: string | null): Promise<ItemView[]> {
-    await this.access.require("itinerary.view", tripId, viewerId);
+    const trip = await this.access.require("itinerary.view", tripId, viewerId);
     const items = await this.prisma.itineraryItem.findMany({ where: { tripId, dayId: null }, orderBy: { sortOrder: "asc" }, include: itemInclude(viewerId) });
-    return items.map(toItemView);
+    const audience = { member: trip.members.some((m) => m.userId === viewerId), ownerId: trip.ownerId };
+    return items.map((i) => toItemView(i, audience));
   }
 
   async addDay(tripId: string, viewerId: string): Promise<DayView> {

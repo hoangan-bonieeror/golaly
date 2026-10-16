@@ -275,7 +275,8 @@ export const trips = {
     leaveTrip: "Leave trip",
     leaveTitle: "Leave this trip?",
     leaveBody: "You'll lose access unless someone invites you again.",
-    removeBody: (name: string) => `${name} will immediately lose access to this trip.`,
+    removeBody: (name: string) => `${name} will immediately lose access to this trip. Open invite links are cancelled too, so they can't rejoin with one.`,
+    linksRevoked: (n: number) => `Removed. ${n === 1 ? "The open invite link was" : `${n} open invitations were`} cancelled — create a new link for anyone else.`,
     leave: "Leave",
   },
   invite: {

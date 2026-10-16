@@ -16,6 +16,7 @@ import { AuditService } from "../audit/audit";
 import { NotificationsService } from "../notifications/notifications";
 import { RealtimeService } from "../realtime/realtime";
 import { SearchIndexService } from "../search/search-index";
+import { assertNotLocked, recordPasswordFailure } from "../auth/lockout";
 
 const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
@@ -175,12 +176,22 @@ export class UsersService {
    * Account deletion (spec §42): requires the password, revokes every session, removes
    * memberships, soft-deletes owned trips & posts, and anonymises the account row.
    */
-  async deleteAccount(userId: string, confirm: { password?: string; username?: string }) {
+  async deleteAccount(userId: string, confirm: { password?: string; username?: string }, sessionId?: string) {
     const u = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!u || u.deletedAt) throw Errors.unauthorized();
     // Password accounts confirm with their password; Google-only accounts type their username.
-    if (u.passwordHash ? !(await verifyPassword(u.passwordHash, confirm.password ?? "")) : confirm.username?.trim().toLowerCase() !== u.username)
-      throw new AppError(403, u.passwordHash ? "That password isn't right." : "Type your username exactly to confirm.");
+    if (u.passwordHash) {
+      assertNotLocked(u.lockedUntil);
+      if (!(await verifyPassword(u.passwordHash, confirm.password ?? ""))) {
+        // Counts like a failed sign-in: a stolen session can't be used to guess the password here either.
+        if ((await recordPasswordFailure(this.prisma, this.audit, userId)) && sessionId) {
+          await this.prisma.session.updateMany({ where: { id: sessionId, revokedAt: null }, data: { revokedAt: new Date() } });
+          await this.realtime.disconnectSessions({ sessionIds: [sessionId] });
+          throw new AppError(429, "Too many wrong passwords. You've been signed out of this device.");
+        }
+        throw new AppError(403, "That password isn't right.");
+      }
+    } else if (confirm.username?.trim().toLowerCase() !== u.username) throw new AppError(403, "Type your username exactly to confirm.");
     const now = new Date();
     await this.prisma.transaction(async (tx) => {
       await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } });

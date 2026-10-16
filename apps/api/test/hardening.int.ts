@@ -180,7 +180,8 @@ describe("realtime privacy", () => {
         sock.on("connect", () => resolve());
         sock.on("connect_error", reject);
       });
-      expect(await sock.emitWithAck("trip.join", { tripId: trip.id })).toEqual({ ok: true });
+      // An outsider joins the public room: plan changes only.
+      expect(await sock.emitWithAck("trip.join", { tripId: trip.id })).toEqual({ ok: true, member: false });
       const events: string[] = [];
       sock.on("trip.event", (e: { event: string }) => events.push(e.event));
       await owner.patch(`/trips/${trip.id}`, { visibility: "PRIVATE" });

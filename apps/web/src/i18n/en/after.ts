@@ -66,6 +66,7 @@ export const after = {
     remove: "Remove photo",
     removed: "Photo removed",
     by: (name: string) => `Photo by ${name}`,
+    photo: (stop: string) => `Photo of ${stop}`,
     count: (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`,
   },
   evidence: {

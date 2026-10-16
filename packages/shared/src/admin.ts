@@ -96,7 +96,8 @@ export const adminPlacePatchSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   address: z.string().trim().max(300).optional(),
   phone: z.string().trim().max(40).nullable().optional(),
-  website: z.url("That website isn't a valid URL.").max(500).nullable().optional(),
+  // http(s) only: a javascript: or data: link must never reach a place page.
+  website: z.url({ protocol: /^https?$/, message: "That website isn't a valid URL." }).max(500).nullable().optional(),
   openingHours: z.string().trim().max(255).nullable().optional(),
   categoryKey: z.string().trim().min(1).max(60).optional(),
   lat: z.number().min(-90).max(90).optional(),

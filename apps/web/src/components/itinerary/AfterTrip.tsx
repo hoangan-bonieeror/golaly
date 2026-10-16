@@ -132,7 +132,7 @@ export function PhotoStrip({ item, max = 4 }: { item: ItemView; max?: number }) 
     <ul className="mt-2.5 flex gap-1.5" aria-label={t.count(item.photos.length)}>
       {shown.map((p, i) => (
         <li key={p.id} className="relative size-14 overflow-hidden rounded-lg">
-          <Photo image={p.image} alt={t.by(p.uploadedBy.displayName)} sizes="56px" />
+          <Photo image={p.image} alt={p.uploadedBy ? t.by(p.uploadedBy.displayName) : t.photo(item.title)} sizes="56px" />
           {i === shown.length - 1 && more > 0 && <span className="absolute inset-0 flex items-center justify-center bg-black/45 font-mono text-xs font-semibold text-white">+{more}</span>}
         </li>
       ))}
@@ -191,8 +191,8 @@ export function ItemPhotos({ trip, item }: { trip: TripDetail; item: ItemView })
       <ul className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
         {item.photos.map((p) => (
           <li key={p.id} className="group relative aspect-square overflow-hidden rounded-xl">
-            <Photo image={p.image} alt={t.by(p.uploadedBy.displayName)} sizes="(min-width: 640px) 160px, 33vw" />
-            {(p.uploadedBy.id === me?.id || trip.myRole === "OWNER") && (
+            <Photo image={p.image} alt={p.uploadedBy ? t.by(p.uploadedBy.displayName) : t.photo(item.title)} sizes="(min-width: 640px) 160px, 33vw" />
+            {((!!me && p.uploadedBy?.id === me.id) || trip.myRole === "OWNER") && (
               <button
                 type="button"
                 onClick={() => remove.run(p.id)}

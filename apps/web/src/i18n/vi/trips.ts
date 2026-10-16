@@ -267,7 +267,8 @@ export const trips: Messages["trips"] = {
     leaveTrip: "Rời chuyến đi",
     leaveTitle: "Rời chuyến đi này?",
     leaveBody: "Bạn sẽ mất quyền truy cập cho đến khi có người mời lại.",
-    removeBody: (name) => `${name} sẽ mất quyền truy cập chuyến đi này ngay lập tức.`,
+    removeBody: (name) => `${name} sẽ mất quyền truy cập chuyến đi này ngay lập tức. Các link mời đang mở cũng bị huỷ để họ không thể vào lại bằng link cũ.`,
+    linksRevoked: (n) => `Đã xoá. ${n === 1 ? "Link mời đang mở đã" : `${n} lời mời đang mở đã`} bị huỷ — hãy tạo link mới cho người khác.`,
     leave: "Rời đi",
   },
   invite: {

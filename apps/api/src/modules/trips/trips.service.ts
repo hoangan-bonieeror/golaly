@@ -70,10 +70,11 @@ export class TripsService {
         : Promise.resolve([]),
     ]);
     const order = { OWNER: 0, EDITOR: 1, VIEWER: 2 } as const;
+    const audience = { member: trip.members.some((m) => m.userId === viewerId), ownerId: trip.ownerId };
     return {
       ...toTripSummary(t, viewerId),
-      days: days.map(toDayView),
-      pool: pool.map(toItemView),
+      days: days.map((d) => toDayView(d, audience)),
+      pool: pool.map((i) => toItemView(i, audience)),
       // Non-members of a public trip see who created it, not the private member list (spec §34).
       members: (trip.members.some((m) => m.userId === viewerId) ? members : members.filter((m) => m.role === "OWNER"))
         .sort((a, b) => order[a.role] - order[b.role])

@@ -242,18 +242,27 @@ function evidenceOf(src: ItemRow["source"]): ItemEvidence | null {
   return { status: src.status, loves: src.votes.filter((v) => v.level === "LOVE").length, votes: src.votes.length };
 }
 
-export function toItemView(i: ItemRow): ItemView {
+/**
+ * Who may see who's on a trip. Members see everything; anyone else (a public or link-only trip) sees the plan but
+ * not the people: who added or edited a stop, uploaded a photo, voted or is going — except the owner, who is public.
+ */
+export type ItemAudience = { member: boolean; ownerId: string };
+const EVERYONE: ItemAudience = { member: true, ownerId: "" };
+
+export function toItemView(i: ItemRow, audience: ItemAudience = EVERYONE): ItemView {
+  const show = (userId: string | null | undefined) => audience.member || (!!userId && userId === audience.ownerId);
   return {
     id: i.id,
     tripId: i.tripId,
     dayId: i.dayId,
     slot: i.slot,
     status: i.status,
-    votes: i.votes.map((v) => ({ userId: v.userId, level: v.level })),
-    addedBy: i.addedBy ? toUserSummary(i.addedBy) : null,
-    photos: i.photos.map((p) => ({ id: p.id, image: toImage(p.media), uploadedBy: toUserSummary(p.uploader), createdAt: p.createdAt.toISOString() })),
+    // Outsiders still see how much the group wants a stop, not who: voters become anonymous placeholders.
+    votes: i.votes.map((v, n) => ({ userId: show(v.userId) ? v.userId : `anonymous-${n}`, level: v.level })),
+    addedBy: i.addedBy && show(i.addedBy.id) ? toUserSummary(i.addedBy) : null,
+    photos: i.photos.map((p) => ({ id: p.id, image: toImage(p.media), uploadedBy: show(p.uploader.id) ? toUserSummary(p.uploader) : null, createdAt: p.createdAt.toISOString() })),
     evidence: evidenceOf(i.source),
-    assignees: i.assignees.map((a) => a.userId),
+    assignees: audience.member ? i.assignees.map((a) => a.userId) : [],
     meetup: i.meetup,
     type: i.type,
     title: i.title,
@@ -263,13 +272,13 @@ export function toItemView(i: ItemRow): ItemView {
     notes: i.notes,
     sortOrder: i.sortOrder,
     place: i.place ? toPlaceView(i.place) : null,
-    updatedBy: i.updatedBy ? toUserSummary(i.updatedBy) : null,
+    updatedBy: i.updatedBy && show(i.updatedBy.id) ? toUserSummary(i.updatedBy) : null,
     updatedAt: i.updatedAt.toISOString(),
   };
 }
 
-export function toDayView(d: DayRow): DayView {
-  return { id: d.id, dayNumber: d.dayNumber, date: fromDate(d.date), title: d.title, items: d.items.map(toItemView) };
+export function toDayView(d: DayRow, audience: ItemAudience = EVERYONE): DayView {
+  return { id: d.id, dayNumber: d.dayNumber, date: fromDate(d.date), title: d.title, items: d.items.map((i) => toItemView(i, audience)) };
 }
 
 // ── Posts ────────────────────────────────────────────────────────────────

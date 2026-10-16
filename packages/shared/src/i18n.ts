@@ -163,6 +163,11 @@ const VI_EXACT: Record<string, string> = {
   "Only whoever added or paid an expense, or the trip owner, can change it.": "Chỉ người đã thêm hoặc đã trả khoản chi, hoặc chủ chuyến đi, mới sửa được.",
   "Both people have to be on the trip.": "Cả hai người đều phải là thành viên chuyến đi.",
   "Only the two people involved, or the trip owner, can undo a repayment.": "Chỉ hai người liên quan hoặc chủ chuyến đi mới huỷ được khoản trả lại.",
+  "Confirm your e-mail address before inviting people by e-mail — or share an invite link.": "Hãy xác nhận email của bạn trước khi mời qua email — hoặc chia sẻ link mời.",
+  "You've sent a lot of e-mail invitations today. Share an invite link instead, or try again tomorrow.": "Hôm nay bạn đã gửi rất nhiều lời mời qua email. Hãy chia sẻ link mời, hoặc thử lại vào ngày mai.",
+  "That address has had enough invitations today. Try again tomorrow.": "Địa chỉ này đã nhận đủ lời mời trong hôm nay. Hãy thử lại vào ngày mai.",
+  "Too many wrong passwords. You've been signed out of this device.": "Nhập sai mật khẩu quá nhiều lần. Bạn đã bị đăng xuất khỏi thiết bị này.",
+  "Only the person paying, the person paid, or the trip owner can record a repayment.": "Chỉ người trả, người nhận hoặc chủ chuyến đi mới ghi được khoản trả lại.",
 };
 
 /** `${what} couldn't be found.` — by subject. */

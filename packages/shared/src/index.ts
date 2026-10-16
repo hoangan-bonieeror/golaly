@@ -9,3 +9,4 @@ export * from "./plan";
 export * from "./money";
 export * from "./opening-hours";
 export * from "./local-time";
+export * from "./redirect";

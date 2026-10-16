@@ -27,7 +27,11 @@ export function MembersPanel({ trip }: { trip: TripDetail }) {
     invalidate,
     success: () => tm.roleUpdated,
   });
-  const remove = useAction((userId: string) => api.delete(`/trips/${trip.id}/members/${userId}`), { invalidate });
+  const remove = useAction((userId: string) => api.delete<{ ok: true; invitationsRevoked?: number }>(`/trips/${trip.id}/members/${userId}`), {
+    invalidate,
+    // Their way back in is closed: say so when open invite links were cancelled with it.
+    success: (r) => (r?.invitationsRevoked ? tm.linksRevoked(r.invitationsRevoked) : null),
+  });
   const revoke = useAction((id: string) => api.delete(`/trips/${trip.id}/invitations/${id}`), { invalidate, success: tm.revoked });
 
   return (

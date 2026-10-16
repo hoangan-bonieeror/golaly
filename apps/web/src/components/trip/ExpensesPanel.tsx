@@ -181,18 +181,21 @@ function Overview({ trip, view, onMode }: { trip: TripDetail; view: ExpensesView
                     <span className="min-w-0 flex-1 text-sm">
                       {t.pays(name(x.from), name(x.to))} <b className="tabular-nums">{money(x.amount)}</b>
                     </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={settle.isPending}
-                      aria-label={t.markPaidLabel(x.from.displayName, x.to.displayName, money(x.amount))}
-                      onClick={async () => {
-                        const v = await settle.run({ fromId: x.from.id, toId: x.to.id, amount: x.amount });
-                        if (v) setView(v);
-                      }}
-                    >
-                      <Check className="size-4" /> {t.markPaid}
-                    </Button>
+                    {/* Only the payer, the payee or the owner can record it (the API checks too). */}
+                    {me && [x.from.id, x.to.id, trip.owner.id].includes(me.id) && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={settle.isPending}
+                        aria-label={t.markPaidLabel(x.from.displayName, x.to.displayName, money(x.amount))}
+                        onClick={async () => {
+                          const v = await settle.run({ fromId: x.from.id, toId: x.to.id, amount: x.amount });
+                          if (v) setView(v);
+                        }}
+                      >
+                        <Check className="size-4" /> {t.markPaid}
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>

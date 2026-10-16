@@ -225,6 +225,8 @@ export class ExpensesService {
    */
   async settle(tripId: string, viewerId: string, input: SettlementInput) {
     const trip = await this.trip(tripId, viewerId);
+    // Only someone in the repayment (or the owner, who keeps the books) records it — never a third member.
+    if (![input.fromId, input.toId, trip.ownerId].includes(viewerId)) throw new AppError(403, "Only the person paying, the person paid, or the trip owner can record a repayment.");
     const members = new Set(trip.members.map((m) => m.userId));
     const onTheMoney = async (id: string) =>
       members.has(id) ||

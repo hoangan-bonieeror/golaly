@@ -8,7 +8,7 @@ beforeAll(async () => (t = await createTestContext()));
 afterAll(() => t.app.close());
 
 async function tripWithEditor() {
-  const owner = await t.register("own");
+  const owner = await t.register("own", { verified: true }); // e-mail invitations need a confirmed sender
   const trip = (await owner.post("/trips", { title: "Collab", startDate: "2027-06-01", endDate: "2027-06-02" })).body;
   const day = (await owner.get(`/trips/${trip.id}`)).body.days[0];
   return { owner, trip, day };
@@ -212,7 +212,7 @@ describe("realtime", () => {
         s.on("connect_error", reject);
       });
     const ownerSock = await connect(owner.cookies());
-    expect(await ownerSock.emitWithAck("trip.join", { tripId: trip.id })).toEqual({ ok: true });
+    expect(await ownerSock.emitWithAck("trip.join", { tripId: trip.id })).toMatchObject({ ok: true });
 
     const stranger = await t.register("rt");
     const strangerSock = await connect(stranger.cookies());

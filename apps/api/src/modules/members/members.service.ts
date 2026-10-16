@@ -18,6 +18,9 @@ import { TripAccessService } from "../trips/trip-access.service";
 import { ProductEventsService } from "../activity/product-events";
 
 const INVITE_TTL_MS = 7 * 86_400_000;
+/** Anti-abuse limits for invitations sent by e-mail (rolling 24 h). */
+const EMAIL_INVITES_PER_DAY = 50;
+const INVITES_PER_ADDRESS_PER_DAY = 3;
 type InvRole = Exclude<TripRole, "OWNER">;
 
 @Injectable()
@@ -70,6 +73,17 @@ export class MembersService {
   async invite(tripId: string, viewerId: string, input: CreateInvitationInput): Promise<CreatedInvitation> {
     const trip = await this.access.require("members.invite", tripId, viewerId);
     if (input.email) {
+      // E-mail goes out in our name: only from confirmed accounts, and within daily limits per sender and per
+      // address, so invitations can't be used to spam or bomb an inbox. Invite links have no such limits.
+      const sender = await this.prisma.user.findUnique({ where: { id: viewerId }, select: { emailVerifiedAt: true } });
+      if (!sender?.emailVerifiedAt) throw new AppError(403, "Confirm your e-mail address before inviting people by e-mail — or share an invite link.");
+      const since = new Date(Date.now() - 24 * 3_600_000);
+      const [sent, received] = await Promise.all([
+        this.prisma.tripInvitation.count({ where: { invitedBy: viewerId, email: { not: null }, createdAt: { gt: since } } }),
+        this.prisma.tripInvitation.count({ where: { email: { equals: input.email, mode: "insensitive" }, createdAt: { gt: since } } }),
+      ]);
+      if (sent >= EMAIL_INVITES_PER_DAY) throw new AppError(429, "You've sent a lot of e-mail invitations today. Share an invite link instead, or try again tomorrow.");
+      if (received >= INVITES_PER_ADDRESS_PER_DAY) throw new AppError(429, "That address has had enough invitations today. Try again tomorrow.");
       const existingUser = await this.prisma.user.findFirst({ where: { email: input.email, deletedAt: null }, select: { id: true } });
       if (existingUser && trip.members.some((m) => m.userId === existingUser.id)) throw Errors.conflict("That person is already on this trip.");
       const pending = await this.prisma.tripInvitation.findFirst({ where: { tripId, email: input.email, revokedAt: null, acceptedAt: null, expiresAt: { gt: new Date() } } });
@@ -240,14 +254,28 @@ export class MembersService {
     if (!leaving) this.access.assert("members.remove", trip, viewerId);
     if (userId === trip.ownerId) throw Errors.invalid(leaving ? "Owners can't leave their own trip — delete it instead." : "The owner can't be removed.");
     if (!trip.members.some((m) => m.userId === userId)) throw Errors.notFound("That member");
-    await this.prisma.transaction(async (tx) => {
+    const revoked = await this.prisma.transaction(async (tx) => {
       await tx.tripMember.delete({ where: { tripId_userId: { tripId, userId } } });
+      // Someone removed by the owner must not walk back in: cancel the trip's open invite links (reusable until
+      // they expire) and any e-mail invitation still waiting for their address. Leaving by yourself keeps them.
+      let n = 0;
+      if (!leaving) {
+        const email = (await tx.user.findUnique({ where: { id: userId }, select: { email: true } }))?.email;
+        const open = { tripId, revokedAt: null, acceptedAt: null, expiresAt: { gt: new Date() } };
+        n = (
+          await tx.tripInvitation.updateMany({
+            where: { ...open, OR: [{ email: null }, ...(email ? [{ email: { equals: email, mode: "insensitive" as const } }] : [])] },
+            data: { revokedAt: new Date() },
+          })
+        ).count;
+      }
       // They're no longer going anywhere with this group.
       await tx.itemAssignee.deleteMany({ where: { userId, item: { tripId } } });
-      await this.audit.log(viewerId, leaving ? "trip.member.left" : "trip.member.removed", "trip", tripId, { userId }, tx);
+      await this.audit.log(viewerId, leaving ? "trip.member.left" : "trip.member.removed", "trip", tripId, { userId, invitationsRevoked: n }, tx);
+      return n;
     });
     await this.realtime.kick(tripId, userId);
     this.realtime.trip(tripId, viewerId, "trip.member.removed", userId);
-    return { ok: true };
+    return { ok: true, invitationsRevoked: revoked };
   }
 }

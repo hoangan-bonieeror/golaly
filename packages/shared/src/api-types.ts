@@ -256,7 +256,8 @@ export interface TripSummary {
 export interface ItemPhotoView {
   id: string;
   image: ImageView;
-  uploadedBy: UserSummary;
+  /** null for people outside the trip unless the uploader is its owner (members stay private). */
+  uploadedBy: UserSummary | null;
   createdAt: string;
 }
 

@@ -15,6 +15,7 @@ import { DemoSwitcher } from "./DemoSwitcher";
 import { Logo } from "./Logo";
 import { LanguageSwitch, ThemeSwitch } from "./Preferences";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
+import { syncOfflineOwner } from "@/lib/offline";
 
 const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
 const PROTECTED_PREFIX = ["/invitations/", "/trips/new", "/admin"];
@@ -28,6 +29,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [createOpen, setCreateOpen] = useState(false);
   const t = useT();
   useNotificationStream(me?.id);
+  // Offline copies belong to whoever is signed in: clear them when that changes (not only on logout).
+  const known = meQuery.isSuccess;
+  useEffect(() => {
+    if (known) syncOfflineOwner(me?.id ?? null);
+  }, [known, me?.id]);
 
   // Pages that only make sense for a signed-in user. Trips, posts, profiles and
   // Explore stay viewable when logged out (public content only — enforced by the API).

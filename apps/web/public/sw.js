@@ -7,12 +7,14 @@
  * - Everything else goes straight to the network. Writes are never cached; the app queues
  *   went/skipped marks itself (lib/offline.ts) and syncs them when the connection is back.
  *
- * The data cache holds the signed-in user's own trips, so the app clears it on logout
- * (postMessage({ type: "clear" })).
+ * The data and media caches hold the signed-in user's own trips and photos, so the app clears them whenever
+ * the person changes — logout, someone else signing in, a session that ended (postMessage({ type: "clear" })).
+ * Built assets stay: they're the same for everyone.
  */
-const VERSION = "v1";
+const VERSION = "v2"; // v2: media moved out of the static cache (so it can be cleared with the data)
 const STATIC = `triply-static-${VERSION}`;
 const DATA = `triply-data-${VERSION}`;
+const MEDIA = `triply-media-${VERSION}`;
 const MEDIA_MAX = 300;
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -25,7 +27,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 self.addEventListener("message", (event) => {
-  if (event.data && event.data.type === "clear") event.waitUntil(caches.delete(DATA));
+  if (event.data && event.data.type === "clear") event.waitUntil(Promise.all([caches.delete(DATA), caches.delete(MEDIA)]));
 });
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
@@ -40,7 +42,7 @@ self.addEventListener("fetch", (event) => {
   const path = url.pathname;
 
   if (path.startsWith("/_next/static/")) return event.respondWith(cacheFirst(req, STATIC));
-  if (path.startsWith("/media/")) return event.respondWith(cacheFirst(req, STATIC, MEDIA_MAX));
+  if (path.startsWith("/media/")) return event.respondWith(cacheFirst(req, MEDIA, MEDIA_MAX));
   if (DATA_API.some((r) => r.test(path))) return event.respondWith(networkFirst(req, DATA));
   // Trip pages: the HTML on a full load, and the RSC payload on in-app navigation.
   if (PAGES.some((r) => r.test(path)) && (req.mode === "navigate" || req.headers.get("RSC") === "1")) return event.respondWith(networkFirst(req, DATA));

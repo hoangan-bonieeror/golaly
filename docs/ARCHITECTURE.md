@@ -26,7 +26,8 @@ Browser ◄── Socket.IO (direct to the API: cookie, or a 1-min socket token)
 
 - **Session check:** the guard (and the Socket.IO handshake) verifies the JWT **and** that its session row is live — not revoked, not expired, user not deleted. One primary-key lookup; it makes logout, password change/reset and account deletion take effect on the next request. Revoked sessions' sockets are disconnected (`session:<id>` rooms).
 - **Rotation:** each refresh issues a new refresh token; the swap is conditional on the old hash, so two concurrent refreshes can't both win. The previous hash is kept (`prev_token_hash`): replaying it within 30 s is a benign multi-tab race (`{ ok, raced: true }`, cookies untouched, the client retries); replaying it later means it was copied, so the whole session is revoked and audited (`session.reuse_detected`).
-- **Lockout:** every 5 consecutive wrong passwords lock that account for 15 minutes (429), independent of IP. A successful login or a password reset clears it.
+- **Lockout:** every 5 consecutive wrong passwords lock that account for 15 minutes (429), independent of IP. A successful login or a password reset clears it. Wrong passwords typed by someone already signed in (change password, delete account) count too, and when they lock the account that session is signed out — a stolen session can't be used to guess the password.
+- **After sign-in** only same-site paths are followed (`safeNext` in `packages/shared`, shared by the web login page and Google sign-in): `//host`, `/\host`, control characters and absolute URLs fall back to `/home`.
 - **Email confirmation:** registration sends a 48-hour single-use link (`POST /auth/verify-email`, resend with `POST /auth/verify-email/resend`). Until confirmed, the account can't claim email-bound invitations (and gets no in-app notification for them). Accounts that existed before this was introduced were marked confirmed by the migration.
 - **Typed tokens:** every JWT carries `typ`; the guard only accepts `access` with UUID `sub`/`sid`, so e.g. the OAuth state cookie (same secret) can never act as an access token.
 - **CSRF:** every non-GET request must send `X-Requested-With: triply`. Browsers can't add that header cross-site without a CORS preflight, and only `WEB_ORIGIN` passes the preflight. This sits on top of SameSite=Lax.
@@ -190,7 +191,18 @@ realtime work with the web app and the API on different domains (Vercel → Rend
 cookie there, and Vercel rewrites don't carry WebSockets. A socket token is bound to the session (logout or a
 revoked session kills it) and HTTP routes never accept it; the access token is never exposed to scripts.
 
-The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknowledged with `{ ok }`. The server emits:
+**Origin.** Socket.IO's `cors` only covers HTTP polling, so the WebSocket upgrade is checked separately
+(`allowRequest`): a browser handshake from an origin outside `WEB_ORIGIN` / `CORS_EXTRA_ORIGINS` is refused.
+
+**Rooms.** Members of a trip join `trip:<id>` (plan events, presence, `trip.expenses.updated`, member changes).
+Anyone else allowed to view a public or link-only trip joins `trip:<id>:public`: plan changes only, with `actorId`
+blanked, no presence, no money; they don't show up in members' presence either. Going private empties the public
+room and evicts non-members.
+
+**Abuse limits.** Each socket gets 40 events per 10 s (more are refused with `rate_limited`; past 200 the socket is
+dropped), at most 20 trips at once, and activity reports are coalesced into one presence broadcast per 150 ms.
+
+The client emits `trip.join` / `trip.leave` with `{ tripId }`; joining is acknowledged with `{ ok, member }`. The server emits:
 
 - `trip.event` `{ tripId, actorId, event, entityId? }`, where `event` is one of `trip.item.created|updated|deleted|reordered`, `trip.day.created`, `trip.updated` or `trip.member.joined|role_changed|removed`.
 - `notification.new` (sent to the `user:<id>` room).
