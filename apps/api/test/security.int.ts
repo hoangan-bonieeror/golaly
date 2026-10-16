@@ -239,3 +239,54 @@ describe("S9 · invitations can't be used to spam an inbox", () => {
     expect(statuses).toEqual([201, 201, 201, 429]);
   });
 });
+
+describe("S3 · guessing someone's password doesn't lock them out", () => {
+  const lockOut = async (email: string) => {
+    for (let i = 0; i < 5; i++) expect((await t.anon().post("/auth/login", { email, password: `guess-${i}-guess` })).status).toBe(401);
+  };
+
+  it("sign-in hands the browser a known-device cookie, scoped to the auth routes", async () => {
+    const u = await t.register("s3c");
+    const res = await t.anon().post("/auth/login", { email: u.email, password: "password123" });
+    const dev = (res.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_dev="));
+    expect(dev).toMatch(/Path=\/api\/v1\/auth/);
+    expect(dev).toMatch(/HttpOnly/);
+  });
+
+  it("a stranger's guesses lock strangers out; the owner's own browser still gets in", async () => {
+    const owner = await t.register("s3o"); // signed up here, so this browser is known
+    await lockOut(owner.email);
+    expect((await t.anon().post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
+    expect((await owner.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(200);
+    expect((await t.prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).failedLoginCount).toBe(0);
+  });
+
+  it("another account's device cookie doesn't count, and a known device is held back past the hard limit", async () => {
+    const owner = await t.register("s3h");
+    const other = await t.register("s3x");
+    await lockOut(owner.email);
+    expect((await other.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
+
+    await t.prisma.user.update({ where: { id: owner.id }, data: { failedLoginCount: 20 } });
+    expect((await owner.post("/auth/login", { email: owner.email, password: "password123" })).status).toBe(429);
+  });
+});
+
+describe("S15 · sign-in doesn't reveal whether an account exists", () => {
+  it("an unknown address locks after the same number of guesses, with the same answers", async () => {
+    const real = await t.register("s15r");
+    const ghost = `nobody-${Date.now().toString(36)}@example.com`;
+    const run = async (email: string) => {
+      const out: [number, string][] = [];
+      for (let i = 0; i < 6; i++) {
+        const r = await t.anon().post("/auth/login", { email, password: `guess-${i}-guess` });
+        out.push([r.status, String(r.body.message).replace(/\d+ minutes?/, "N minutes")]);
+      }
+      return out;
+    };
+    const a = await run(real.email);
+    const b = await run(ghost);
+    expect(a.map(([s]) => s)).toEqual([401, 401, 401, 401, 401, 429]);
+    expect(b).toEqual(a);
+  });
+});

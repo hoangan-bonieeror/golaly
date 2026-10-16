@@ -1,6 +1,6 @@
 import { requestLocale } from "../../common/locale";
 import { mails } from "../mail/templates";
-import { Body, Controller, HttpCode, Injectable, Post, Req, Res } from "@nestjs/common";
+import { Body, Controller, HttpCode, Injectable, Logger, Post, Req, Res } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Throttle } from "@nestjs/throttler";
 import {
@@ -16,8 +16,8 @@ import {
   type RegisterInput,
 } from "@triply/shared";
 import type { Request, Response } from "express";
-import { CurrentUser, Public, REFRESH_COOKIE, type AuthUser, type JwtPayload } from "../../common/auth";
-import { clearAuthCookies, setAuthCookies } from "../../common/cookies";
+import { CurrentUser, DEVICE_COOKIE, Public, REFRESH_COOKIE, type AuthUser, type DeviceTokenPayload, type JwtPayload } from "../../common/auth";
+import { clearAuthCookies, setAuthCookies, setDeviceCookie } from "../../common/cookies";
 import { hashPassword, randomToken, sha256, verifyPassword } from "../../common/crypto";
 import { AppError, Errors, ZodPipe } from "../../common/http";
 import { env } from "../../config/env";
@@ -28,7 +28,7 @@ import { UsersService } from "../users/users.service";
 import { SearchIndexService } from "../search/search-index";
 import { RealtimeService } from "../realtime/realtime";
 import { ProductEventsService } from "../activity/product-events";
-import { assertNotLocked, recordPasswordFailure } from "./lockout";
+import { assertMayTry, assertNotLocked, PhantomLockouts, recordPasswordFailure } from "./lockout";
 
 export const AUTH_LIMIT = { default: { limit: env.AUTH_RATE_LIMIT_PER_MIN, ttl: 60_000 } };
 const RESET_TTL_MS = 30 * 60_000;
@@ -41,9 +41,13 @@ const getDummyHash = () => (dummyHash ??= hashPassword(randomToken()));
 
 /** Socket tokens only need to outlive the handshake (and a slow reconnect). */
 const SOCKET_TOKEN_TTL_S = 60;
+const DEVICE_TOKEN_TTL_S = 365 * 86_400;
 
 @Injectable()
 export class AuthService {
+  private readonly log = new Logger(AuthService.name);
+  private readonly phantoms = new PhantomLockouts();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -131,12 +135,25 @@ export class AuthService {
     await this.audit.log(userId, "user.password_changed", "user", userId);
   }
 
-  async login(input: LoginInput) {
-    const user = await this.prisma.user.findFirst({ where: { email: input.email, deletedAt: null }, select: { id: true, passwordHash: true, lockedUntil: true } });
+  /**
+   * `deviceToken` is the known-device cookie: while the account is locked, a browser that has signed in to it
+   * before may still try (see assertMayTry) — a stranger guessing passwords can't lock the owner out.
+   */
+  async login(input: LoginInput, deviceToken?: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { email: input.email, deletedAt: null },
+      select: { id: true, passwordHash: true, lockedUntil: true, failedLoginCount: true },
+    });
     const ok = await verifyPassword(user?.passwordHash ?? (await getDummyHash()), input.password);
-    assertNotLocked(user?.lockedUntil);
-    if (!user || !ok) {
-      if (user) await recordPasswordFailure(this.prisma, this.audit, user.id);
+    if (!user) {
+      // No account: behave exactly like one (same 401, same lockout after LOCK_AFTER guesses).
+      this.phantoms.assertNotLocked(input.email);
+      this.phantoms.recordFailure(input.email);
+      throw new AppError(401, "That email and password don't match.");
+    }
+    assertMayTry(user, user.lockedUntil ? await this.isKnownDevice(deviceToken, user.id) : false);
+    if (!ok) {
+      await recordPasswordFailure(this.prisma, this.audit, user.id);
       throw new AppError(401, "That email and password don't match.");
     }
     await this.prisma.user.updateMany({ where: { id: user.id, OR: [{ failedLoginCount: { gt: 0 } }, { lockedUntil: { not: null } }] }, data: { failedLoginCount: 0, lockedUntil: null } });
@@ -166,6 +183,21 @@ export class AuthService {
   /** A one-minute token that only opens a realtime socket for this session (never accepted by HTTP routes). */
   signSocket(userId: string, sessionId: string) {
     return this.jwt.signAsync({ sub: userId, sid: sessionId, typ: "socket" } satisfies JwtPayload, { secret: env.JWT_SECRET, expiresIn: SOCKET_TOKEN_TTL_S });
+  }
+
+  /** Long-lived "this browser has signed in as this person" marker (see login). */
+  signDevice(userId: string) {
+    return this.jwt.signAsync({ sub: userId, typ: "device" } satisfies DeviceTokenPayload, { secret: env.JWT_SECRET, expiresIn: DEVICE_TOKEN_TTL_S });
+  }
+
+  async isKnownDevice(token: string | undefined, userId: string) {
+    if (!token) return false;
+    try {
+      const p = await this.jwt.verifyAsync<Partial<DeviceTokenPayload>>(token, { secret: env.JWT_SECRET });
+      return p.typ === "device" && p.sub === userId;
+    } catch {
+      return false;
+    }
   }
 
   signAccess(userId: string, sessionId: string) {
@@ -221,6 +253,11 @@ export class AuthService {
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findFirst({ where: { email, deletedAt: null }, select: { id: true, profile: { select: { locale: true } } } });
     if (!user) return;
+    // Out of band: awaiting the mail server would make "has an account" measurably slower than "doesn't".
+    void this.sendReset(email, user).catch((e: Error) => this.log.warn(`Password reset mail failed: ${e.message}`));
+  }
+
+  private async sendReset(email: string, user: { id: string; profile: { locale: string | null } | null }) {
     const token = randomToken();
     await this.prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: sha256(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) } });
     const locale = isLocale(user.profile?.locale) ? user.profile.locale : requestLocale();
@@ -267,6 +304,7 @@ export class AuthController {
   async register(@Body(new ZodPipe(registerSchema)) body: RegisterInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.register(body);
     setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+    setDeviceCookie(res, await this.auth.signDevice(user.id));
     this.product.track({ type: "user.registered", userId: user.id, props: { method: "password" } });
     return this.auth.me(user.id);
   }
@@ -276,8 +314,9 @@ export class AuthController {
   @HttpCode(200)
   @Post("login")
   async login(@Body(new ZodPipe(loginSchema)) body: LoginInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const user = await this.auth.login(body);
+    const user = await this.auth.login(body, req.cookies?.[DEVICE_COOKIE]);
     setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+    setDeviceCookie(res, await this.auth.signDevice(user.id));
     this.product.track({ type: "user.login", userId: user.id, props: { method: "password" } });
     return this.auth.me(user.id);
   }

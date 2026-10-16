@@ -1,6 +1,6 @@
 import type { CookieOptions, Response } from "express";
 import { env } from "../config/env";
-import { ACCESS_COOKIE, REFRESH_COOKIE } from "./auth";
+import { ACCESS_COOKIE, DEVICE_COOKIE, REFRESH_COOKIE } from "./auth";
 
 /** HTTP-only, SameSite=Lax cookies; `Secure` in production (spec §42). */
 function cookieBase(): CookieOptions {
@@ -10,6 +10,11 @@ function cookieBase(): CookieOptions {
 export function setAuthCookies(res: Response, tokens: { access: string; refresh: string }) {
   res.cookie(ACCESS_COOKIE, tokens.access, { ...cookieBase(), path: "/", maxAge: env.ACCESS_TOKEN_TTL_SECONDS * 1000 });
   res.cookie(REFRESH_COOKIE, tokens.refresh, { ...cookieBase(), path: "/api/v1/auth", maxAge: env.REFRESH_TOKEN_TTL_DAYS * 86_400_000 });
+}
+
+/** "This browser has signed in to this account before" — lets its owner in while a lockout blocks strangers. */
+export function setDeviceCookie(res: Response, token: string) {
+  res.cookie(DEVICE_COOKIE, token, { ...cookieBase(), path: "/api/v1/auth", maxAge: 365 * 86_400_000 });
 }
 
 export function clearAuthCookies(res: Response) {

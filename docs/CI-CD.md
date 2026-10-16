@@ -58,6 +58,7 @@ Optional: *Required reviewers* = yourself, if you want to click **Approve** befo
 - Settings → Build & Deploy → **Auto-Deploy: Off** (`render.yaml`: `autoDeployTrigger: off`). CI triggers the deploy through the hook,
   pinned to the tested commit (`&ref=<sha>`), and only after the migrations ran.
 - Set `WEB_ORIGIN` to the Vercel production URL once it exists.
+- Set `EDGE_SECRET` — the same random value (32+ chars, `openssl rand -hex 32`) as on Vercel. It lets the API trust the visitor address the web proxy forwards; without it every visitor shares the rate limit of Vercel's servers.
 
 ### 3. Vercel
 
@@ -66,6 +67,7 @@ Optional: *Required reviewers* = yourself, if you want to click **Approve** befo
 - Project → Settings → Environment Variables (Production *and* Preview):
   - `API_ORIGIN` = `https://triply-api.onrender.com` — used at **build time** for the `/api/v1` and `/media` rewrites
   - `NEXT_PUBLIC_REALTIME_URL` = `https://triply-api.onrender.com`
+  - `EDGE_SECRET` = the same value as on Render (read at **runtime** by `src/proxy.ts`, so Sensitive is fine). After the next deploy, open `/api/v1/admin/diagnostics/request` signed in as an admin: `viaEdge: true` and your own IP in `clientIp` mean it works.
 - Previews call the production API: fine for a demo; don't share preview links with test data you care about.
 
 ### 4. Branch protection (recommended)

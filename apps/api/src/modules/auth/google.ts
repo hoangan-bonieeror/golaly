@@ -5,7 +5,7 @@ import type { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 import { createHash } from "node:crypto";
 import { Public } from "../../common/auth";
-import { setAuthCookies } from "../../common/cookies";
+import { setAuthCookies, setDeviceCookie } from "../../common/cookies";
 import { randomToken } from "../../common/crypto";
 import { env } from "../../config/env";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -201,6 +201,7 @@ export class GoogleAuthController {
       const profile = await this.google.profile(q.code, saved.verifier);
       const user = await this.googleAuth.resolveUser(profile);
       setAuthCookies(res, await this.auth.startSession(user.id, req.headers["user-agent"]));
+      setDeviceCookie(res, await this.auth.signDevice(user.id));
       this.product.track({ type: user.isNew ? "user.registered" : "user.login", userId: user.id, props: { method: "google" } });
       res.clearCookie(STATE_COOKIE, { path: STATE_PATH });
       const onboarded = (await this.prisma.userProfile.findUnique({ where: { userId: user.id }, select: { onboardedAt: true } }))?.onboardedAt;

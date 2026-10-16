@@ -4,7 +4,8 @@ import { NextModule } from "./modules/next/next";
 import { Controller, Get, Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { JwtModule } from "@nestjs/jwt";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
+import { ClientIpThrottlerGuard } from "./common/client-ip";
 import { AuthGuard, Public } from "./common/auth";
 import { AllExceptionsFilter } from "./common/http";
 import { env } from "./config/env";
@@ -67,7 +68,7 @@ class HealthController {
   ],
   controllers: [HealthController],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ClientIpThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],

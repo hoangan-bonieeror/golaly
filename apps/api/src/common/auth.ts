@@ -14,12 +14,20 @@ import { Errors } from "./http";
 
 export const ACCESS_COOKIE = "triply_at";
 export const REFRESH_COOKIE = "triply_rt";
+/** A signed "known device" token (typ "device"); kept on logout so the device stays known. */
+export const DEVICE_COOKIE = "triply_dev";
 export const CSRF_HEADER = "x-requested-with";
 export const CSRF_VALUE = "triply";
 
 export interface AuthUser {
   id: string;
   sessionId: string;
+}
+
+/** Payload of the known-device cookie: no session — it outlives sign-outs and only matters at sign-in. */
+export interface DeviceTokenPayload {
+  sub: string;
+  typ: "device";
 }
 
 export interface JwtPayload {

@@ -97,6 +97,17 @@ const schema = z.object({
    * (e.g. "loopback, uniquelocal" in Docker) or a hop count. Never "true": then any client
    * could spoof its IP and dodge rate limits.
    */
+  /**
+   * Shared secret between the web app's proxy (apps/web/src/proxy.ts) and the API. When the web app sits on
+   * another host (Vercel → Render), the API only sees the web app's address; the proxy forwards the browser's
+   * address in `x-triply-client-ip` with this secret, and rate limits key on it only when the secret matches.
+   * Unset: rate limits use the connection's address (req.ip). At least 32 characters.
+   */
+  EDGE_SECRET: z
+    .string()
+    .optional()
+    .transform((v) => v?.trim() || undefined)
+    .refine((v) => !v || v.length >= 32, "EDGE_SECRET must be at least 32 characters."),
   TRUST_PROXY: z
     .string()
     .default("loopback")

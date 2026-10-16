@@ -60,7 +60,10 @@ describe("interface language", () => {
       const u = await t.register("mailvi");
       await u.patch("/users/me", { locale: "vi" });
       // The request itself is English: the account's language wins.
+      const before = sent.mock.calls.length;
       expect((await t.anon().post("/auth/forgot-password", { email: u.email })).status).toBeLessThan(300);
+      // The reset mail goes out after the response (equal timing for unknown addresses).
+      for (let i = 0; i < 100 && sent.mock.calls.length === before; i++) await new Promise((r) => setTimeout(r, 20));
       const msg = sent.mock.calls.at(-1)![0];
       expect(msg.subject).toBe("Đặt lại mật khẩu TRIPLY");
       expect(msg.text).toContain("/reset-password?token=");
