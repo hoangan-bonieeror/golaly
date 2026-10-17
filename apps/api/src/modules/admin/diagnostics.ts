@@ -1,6 +1,7 @@
 import { Controller, Get, Req, UseGuards } from "@nestjs/common";
 import type { Request } from "express";
 import { CLIENT_IP_HEADER, clientIp, viaEdge } from "../../common/client-ip";
+import { timingSummary } from "../../common/timing";
 import { env } from "../../config/env";
 import { AdminGuard } from "./catalog";
 
@@ -30,5 +31,11 @@ export class DiagnosticsController {
       xForwardedFor: req.headers["x-forwarded-for"] ?? null,
       remoteAddress: req.socket.remoteAddress ?? null,
     };
+  }
+
+  /** Recent server-side durations per route (since this instance started): p50 / p95 / max, average DB time and query count. */
+  @Get("timings")
+  timings() {
+    return timingSummary();
   }
 }
