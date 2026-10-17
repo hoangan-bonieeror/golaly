@@ -135,7 +135,7 @@ export class ExploreService {
     const [popular, remixable, places, posts] = await Promise.all([
       this.prisma.trip.findMany({ where: tripWhere, orderBy: { saveCount: "desc" }, take: 9, include: tripSummaryInclude(viewerId) }),
       this.prisma.trip.findMany({ where: { ...tripWhere, allowFork: true }, orderBy: { forkCount: "desc" }, take: 6, include: tripSummaryInclude(viewerId) }),
-      this.prisma.place.findMany({ where: { ...(await this.destinationPlaces(d)), ...listablePlace }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }], take: 12, include: placeInclude(viewerId) }),
+      this.prisma.place.findMany({ where: { ...(await this.destinationPlaces(d)), ...listablePlace }, orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { id: "asc" }], take: 12, include: placeInclude(viewerId) }),
       this.prisma.post.findMany({
         where: { deletedAt: null, visibility: "PUBLIC", OR: [{ destinationId: d.id }, { trip: tripWhere }] },
         orderBy: { createdAt: "desc" },

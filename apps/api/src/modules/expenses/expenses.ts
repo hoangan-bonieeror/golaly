@@ -1,3 +1,4 @@
+import type { Prisma } from "../../generated/prisma/client";
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Module, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
 import {
   balances,
@@ -34,8 +35,8 @@ const expenseInclude = {
   paidBy: { select: userSummarySelect },
   createdBy: { select: userSummarySelect },
   item: { select: { id: true, title: true } },
-  shares: { include: { user: { select: userSummarySelect } }, orderBy: { amount: "desc" as const } },
-} as const;
+  shares: { include: { user: { select: userSummarySelect } }, orderBy: [{ amount: "desc" }, { userId: "asc" }] },
+} satisfies Prisma.ExpenseInclude;
 
 /**
  * The group's expenses (roadmap phase 3). Members only: never visible on a public trip, never
