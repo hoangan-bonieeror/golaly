@@ -41,32 +41,39 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   const path = url.pathname;
 
-  if (path.startsWith("/_next/static/")) return event.respondWith(cacheFirst(req, STATIC));
-  if (path.startsWith("/media/")) return event.respondWith(cacheFirst(req, MEDIA, MEDIA_MAX));
-  if (DATA_API.some((r) => r.test(path))) return event.respondWith(networkFirst(req, DATA));
+  if (path.startsWith("/_next/static/")) return event.respondWith(cacheFirst(event, STATIC));
+  if (path.startsWith("/media/")) return event.respondWith(cacheFirst(event, MEDIA, MEDIA_MAX));
+  if (DATA_API.some((r) => r.test(path))) return event.respondWith(networkFirst(event, DATA));
   // Trip pages: the HTML on a full load, and the RSC payload on in-app navigation.
-  if (PAGES.some((r) => r.test(path)) && (req.mode === "navigate" || req.headers.get("RSC") === "1")) return event.respondWith(networkFirst(req, DATA));
+  if (PAGES.some((r) => r.test(path)) && (req.mode === "navigate" || req.headers.get("RSC") === "1")) return event.respondWith(networkFirst(event, DATA));
 });
 
-async function cacheFirst(req, name, max) {
+async function cacheFirst(event, name, max) {
+  const req = event.request;
   const cache = await caches.open(name);
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
   if (res.ok && res.type === "basic") {
-    await cache.put(req, res.clone());
-    if (max) trim(cache, max);
+    const copy = res.clone();
+    event.waitUntil(cache.put(req, copy).then(() => max && trim(cache, max)).catch(() => undefined));
   }
   return res;
 }
 
-async function networkFirst(req, name) {
-  const cache = await caches.open(name);
+// Hands the response to the page as soon as its headers arrive — pages stream (the shell first, then the content) —
+// and stores the copy in the background. Waiting for cache.put would hold the whole page back until it was complete.
+async function networkFirst(event, name) {
+  const req = event.request;
   try {
     const res = await fetch(req);
-    if (res.ok && res.type === "basic") await cache.put(req, res.clone());
+    if (res.ok && res.type === "basic") {
+      const copy = res.clone();
+      event.waitUntil(caches.open(name).then((cache) => cache.put(req, copy)).catch(() => undefined));
+    }
     return res;
   } catch (e) {
+    const cache = await caches.open(name);
     const hit = await cache.match(req, { ignoreVary: true });
     if (hit) return hit;
     throw e;
