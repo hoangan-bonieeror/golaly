@@ -8,7 +8,8 @@ import { dayColor, dayLegs, dayStats, formatKm, legLabel } from "@/lib/trip-geo"
 import { api } from "@/lib/api/client";
 import { keys, useAction, useMe } from "@/lib/api/queries";
 import { prefersReducedMotion } from "@/lib/motion";
-import { absentOn, applyMove, dayIndexFor, dayProgress, firstName, ITEM_SLOTS, listId, markable, nameList, parseList, tripNow, tripPhase } from "@/lib/plan";
+import { absentOn, applyMove, dayIndexFor, dayProgress, firstName, ITEM_SLOTS, listId, markable, nameList, parseList, todayIso, tripNow, tripPhase } from "@/lib/plan";
+import { useClock } from "@/lib/clock";
 import { useNow } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
 import { useFormat, useI18n } from "@/i18n/client";
@@ -73,13 +74,14 @@ export function Itinerary({
   const and = locale === "vi" ? "và" : "&";
   const ta = t.after;
   // After the trip starts, stops can be marked went / skipped: one tap on the card while it's under way or over.
-  const phase = tripPhase(trip);
+  const { timeZone } = useClock();
+  const clock = useNow();
+  const phase = tripPhase(trip, todayIso(clock, timeZone));
   const canMark = canEdit && phase !== "before";
   const inlineMark = canEdit && (phase === "during" || phase === "after");
   const setStatuses = useSetStatuses(trip);
   // While the trip is under way: today's day and the part of the day it is now.
-  const clock = useNow();
-  const nowAt = tripNow(trip, clock);
+  const nowAt = tripNow(trip, clock, timeZone);
   const td = t.during;
   // Splitting up: who's going to a stop, and the meet-up point.
   const [assigning, setAssigning] = useState<ItemView | null>(null);

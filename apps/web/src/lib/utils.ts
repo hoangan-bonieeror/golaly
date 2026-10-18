@@ -21,9 +21,10 @@ export function formatCount(n: number, l: Locale = fmt) {
   return `${l === "vi" ? v.replace(".", ",") : v}${CATALOGS[l].format.thousandSuffix}`;
 }
 
-export function timeAgo(iso: string, l: Locale = fmt) {
+/** `now` and `timeZone` come from lib/clock.tsx in components, so server-rendered pages hydrate with the same text. */
+export function timeAgo(iso: string, l: Locale = fmt, now: number = Date.now(), timeZone?: string) {
   const f = CATALOGS[l].format;
-  const s = Math.max(1, (Date.now() - Date.parse(iso)) / 1000);
+  const s = Math.max(1, (now - Date.parse(iso)) / 1000);
   if (s < 60) return f.justNow;
   const m = s / 60;
   if (m < 60) return f.minutesShort(Math.floor(m));
@@ -31,7 +32,7 @@ export function timeAgo(iso: string, l: Locale = fmt) {
   if (h < 24) return f.hoursShort(Math.floor(h));
   const d = h / 24;
   if (d < 7) return f.daysShort(Math.floor(d));
-  return new Date(iso).toLocaleDateString(INTL_LOCALE[l], { month: "short", day: "numeric" });
+  return new Date(iso).toLocaleDateString(INTL_LOCALE[l], { month: "short", day: "numeric", timeZone });
 }
 
 /** A date (YYYY-MM-DD) in the interface language, e.g. "Wed, 10 Mar" / "Th 4, 10 thg 3". */

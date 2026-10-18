@@ -2,12 +2,14 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Locale } from "@triply/shared";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { I18nProvider, useI18n } from "@/i18n/client";
 import { ApiError } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
 import { registerServiceWorker } from "@/lib/offline";
 import { ToastProvider } from "@/lib/toast";
+import { syncPlaceNamesCookie } from "@/lib/placeLanguage";
+import { ClockProvider } from "@/lib/clock";
 
 /** After sign-in on a new device, the language saved on the account wins over the device's guess. */
 function AccountLocale() {
@@ -21,7 +23,7 @@ function AccountLocale() {
   return null;
 }
 
-export function Providers({ locale, children }: { locale: Locale; children: React.ReactNode }) {
+export function Providers({ locale, renderedAt, timeZone, children }: { locale: Locale; renderedAt: number; timeZone: string | null; children: React.ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
@@ -38,12 +40,34 @@ export function Providers({ locale, children }: { locale: Locale; children: Reac
       }),
   );
   useEffect(() => registerServiceWorker(), []);
+  useEffect(() => syncPlaceNamesCookie(), []);
   return (
     <QueryClientProvider client={client}>
-      <I18nProvider initial={locale}>
-        <AccountLocale />
-        <ToastProvider>{children}</ToastProvider>
-      </I18nProvider>
+      <ClockProvider renderedAt={renderedAt} timeZone={timeZone}>
+        <I18nProvider initial={locale}>
+          <AccountLocale />
+          <ToastProvider>
+            {/*
+              A boundary around the page: the document shell (head, fonts, styles) streams at once while a page waits
+              for its server prefetch, and if a page's server HTML ever doesn't match, React re-renders just the
+              page, not <html> (which would drop the theme set before paint).
+            */}
+            <Suspense>
+              {children}
+              <HydratedMark />
+            </Suspense>
+          </ToastProvider>
+        </I18nProvider>
+      </ClockProvider>
     </QueryClientProvider>
   );
+}
+
+/**
+ * Marks <html data-hydrated> once the page itself has hydrated. Pages can arrive with their content already
+ * rendered (server prefetch) and their controls don't respond until then; tests wait for this marker.
+ */
+function HydratedMark() {
+  useEffect(() => void (document.documentElement.dataset.hydrated = "1"), []);
+  return null;
 }

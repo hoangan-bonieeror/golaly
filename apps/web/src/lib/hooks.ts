@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRenderNow } from "./clock";
 
 export function useDebounced<T>(value: T, ms = 250): T {
   const [v, setV] = useState(value);
@@ -26,10 +27,17 @@ export function useMediaQuery(query: string) {
 
 /** The current time, refreshed every `ms` (default a minute) — for "now" highlights. */
 export function useNow(ms = 60_000) {
-  const [now, setNow] = useState(() => new Date());
+  // Starts at the server's render time while hydrating (lib/clock.tsx), so server-rendered pages match.
+  const renderNow = useRenderNow();
+  const [now, setNow] = useState(renderNow);
   useEffect(() => {
+    // Right after hydration, then every `ms`.
+    const first = setTimeout(() => setNow(new Date()), 0);
     const id = setInterval(() => setNow(new Date()), ms);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
   }, [ms]);
   return now;
 }

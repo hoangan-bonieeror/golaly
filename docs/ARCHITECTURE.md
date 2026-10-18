@@ -16,6 +16,8 @@ Browser ◄── Socket.IO (direct to the API: cookie, or a 1-min socket token)
 
 - The browser only talks to its own origin for REST, so auth cookies are first-party and REST calls need no CORS.
 - Realtime events only tell clients **what changed**. Clients refetch from REST, which stays the single source of truth. Concurrent edits can't diverge.
+- **Pages people open from a link arrive with their data.** Trip, destination and place pages are a small server component (`page.tsx`) around the client view: on a full page load it asks the API for the same data the client hook would (`lib/api/server.ts` — server to server, as the visitor: their cookies, language, place-name choice and, with `EDGE_SECRET`, address; 900 ms timeout) and hands it over under the same query key (`Prefetched`, which only fills queries the client doesn't have, so an older server copy never overwrites newer data). The HTML then contains the content, and the browser doesn't wait for its JavaScript before asking the API. In-app navigation (RSC requests) skips the prefetch; any failure just leaves the client to fetch as before.
+- **One clock for server and hydration** (`lib/clock.tsx`): "2 min ago", "today", "open now" and the part of the day are computed with the server's render time and the browser's last-reported time zone (`triply-tz` cookie, UTC on a first visit) until hydration, then with the live clock — so server HTML and the first client render always match. Pages sit in one Suspense boundary inside `<Providers>`: the document head streams while a page waits for its prefetch, and a mismatch would re-render only the page. `<html data-hydrated>` marks when the page responds (the E2E waits for it).
 
 ## Authentication
 

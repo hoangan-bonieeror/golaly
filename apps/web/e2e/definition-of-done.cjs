@@ -26,6 +26,17 @@ fs.mkdirSync(shots, { recursive: true });
     const p = await ctx.newPage();
     p.on("pageerror", (e) => errors.push(`${tag} pageerror: ${e.message}`));
     p.on("console", (m) => m.type() === "error" && !/401|403|404|Failed to load resource/.test(m.text()) && errors.push(`${tag}: ${m.text()}`));
+    // Pages may arrive server-rendered with their content; wait until React has hydrated before using them, as a
+    // person would wait for the page to respond (providers.tsx sets the marker).
+    const hydrated = () => p.waitForFunction(() => document.documentElement.dataset.hydrated === "1", null, { timeout: 30000 });
+    for (const m of ["goto", "reload"]) {
+      const orig = p[m].bind(p);
+      p[m] = async (...a) => {
+        const res = await orig(...a);
+        await hydrated();
+        return res;
+      };
+    }
     pages.push([tag, p]);
     return p;
   };

@@ -4,6 +4,23 @@
  * Kept per device in localStorage — it's a display preference.
  */
 const KEY = "triply.placeNames";
+/**
+ * Mirror of the choice for the server render (lib/api/server.ts), which can't read localStorage. Same values;
+ * absent = same as the app language.
+ */
+export const PLACE_NAMES_COOKIE = "triply-place-names";
+
+function writeCookie(v: PlaceNameChoice) {
+  if (typeof document === "undefined") return;
+  document.cookie = v ? `${PLACE_NAMES_COOKIE}=${v}; Path=/; Max-Age=31536000; SameSite=Lax` : `${PLACE_NAMES_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+/** Brings the cookie in line with a choice saved before the cookie existed (run once on start). */
+export function syncPlaceNamesCookie() {
+  const v = getPlaceNameChoice();
+  const has = document.cookie.split("; ").find((c) => c.startsWith(`${PLACE_NAMES_COOKIE}=`))?.split("=")[1] ?? "";
+  if (has !== v) writeCookie(v);
+}
 
 /**
  * The choices, in display order. "" = same as the app language. Labels live in the catalog
@@ -35,6 +52,7 @@ export function setPlaceNameChoice(v: PlaceNameChoice) {
     // Storage blocked (private mode): the choice lasts until the page reloads.
   }
   memory = v;
+  writeCookie(v);
 }
 
 let memory: PlaceNameChoice | null = null;

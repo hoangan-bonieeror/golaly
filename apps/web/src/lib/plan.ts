@@ -3,6 +3,7 @@
  * optimistic updates so a drop, a vote or a move shows at once and the server only confirms.
  */
 import { ITEM_SLOTS, orderBySlot, presentOn, SLOT_RANK, slotForTime, type ItemSlot, type ItemStatus, type ItemView, type MemberView, type TripDetail, type VoteLevel } from "@triply/shared";
+import { zonedParts } from "./clock";
 
 export { ITEM_SLOTS };
 
@@ -67,8 +68,9 @@ export function nameList(names: string[], and = "&") {
 
 // ── After the trip (phase 3) ───────────────────────────────────────────
 
-/** Today on this device, as YYYY-MM-DD. */
-export function todayIso(now = new Date()) {
+/** Today on this device (or in `timeZone`, see lib/clock.tsx), as YYYY-MM-DD. */
+export function todayIso(now = new Date(), timeZone?: string) {
+  if (timeZone) return zonedParts(now, timeZone).date;
   const p = (n: number) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
@@ -106,17 +108,18 @@ export function wentOn(trip: { outcome: { visited: number } | null; startDate: s
 
 // ── During the trip (phase 2) ──────────────────────────────────────────
 
-/** The local time on this device as HH:mm. */
-export function nowHm(now = new Date()) {
+/** The local time on this device (or in `timeZone`) as HH:mm. */
+export function nowHm(now = new Date(), timeZone?: string) {
+  if (timeZone) return zonedParts(now, timeZone).time;
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
 /** While a trip is under way: today's day and the part of the day it is now (null otherwise). */
-export function tripNow(trip: TripDetail, now = new Date()): { dayId: string; dayNumber: number; slot: ItemSlot } | null {
-  const today = todayIso(now);
+export function tripNow(trip: TripDetail, now = new Date(), timeZone?: string): { dayId: string; dayNumber: number; slot: ItemSlot } | null {
+  const today = todayIso(now, timeZone);
   if (tripPhase(trip, today) !== "during") return null;
   const day = trip.days.find((d) => d.date === today);
-  return day ? { dayId: day.id, dayNumber: day.dayNumber, slot: slotForTime(nowHm(now)) } : null;
+  return day ? { dayId: day.id, dayNumber: day.dayNumber, slot: slotForTime(nowHm(now, timeZone)) } : null;
 }
 
 /** Went / skipped / total of a day's stops (notes don't count). */

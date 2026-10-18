@@ -7,6 +7,7 @@ import { setRequestLocale } from "@/lib/api/client";
 import { formatCount, formatDateRange, formatDay, setFormatLocale, timeAgo } from "@/lib/utils";
 import { CATALOGS } from "./catalog";
 import type { Messages } from "./types";
+import { useClock } from "@/lib/clock";
 
 interface I18n {
   locale: Locale;
@@ -68,14 +69,17 @@ export function useT(): Messages {
 /** Date and number formatters bound to the current language. */
 export function useFormat() {
   const { locale } = useI18n();
+  const { now, timeZone } = useClock();
+  const at = Math.floor(now.getTime() / 60_000) * 60_000;
   return useMemo(
     () => ({
       count: (n: number) => formatCount(n, locale),
-      timeAgo: (iso: string) => timeAgo(iso, locale),
+      timeAgo: (iso: string) => timeAgo(iso, locale, at, timeZone),
       dateRange: (start?: string | null, end?: string | null) => formatDateRange(start ?? undefined, end ?? undefined, locale),
       day: (iso: string, opts?: Intl.DateTimeFormatOptions) => formatDay(iso, opts, locale),
       number: (n: number, opts?: Intl.NumberFormatOptions) => n.toLocaleString(locale === "vi" ? "vi-VN" : "en-US", opts),
     }),
-    [locale],
+    // `at` is rounded to the minute, so the formatters only change when what they'd show can.
+    [locale, at, timeZone],
   );
 }
