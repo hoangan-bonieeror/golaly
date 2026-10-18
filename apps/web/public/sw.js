@@ -22,6 +22,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       for (const key of await caches.keys()) if (!key.endsWith(VERSION)) await caches.delete(key);
+      // Navigation preload: the browser starts loading a trip page while this worker is still waking up, instead of
+      // after (a sleeping worker added ~300 ms before the request even left).
+      if (self.registration.navigationPreload) await self.registration.navigationPreload.enable();
       await self.clients.claim();
     })(),
   );
@@ -66,7 +69,7 @@ async function cacheFirst(event, name, max) {
 async function networkFirst(event, name) {
   const req = event.request;
   try {
-    const res = await fetch(req);
+    const res = (await event.preloadResponse) || (await fetch(req));
     if (res.ok && res.type === "basic") {
       const copy = res.clone();
       event.waitUntil(caches.open(name).then((cache) => cache.put(req, copy)).catch(() => undefined));
