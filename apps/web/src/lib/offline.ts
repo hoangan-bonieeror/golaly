@@ -172,6 +172,19 @@ function clearOfflineCaches() {
 
 const OWNER = "triply-offline-owner";
 
+/**
+ * False only when this browser has certainly no session: no `triply_si` hint cookie (set with the session cookies,
+ * see the API's common/cookies.ts) and nobody recorded as signed in here before (sessions from before the hint
+ * existed). Anything else — including storage errors — means "ask the API".
+ */
+export function mightBeSignedIn(): boolean {
+  try {
+    return document.cookie.split("; ").some((c) => c.startsWith("triply_si=")) || localStorage.getItem(OWNER) !== null;
+  } catch {
+    return true;
+  }
+}
+
 /** Forget cached trips and queued marks (on logout: the next person on this device mustn't see them). */
 export function clearOfflineData() {
   try {

@@ -18,6 +18,17 @@ describe("auth", () => {
     expect((await agent.get("/users/me")).body.username).toBe("new.person");
   });
 
+  it("sets a readable session hint with the session, and clears it on logout", async () => {
+    const u = await t.register("hint");
+    const login = await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" });
+    const hint = (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_si="));
+    expect(hint).toMatch(/^triply_si=1;/);
+    expect(hint).toMatch(/Path=\//);
+    expect(hint).not.toMatch(/HttpOnly/i); // the web app reads it to skip "who am I?" for visitors
+    const out = await u.post("/auth/logout");
+    expect((out.headers["set-cookie"] as unknown as string[]).some((c) => c.startsWith("triply_si=;"))).toBe(true);
+  });
+
   it("rejects duplicate usernames and invalid input with friendly 4xx errors", async () => {
     const dup = await t.anon().post("/auth/register", { email: "other@example.com", username: "an.nguyen", password: "harbor-lantern-58" });
     expect(dup.status).toBe(409);

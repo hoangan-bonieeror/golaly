@@ -30,7 +30,7 @@ import type {
   TripSummary,
   TripTarget,
 } from "@triply/shared";
-import { withQueued } from "../offline";
+import { mightBeSignedIn, withQueued } from "../offline";
 import { useToast } from "../toast";
 import { api, ApiError, currentRequestLocale, qs } from "./client";
 import { keys } from "./keys";
@@ -57,6 +57,8 @@ export function useMe() {
   const q = useQuery({
     queryKey: keys.me,
     queryFn: async () => {
+      // A visitor who has never signed in on this browser: no need to ask (or to try a refresh) on every page.
+      if (!mightBeSignedIn()) return null;
       try {
         return await api.get<Me>("/users/me");
       } catch (e) {
