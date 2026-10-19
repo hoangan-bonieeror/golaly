@@ -72,7 +72,7 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 
 ### 3. Vercel
 
-- New project → import `hoangan-bonieeror/triply` → **Root Directory: `apps/web`**, framework Next.js
+- New project → import `hoangan-bonieeror/golaly` → **Root Directory: `apps/web`**, framework Next.js
   (install/build at the repo root via npm workspaces is detected automatically).
 - Project → Settings → Environment Variables (Production *and* Preview):
   - `API_ORIGIN` = `https://triply-api.onrender.com` — used at **build time** for the `/api/v1` and `/media` rewrites
