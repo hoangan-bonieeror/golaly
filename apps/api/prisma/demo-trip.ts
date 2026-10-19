@@ -1,7 +1,7 @@
 /**
  * Adds the demo trips for roadmap phases 2 and 3 to an EXISTING database — nothing else is touched.
  *
- *   npm run db:demo-trip -w @triply/api                           # both trips, owner an@triply.dev
+ *   npm run db:demo-trip -w @triply/api                           # both trips, owner an@golaly.dev
  *   npm run db:demo-trip -w @triply/api -- --owner you@mail.com   # owned by your own account
  *   npm run db:demo-trip -w @triply/api -- --trip hoian           # only one: saigon | hoian
  *
@@ -12,7 +12,7 @@
  * - Running it again replaces only these demo trips (same ids); Saigon's dates move to the current day.
  * - Places: a catalog place with the same name within 300 m is reused as it is; only missing ones are added
  *   (with opening hours, so "Where to now?" can say what's open).
- * - Friends: minh@, linh@ and nam@triply.dev join when those accounts exist. Without them a trip has fewer
+ * - Friends: minh@, linh@ and nam@golaly.dev join when those accounts exist. Without them a trip has fewer
  *   people: equal splits are shared among whoever is here; by-amount splits and repayments that involve a
  *   missing person are left out.
  * Refuses to run with NODE_ENV=production.
@@ -40,7 +40,7 @@ async function main() {
   if (process.env.NODE_ENV === "production") throw new Error("Refusing to add demo data in production.");
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const ownerEmail = arg("--owner") ?? "an@triply.dev";
+  const ownerEmail = arg("--owner") ?? "an@golaly.dev";
   const only = arg("--trip");
   if (only && !TRIPS.includes(only as TripKey)) throw new Error(`--trip must be one of: ${TRIPS.join(", ")}`);
   const keys = only ? [only as TripKey] : [...TRIPS];
@@ -54,7 +54,7 @@ async function main() {
     if (!owner) throw new Error(`No account with the email ${ownerEmail}. Pass --owner <your email>.`);
     const userOf = new Map<string, string>([[seedId("user:an"), owner.id]]);
     for (const key of FRIENDS) {
-      const u = await prisma.user.findFirst({ where: { email: `${key}@triply.dev`, deletedAt: null }, select: { id: true } });
+      const u = await prisma.user.findFirst({ where: { email: `${key}@golaly.dev`, deletedAt: null }, select: { id: true } });
       if (u && u.id !== owner.id) userOf.set(seedId(`user:${key}`), u.id);
     }
     const categories = new Map((await prisma.category.findMany({ select: { id: true, key: true } })).map((c) => [c.key, c.id]));
@@ -64,7 +64,7 @@ async function main() {
       console.log(`✓ "${r.title}" (${r.start} → ${r.end}) for ${ownerEmail}: ${r.people} ${r.people === 1 ? "person" : "people"}${r.money ? `, ${r.money}` : ""}.`);
       console.log(`  Places: ${r.reused} reused from your catalog, ${r.added} added.`);
     }
-    if (userOf.size < FRIENDS.length + 1) console.log("  (Some of minh@/linh@/nam@triply.dev don't exist here, so their parts of the demo were left out.)");
+    if (userOf.size < FRIENDS.length + 1) console.log("  (Some of minh@/linh@/nam@golaly.dev don't exist here, so their parts of the demo were left out.)");
     console.log("Nothing else was changed.");
   } finally {
     await prisma.$disconnect();

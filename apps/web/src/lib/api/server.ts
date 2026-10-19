@@ -28,15 +28,15 @@ async function serverGet<T>(path: string): Promise<T | null> {
       Accept: "application/json",
       "Accept-Language": placeNames === "local" ? "und" : placeNames === "en" || placeNames === "vi" ? placeNames : locale,
       [LOCALE_HEADER]: locale,
-      "User-Agent": h.get("user-agent") ?? "triply-web",
+      "User-Agent": h.get("user-agent") ?? "golaly-web",
     };
     const cookie = h.get("cookie");
     if (cookie) out.Cookie = cookie;
     const secret = process.env.EDGE_SECRET;
     const ip = (h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0] ?? "").trim();
     if (secret && ip) {
-      out["x-triply-client-ip"] = ip;
-      out["x-triply-edge"] = secret;
+      out["x-golaly-client-ip"] = ip;
+      out["x-golaly-edge"] = secret;
     }
     const res = await fetch(`${API_ORIGIN}/api/v1${path}`, { headers: out, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
     return res.ok ? ((await res.json()) as T) : null;

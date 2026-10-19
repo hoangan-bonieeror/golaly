@@ -12,12 +12,12 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from triply_catalog import db as catalog_db
-from triply_catalog.boundaries import import_boundaries
-from triply_catalog.config import Settings
-from triply_catalog.pipeline import ScopeError, adopt_manual_places, run_sync
-from triply_catalog.publish import publish
-from triply_catalog.taxonomy import sync_taxonomy
+from golaly_catalog import db as catalog_db
+from golaly_catalog.boundaries import import_boundaries
+from golaly_catalog.config import Settings
+from golaly_catalog.pipeline import ScopeError, adopt_manual_places, run_sync
+from golaly_catalog.publish import publish
+from golaly_catalog.taxonomy import sync_taxonomy
 
 pytestmark = pytest.mark.integration
 PROVIDERS = ["overture", "osm"]
@@ -251,7 +251,7 @@ def test_reappearing_place_reopens(settings, db):
 
 
 def test_area_slugs_ignore_case_and_explain_missing_countries(settings, database, db):
-    from triply_catalog.pipeline import resolve_scope
+    from golaly_catalog.pipeline import resolve_scope
 
     parts, require_area = resolve_scope(db, settings, "VN", None)  # same as "vn"
     assert require_area and parts
@@ -262,7 +262,7 @@ def test_area_slugs_ignore_case_and_explain_missing_countries(settings, database
 def test_area_status_explains_what_is_there(settings, database, monkeypatch, capsys):
     import json
 
-    from triply_catalog import cli
+    from golaly_catalog import cli
 
     monkeypatch.setenv("DATABASE_URL", settings.database_url)
     assert cli.main(["status", "--area", "VN"]) == 0
@@ -277,7 +277,7 @@ def test_area_status_explains_what_is_there(settings, database, monkeypatch, cap
 def test_records_of_an_interrupted_run_are_published_by_the_next_one(settings, database, db):
     """A run that loaded records but died before publishing (crash, timeout): the next run sees the same, unchanged
     records — they must still become places."""
-    from triply_catalog.pipeline import extract_load, plan, run_sync, start
+    from golaly_catalog.pipeline import extract_load, plan, run_sync, start
 
     db.execute("DELETE FROM place_sources WHERE external_id = 'n1003'")  # OSM "Mini Mart" → shop; re-loaded below
     db.execute(

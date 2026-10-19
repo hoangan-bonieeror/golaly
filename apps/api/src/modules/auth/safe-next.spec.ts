@@ -22,7 +22,7 @@ describe("safeNext (where to go after signing in)", () => {
     expect(safeNext("/explore?tab=places&dest=hoi-an")).toBe("/explore?tab=places&dest=hoi-an");
     // An encoded backslash stays an encoded character in the path: still this site.
     expect(safeNext("/%5Cevil.com")).toBe("/%5Cevil.com");
-    expect(new URL(safeNext("/%5Cevil.com"), "https://triply.app").origin).toBe("https://triply.app");
+    expect(new URL(safeNext("/%5Cevil.com"), "https://golaly.app").origin).toBe("https://golaly.app");
   });
 
   it("uses the fallback for anything that isn't a string", () => {

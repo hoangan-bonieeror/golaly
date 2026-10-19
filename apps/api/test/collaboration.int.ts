@@ -182,7 +182,7 @@ describe("fork", () => {
     expect(after.days.flatMap((d) => d.items).length).toBe(before.days.flatMap((d) => d.items).length);
     expect(after.forkCount).toBe(before.forkCount + 1);
 
-    const sarah = await t.as("sarah@triply.dev");
+    const sarah = await t.as("sarah@golaly.dev");
     expect((await sarah.get("/notifications")).body.items.some((n: { type: string }) => n.type === "TRIP_FORKED")).toBe(true);
   });
 
@@ -194,7 +194,7 @@ describe("fork", () => {
     const pt = await u.post(`/trips/${portugal.id}/fork`);
     expect(pt.status).toBe(403);
     expect(pt.body.message).toBe("The creator hasn't allowed remixing this trip.");
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     expect((await an.post(`/trips/${japan.id}/fork`)).status).toBe(422);
     expect((await t.anon().post(`/trips/${portugal.id}/fork`)).status).toBe(401);
   });

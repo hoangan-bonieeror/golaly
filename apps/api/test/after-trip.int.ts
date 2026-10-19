@@ -7,11 +7,11 @@ let t: TestContext;
 beforeAll(async () => (t = await createTestContext()));
 afterAll(() => t.app.close());
 
-const VI = { "X-Triply-Locale": "vi" };
+const VI = { "X-Golaly-Locale": "vi" };
 const place = (name: string) => t.prisma.place.findFirstOrThrow({ where: { name }, select: { id: true } }).then((p) => p.id);
 async function upload(a: Agent) {
   const img = await sharp({ create: { width: 640, height: 480, channels: 3, background: "#1f5e52" } }).jpeg().toBuffer();
-  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", img, { filename: "p.jpg", contentType: "image/jpeg" });
+  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", img, { filename: "p.jpg", contentType: "image/jpeg" });
   expect(res.status).toBe(201);
   return res.body.id as string;
 }

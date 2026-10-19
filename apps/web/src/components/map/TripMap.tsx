@@ -413,7 +413,7 @@ function MapCanvas({
                 <g
                   key={`rider-${day}`}
                   aria-hidden
-                  className="triply-rider"
+                  className="golaly-rider"
                   ref={(el) => {
                     if (el) riderEls.current.set(day, el);
                     else riderEls.current.delete(day);

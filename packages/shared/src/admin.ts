@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 
-// ── cron (same grammar as pipelines/triply_catalog/cron.py) ──────────────────
+// ── cron (same grammar as pipelines/golaly_catalog/cron.py) ──────────────────
 
 const MACROS = new Set(["@hourly", "@daily", "@midnight", "@weekly", "@monthly"]);
 const RANGES: [number, number][] = [

@@ -10,9 +10,9 @@
 export const LOCALES = ["en", "vi"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
-export const LOCALE_COOKIE = "triply-locale";
+export const LOCALE_COOKIE = "golaly-locale";
 /** Header the web sends with every API call (Accept-Language stays for place-name language). */
-export const LOCALE_HEADER = "x-triply-locale";
+export const LOCALE_HEADER = "x-golaly-locale";
 export const LOCALE_NAMES: Record<Locale, string> = { en: "English", vi: "Tiếng Việt" };
 
 export const isLocale = (v: unknown): v is Locale => typeof v === "string" && (LOCALES as readonly string[]).includes(v);

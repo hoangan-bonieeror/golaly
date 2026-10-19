@@ -1,4 +1,4 @@
-"""Deprecated: sources live in `triply_catalog.sources` now. Kept so older imports keep working."""
+"""Deprecated: sources live in `golaly_catalog.sources` now. Kept so older imports keep working."""
 
 from __future__ import annotations
 

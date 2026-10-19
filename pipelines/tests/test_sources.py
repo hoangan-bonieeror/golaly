@@ -13,9 +13,9 @@ import urllib.request
 import httpx
 import pytest
 
-from triply_catalog.models import BBox, NormalizedPlace, Partition
-from triply_catalog.sources import SOURCES, check_keys, get_source, keys, manifest, manifests
-from triply_catalog.sources.base import KINDS, PARTITIONING, STORAGE, PhotoSource, PlaceSource, SourceConfigError, covers
+from golaly_catalog.models import BBox, NormalizedPlace, Partition
+from golaly_catalog.sources import SOURCES, check_keys, get_source, keys, manifest, manifests
+from golaly_catalog.sources.base import KINDS, PARTITIONING, STORAGE, PhotoSource, PlaceSource, SourceConfigError, covers
 
 HOI_AN = BBox(108.2, 15.75, 108.45, 16.0)
 DA_NANG = BBox(108.1, 15.95, 108.35, 16.15)
@@ -28,7 +28,7 @@ def _wikimedia(settings):
     from tests.test_pipeline_photos import FakeWikimedia
 
     fake = FakeWikimedia()
-    s = dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/triply-ops")
+    s = dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/golaly-ops")
     return get_source("wikimedia", s, client=httpx.Client(transport=httpx.MockTransport(fake))), fake
 
 
@@ -156,7 +156,7 @@ def test_registry_validates_selections():
 
 
 def test_cli_lists_sources(capsys, monkeypatch):
-    from triply_catalog import cli
+    from golaly_catalog import cli
 
     monkeypatch.setenv("CATALOG_CONTACT", "")
     assert cli.main(["sources"]) == 0
@@ -165,8 +165,8 @@ def test_cli_lists_sources(capsys, monkeypatch):
 
 
 def test_old_provider_imports_still_work(settings):
-    from triply_catalog.providers import get_provider
-    from triply_catalog.providers.osm import OsmProvider
+    from golaly_catalog.providers import get_provider
+    from golaly_catalog.providers.osm import OsmProvider
 
     p = get_provider("osm", settings)
     assert isinstance(p, OsmProvider) and p.license == "ODbL-1.0" and p.attribution == "© OpenStreetMap contributors"

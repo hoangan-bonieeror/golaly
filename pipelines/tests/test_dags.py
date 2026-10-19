@@ -38,8 +38,8 @@ def test_sync_announces_places_and_photos_follow():
     emitting = {t.task_id for t in sync.tasks if getattr(t, "outlets", None)}
     assert emitting == {"announce"}
     (asset,) = sync.get_task("announce").outlets
-    assert asset.uri == "triply://catalog/places"
-    assert "triply://catalog/places" in repr(photos.timetable.asset_condition)
+    assert asset.uri == "golaly://catalog/places"
+    assert "golaly://catalog/places" in repr(photos.timetable.asset_condition)
     assert sync.params["providers"] == ["overture", "osm"]  # the registry's default sources (Foursquare is opt-in)
 
 
@@ -67,7 +67,7 @@ def test_photos_after_sync_merges_events():
 
     from airflow.exceptions import AirflowSkipException
 
-    from triply_catalog.photos import ContactMissing
+    from golaly_catalog.photos import ContactMissing
 
     def no_contact(*a, **kw):
         raise ContactMissing("Set CATALOG_CONTACT")

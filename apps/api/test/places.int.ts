@@ -220,8 +220,8 @@ describe("add to trip", () => {
 
   it("editors see the trip, viewers and outsiders don't", async () => {
     const japan = await demoTrip(t.prisma, "Japan — 7 Days");
-    const minh = await t.as("minh@triply.dev");
-    const linh = await t.as("linh@triply.dev");
+    const minh = await t.as("minh@golaly.dev");
+    const linh = await t.as("linh@golaly.dev");
     const forMinh = (await minh.get(`/places/${place("sensoji")}/trip-targets`)).body as TripTarget[];
     expect(forMinh.find((x) => x.id === japan.id)).toMatchObject({ role: "EDITOR", nearby: true });
     const forLinh = (await linh.get(`/places/${place("sensoji")}/trip-targets`)).body as TripTarget[];

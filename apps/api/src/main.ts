@@ -23,7 +23,7 @@ export async function createApp() {
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
   app.use(localeMiddleware);
-  app.enableCors({ origin: corsOrigins, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
+  app.enableCors({ origin: corsOrigins, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Golaly-Locale"] });
   app.setGlobalPrefix("api/v1", { exclude: ["health", "health/db"] });
   if (env.S3) {
     // Bucket storage: the web normally rewrites /media/* straight to the bucket (MEDIA_ORIGIN); anything that

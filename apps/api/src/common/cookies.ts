@@ -12,7 +12,7 @@ function cookieBase(): CookieOptions {
  * app doesn't ask the API who is signed in (and doesn't try a refresh) on every page a visitor opens. Never trusted
  * for anything — the HTTP-only cookies are the session.
  */
-export const SESSION_HINT_COOKIE = "triply_si";
+export const SESSION_HINT_COOKIE = "golaly_si";
 
 export function setAuthCookies(res: Response, tokens: { access: string; refresh: string }) {
   res.cookie(ACCESS_COOKIE, tokens.access, { ...cookieBase(), path: "/", maxAge: env.ACCESS_TOKEN_TTL_SECONDS * 1000 });

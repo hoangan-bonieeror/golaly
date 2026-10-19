@@ -97,7 +97,7 @@ function Login() {
       </p>
       {process.env.NODE_ENV !== "production" && (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-3 text-xs text-muted">
-          <b className="text-ink-2">Dev demo accounts</b> (after <code>npm run db:seed</code>, password <code>demo1234</code>): an@, sarah@, minh@, linh@, nam@triply.dev
+          <b className="text-ink-2">Dev demo accounts</b> (after <code>npm run db:seed</code>, password <code>demo1234</code>): an@, sarah@, minh@, linh@, nam@golaly.dev
         </div>
       )}
     </form>

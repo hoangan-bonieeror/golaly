@@ -9,10 +9,10 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } f
  * on the server and while the browser hydrates, or React throws the server HTML away. Two things differ between them:
  * the moment (the browser hydrates a little later) and the time zone (the server runs in UTC). So:
  * - while rendering on the server and while hydrating, "now" is the server's render time and the time zone is the
- *   one the browser reported last visit (the `triply-tz` cookie), or UTC on a first visit;
+ *   one the browser reported last visit (the `golaly-tz` cookie), or UTC on a first visit;
  * - right after hydration the components re-render with the real clock and the device's own time zone.
  */
-export const TZ_COOKIE = "triply-tz";
+export const TZ_COOKIE = "golaly-tz";
 
 type Clock = { renderedAt: number; timeZone: string | null };
 const ClockCtx = createContext<Clock>({ renderedAt: 0, timeZone: null });

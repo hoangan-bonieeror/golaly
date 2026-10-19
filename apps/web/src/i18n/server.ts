@@ -5,7 +5,7 @@ import { CATALOGS } from "./catalog";
 import type { Messages } from "./types";
 
 /**
- * The request's interface language: the `triply-locale` cookie (the user's choice, also synced from
+ * The request's interface language: the `golaly-locale` cookie (the user's choice, also synced from
  * their account after sign-in), else the browser's Accept-Language, else English.
  */
 export async function getLocale(): Promise<Locale> {

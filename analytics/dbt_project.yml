@@ -1,7 +1,7 @@
-name: triply_analytics
+name: golaly_analytics
 version: "0.1.0"
 config-version: 2
-profile: triply
+profile: golaly
 
 model-paths: ["models"]
 macro-paths: ["macros"]
@@ -16,7 +16,7 @@ vars:
   history_days: 400
 
 models:
-  triply_analytics:
+  golaly_analytics:
     +on_schema_change: sync_all_columns
     staging:
       +schema: analytics_staging

@@ -1463,7 +1463,7 @@ wheels = [
 ]
 
 [[package]]
-name = "triply-analytics"
+name = "golaly-analytics"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -6,7 +6,7 @@ beforeAll(async () => (t = await createTestContext()));
 afterAll(() => t.app.close());
 
 const place = (name: string) => t.prisma.place.findFirstOrThrow({ where: { name }, select: { id: true } }).then((p) => p.id);
-const VI = { "X-Triply-Locale": "vi" };
+const VI = { "X-Golaly-Locale": "vi" };
 
 async function groupTrip() {
   const owner = await t.register("plo");
@@ -171,7 +171,7 @@ describe("activity log and consent", () => {
   });
 
   it("the demo trip comes with a voted pool and members who are only there for part of it", async () => {
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const japan = (await an.get("/trips?limit=50")).body.items.find((x: { title: string }) => x.title === "Japan — 7 Days");
     const trip = (await an.get(`/trips/${japan.id}`)).body;
     expect(trip.pool.length).toBeGreaterThanOrEqual(5);

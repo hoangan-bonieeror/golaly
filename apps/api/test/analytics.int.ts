@@ -7,7 +7,7 @@ let t: TestContext;
 let an: Agent;
 beforeAll(async () => {
   t = await createTestContext();
-  an = await t.as("an@triply.dev"); // ADMIN in the demo seed
+  an = await t.as("an@golaly.dev"); // ADMIN in the demo seed
 });
 afterAll(() => t.app.close());
 
@@ -23,7 +23,7 @@ const step = (o: AnalyticsOverview, s: string) => o.funnel.find((f) => f.step ==
 describe("admin analytics", () => {
   it("is for admins only and validates the range", async () => {
     expect((await t.anon().get("/admin/analytics/overview")).status).toBe(401);
-    const minh = await t.as("minh@triply.dev");
+    const minh = await t.as("minh@golaly.dev");
     expect((await minh.get("/admin/analytics/overview")).status).toBe(403);
     expect((await an.get("/admin/analytics/overview?days=12")).status).toBe(422);
   });
@@ -127,7 +127,7 @@ describe("admin analytics", () => {
   });
 
   it("serves the nightly cohorts, or says the pipeline hasn't run", async () => {
-    const minh = await t.as("minh@triply.dev");
+    const minh = await t.as("minh@golaly.dev");
     expect((await minh.get("/admin/analytics/cohorts")).status).toBe(403);
     const res = await an.get("/admin/analytics/cohorts?days=30");
     expect(res.status).toBe(200);

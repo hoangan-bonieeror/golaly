@@ -13,7 +13,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from triply_catalog.config import Settings
+from golaly_catalog.config import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures"

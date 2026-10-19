@@ -26,7 +26,7 @@ describe("public cache", () => {
 
   it("keys on the query and the languages", async () => {
     await t.anon().get("/search?q=hoi");
-    expect((await t.anon().get("/search?q=hoi").set("X-Triply-Locale", "vi")).headers["x-cache"]).toBe("MISS");
+    expect((await t.anon().get("/search?q=hoi").set("X-Golaly-Locale", "vi")).headers["x-cache"]).toBe("MISS");
     expect((await t.anon().get("/search?q=hoi").set("Accept-Language", "und")).headers["x-cache"]).toBe("MISS");
     expect((await t.anon().get("/search?q=hue")).headers["x-cache"]).toBe("MISS");
     expect((await t.anon().get("/search?q=hoi")).headers["x-cache"]).toBe("HIT");

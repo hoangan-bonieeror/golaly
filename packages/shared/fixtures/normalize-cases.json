@@ -1,5 +1,5 @@
 {
-  "_comment": "normalizeSearch (TypeScript, packages/shared/src/labels.ts) and normalize_search (Python, pipelines/triply_catalog/normalize.py) must agree on every case. Both test suites read this file.",
+  "_comment": "normalizeSearch (TypeScript, packages/shared/src/labels.ts) and normalize_search (Python, pipelines/golaly_catalog/normalize.py) must agree on every case. Both test suites read this file.",
   "cases": [
     ["Hội An", "hoi an"],
     ["Đà Nẵng", "da nang"],

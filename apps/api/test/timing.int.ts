@@ -30,7 +30,7 @@ describe("request timing", () => {
     await t.anon().get("/search?q=secret-term");
     const user = await t.register("timing");
     expect((await user.get("/admin/diagnostics/timings")).status).toBe(403);
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const body = (await an.get("/admin/diagnostics/timings")).body as { routes: { route: string; count: number; p95: number }[] };
     const routes = body.routes.map((r) => r.route);
     expect(routes).toContain("GET /api/v1/destinations");

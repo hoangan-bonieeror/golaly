@@ -68,7 +68,7 @@ describe("directions", () => {
     expect(none.status).toBe(422);
     expect(none.body.message).toMatch(/No route found/);
     reply = () => new Response(JSON.stringify({ error: { code: 2004, message: "Request parameters exceed the server configuration limits" } }), { status: 400 });
-    const far = await u.get("/directions?from=10.3,106.1&to=21.0,105.8&mode=walk").set("X-Triply-Locale", "vi");
+    const far = await u.get("/directions?from=10.3,106.1&to=21.0,105.8&mode=walk").set("X-Golaly-Locale", "vi");
     expect(far.status).toBe(422);
     expect(far.body.message).toBe("Quãng đường quá xa cho cách di chuyển này. Hãy thử cách khác.");
     (env as { ORS_API_KEY?: string }).ORS_API_KEY = undefined;

@@ -1,7 +1,7 @@
 """Source registry. Adding a source = one module here implementing PlaceSource or PhotoSource + one line below.
 
 Modules are imported on demand, and keep heavy libraries (DuckDB, pyosmium) out of their import path, so
-reading manifests is cheap (the Airflow DAG file and `triply-catalog sources` do it).
+reading manifests is cheap (the Airflow DAG file and `golaly-catalog sources` do it).
 """
 
 from __future__ import annotations
@@ -83,7 +83,7 @@ def check_ready(selected: list[str], settings: Settings) -> None:
 
 
 def status(settings: Settings) -> list[dict[str, Any]]:
-    """Manifest + configuration state of every source (`triply-catalog sources`)."""
+    """Manifest + configuration state of every source (`golaly-catalog sources`)."""
     out = []
     for k in SOURCES:
         problems = get_source(k, settings).check()

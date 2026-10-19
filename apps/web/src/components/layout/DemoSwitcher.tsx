@@ -10,11 +10,11 @@ import { Avatar, cx } from "../ui";
 
 /** Seeded demo accounts (apps/api/prisma/seed.ts). Password: demo1234. */
 const DEMO = [
-  { email: "an@triply.dev", displayName: "An", hue: 172, note: "Owner of Japan" },
-  { email: "minh@triply.dev", displayName: "Minh", hue: 210, note: "Editor" },
-  { email: "linh@triply.dev", displayName: "Linh", hue: 330, note: "Viewer" },
-  { email: "nam@triply.dev", displayName: "Nam", hue: 45, note: "Viewer" },
-  { email: "sarah@triply.dev", displayName: "Sarah", hue: 14, note: "Not a member" },
+  { email: "an@golaly.dev", displayName: "An", hue: 172, note: "Owner of Japan" },
+  { email: "minh@golaly.dev", displayName: "Minh", hue: 210, note: "Editor" },
+  { email: "linh@golaly.dev", displayName: "Linh", hue: 330, note: "Viewer" },
+  { email: "nam@golaly.dev", displayName: "Nam", hue: 45, note: "Viewer" },
+  { email: "sarah@golaly.dev", displayName: "Sarah", hue: 14, note: "Not a member" },
 ];
 
 /**

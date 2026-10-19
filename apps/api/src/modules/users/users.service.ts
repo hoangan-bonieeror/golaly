@@ -206,7 +206,7 @@ export class UsersService {
       await tx.notification.deleteMany({ where: { userId } });
       await tx.user.update({
         where: { id: userId },
-        data: { deletedAt: now, email: `deleted+${userId}@triply.invalid`, username: `deleted_${userId.slice(0, 8)}`, passwordHash: "!" },
+        data: { deletedAt: now, email: `deleted+${userId}@golaly.invalid`, username: `deleted_${userId.slice(0, 8)}`, passwordHash: "!" },
       });
       await tx.userProfile.update({ where: { userId }, data: { displayName: "Deleted user", bio: "", homeBase: null, avatarMediaId: null } });
       await this.audit.log(userId, "user.deleted", "user", userId, {}, tx);

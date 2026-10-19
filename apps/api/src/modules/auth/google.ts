@@ -15,7 +15,7 @@ import { RealtimeService } from "../realtime/realtime";
 import { AuthService } from "./auth";
 import { ProductEventsService } from "../activity/product-events";
 
-const STATE_COOKIE = "triply_oauth";
+const STATE_COOKIE = "golaly_oauth";
 const STATE_PATH = "/api/v1/auth/google";
 const STATE_TTL_S = 600;
 

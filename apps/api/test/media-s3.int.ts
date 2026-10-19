@@ -81,7 +81,7 @@ describe("MEDIA_DRIVER=s3", () => {
   it("stores all three sizes in the bucket, redirects /media/*, and deletes them with the photo", async () => {
     const u = await t.register("bucket", { verified: true });
     const jpeg = await sharp({ create: { width: 900, height: 600, channels: 3, background: "#1f5e52" } }).jpeg().toBuffer();
-    const up = await u.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", jpeg, { filename: "p.jpg", contentType: "image/jpeg" });
+    const up = await u.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", jpeg, { filename: "p.jpg", contentType: "image/jpeg" });
     expect(up.status).toBe(201);
     const media = up.body as MediaView;
 

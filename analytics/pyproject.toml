@@ -1,5 +1,5 @@
 [project]
-name = "triply-analytics"
+name = "golaly-analytics"
 version = "0.1.0"
 description = "Golaly product analytics: dbt models that turn the app's tables into aggregate marts for the admin dashboard."
 requires-python = ">=3.11"

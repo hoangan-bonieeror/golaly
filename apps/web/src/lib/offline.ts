@@ -11,8 +11,8 @@ import type { ItemStatus, TripDetail } from "@triply/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 
-const KEY = "triply-offline-status";
-const EVENT = "triply-offline-queue";
+const KEY = "golaly-offline-status";
+const EVENT = "golaly-offline-queue";
 
 type Mark = { tripId: string; id: string; status: ItemStatus; at: number };
 
@@ -165,21 +165,21 @@ function clearOfflineCaches() {
   if (typeof caches !== "undefined")
     void caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("triply-data-") || k.startsWith("triply-media-")).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("golaly-data-") || k.startsWith("golaly-media-")).map((k) => caches.delete(k))))
       .catch(() => undefined);
   navigator.serviceWorker?.controller?.postMessage({ type: "clear" });
 }
 
-const OWNER = "triply-offline-owner";
+const OWNER = "golaly-offline-owner";
 
 /**
- * False only when this browser has certainly no session: no `triply_si` hint cookie (set with the session cookies,
+ * False only when this browser has certainly no session: no `golaly_si` hint cookie (set with the session cookies,
  * see the API's common/cookies.ts) and nobody recorded as signed in here before (sessions from before the hint
  * existed). Anything else — including storage errors — means "ask the API".
  */
 export function mightBeSignedIn(): boolean {
   try {
-    return document.cookie.split("; ").some((c) => c.startsWith("triply_si=")) || localStorage.getItem(OWNER) !== null;
+    return document.cookie.split("; ").some((c) => c.startsWith("golaly_si=")) || localStorage.getItem(OWNER) !== null;
   } catch {
     return true;
   }

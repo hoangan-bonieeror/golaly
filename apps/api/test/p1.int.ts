@@ -97,7 +97,7 @@ describe("Google sign-in", () => {
     const { agent, cb } = await signIn({ sub: "g-new-1", email: "Mai.Tran@gmail.com", emailVerified: true, name: "Mai Trần" });
     expect(cb.status).toBe(302);
     expect(cb.headers.location).toBe("http://localhost:3000/onboarding");
-    expect((cb.headers["set-cookie"] as unknown as string[]).some((c) => c.startsWith("triply_at="))).toBe(true);
+    expect((cb.headers["set-cookie"] as unknown as string[]).some((c) => c.startsWith("golaly_at="))).toBe(true);
     const me = (await agent.get("/api/v1/users/me")).body;
     expect(me).toMatchObject({ email: "mai.tran@gmail.com", displayName: "Mai Trần", hasPassword: false, providers: ["google"] });
     expect(me.username).toMatch(/^mai\.tran/);
@@ -107,7 +107,7 @@ describe("Google sign-in", () => {
   });
 
   it("links Google to an existing account with the same verified email and honours ?next", async () => {
-    const { agent, cb } = await signIn({ sub: "g-an", email: "an@triply.dev", emailVerified: true, name: "An" });
+    const { agent, cb } = await signIn({ sub: "g-an", email: "an@golaly.dev", emailVerified: true, name: "An" });
     expect(cb.headers.location).toBe("http://localhost:3000/explore");
     const me = (await agent.get("/api/v1/users/me")).body;
     expect(me).toMatchObject({ username: "an.nguyen", hasPassword: true, providers: ["google"] });
@@ -123,18 +123,18 @@ describe("Google sign-in", () => {
 
   it("lets a Google-only user set a password, then log in with it", async () => {
     const { agent } = await signIn({ sub: "g-pw", email: "pw.user@gmail.com", emailVerified: true });
-    const set = await agent.post("/api/v1/auth/password").set("X-Requested-With", "triply").send({ newPassword: "brand-new-pass" });
+    const set = await agent.post("/api/v1/auth/password").set("X-Requested-With", "golaly").send({ newPassword: "brand-new-pass" });
     expect(set.status).toBe(200);
     expect((await t.anon().post("/auth/login", { email: "pw.user@gmail.com", password: "brand-new-pass" })).status).toBe(200);
     // Changing it now requires the current password.
-    const bad = await agent.post("/api/v1/auth/password").set("X-Requested-With", "triply").send({ newPassword: "another-pass-1" });
+    const bad = await agent.post("/api/v1/auth/password").set("X-Requested-With", "golaly").send({ newPassword: "another-pass-1" });
     expect(bad.status).toBe(403);
   });
 
   it("Google-only accounts confirm deletion by typing their username", async () => {
     const { agent } = await signIn({ sub: "g-del", email: "del.me@gmail.com", emailVerified: true });
     const me = (await agent.get("/api/v1/users/me")).body;
-    const del = (body: object) => agent.delete("/api/v1/users/me").set("X-Requested-With", "triply").send(body);
+    const del = (body: object) => agent.delete("/api/v1/users/me").set("X-Requested-With", "golaly").send(body);
     expect((await del({ username: "wrong" })).status).toBe(403);
     expect((await del({ username: me.username })).status).toBe(200);
     // The Google link is removed with the account, so signing in again starts a brand-new account.
@@ -168,7 +168,7 @@ describe("media optimisation", () => {
   it("stores thumb / medium / full variants with a placeholder colour", async () => {
     const u = await t.register("img");
     const png = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: "#ff0000" } }).png().toBuffer();
-    const res = await u.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", png, { filename: "red.png", contentType: "image/png" });
+    const res = await u.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", png, { filename: "red.png", contentType: "image/png" });
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ width: 2000, height: 1000 });
     expect(res.body.url).toMatch(/_1280\.webp$/);

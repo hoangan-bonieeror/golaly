@@ -13,9 +13,9 @@ import uuid
 
 import pytest
 
-from triply_catalog import dedupe
-from triply_catalog.config import Settings
-from triply_catalog.dedupe import P, address_score, core_name, name_score, score_pair, similarity
+from golaly_catalog import dedupe
+from golaly_catalog.config import Settings
+from golaly_catalog.dedupe import P, address_score, core_name, name_score, score_pair, similarity
 
 S = Settings()
 
@@ -98,7 +98,7 @@ def cat(db):
 
 def add_place(db, cat, name, lat, lng, key="food.vietnamese", provider="overture", ext=None, address=None, phone=None, raw=None):
     pid, ext = str(uuid.uuid4()), ext or f"t-{uuid.uuid4().hex[:10]}"
-    from triply_catalog.normalize import normalize_search
+    from golaly_catalog.normalize import normalize_search
 
     norm = normalize_search(name)
     db.execute(
@@ -214,7 +214,7 @@ def test_sample_and_evaluate(db, cat, settings, tmp_path):
 
 @pytest.mark.integration
 def test_cli_review_flow(db, cat, settings, monkeypatch, capsys):
-    from triply_catalog import cli
+    from golaly_catalog import cli
 
     a = add_place(db, cat, "Hải Sản Bé Mặn", 16.1001, 108.2501)
     b = add_place(db, cat, "Hai San Be Man 2", 16.10055, 108.25012, provider="osm")
@@ -242,7 +242,7 @@ def test_cli_review_flow(db, cat, settings, monkeypatch, capsys):
 
 @pytest.mark.integration
 def test_sync_runs_dedupe_on_what_it_touched(settings, database):
-    from triply_catalog.pipeline import run_sync
+    from golaly_catalog.pipeline import run_sync
 
     out = run_sync(settings, "hoi-an", None, ["overture", "osm"], dry_run=True)
     assert set(out["publish"]["dedupe"]) == {"pairs", "merged", "queued", "blocked"}
@@ -252,7 +252,7 @@ def test_sync_runs_dedupe_on_what_it_touched(settings, database):
 def test_foursquare_joins_the_same_places(settings, database, db):
     """A sync with Foursquare attaches its records to the places Overture/OSM already made, adds the new ones, and
     Foursquare's finer category wins (FIELD_PRIORITY)."""
-    from triply_catalog.pipeline import run_sync
+    from golaly_catalog.pipeline import run_sync
 
     out = run_sync(settings, "hoi-an", None, ["overture", "osm", "fsq"], dry_run=True)
     assert out["loaded"]["fsq/hoi-an"]["fetched"] == 5

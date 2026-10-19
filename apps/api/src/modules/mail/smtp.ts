@@ -191,7 +191,7 @@ function upgrade(socket: net.Socket, cfg: SmtpConfig): Promise<tls.TLSSocket> {
   });
 }
 
-export async function sendSmtp(cfg: SmtpConfig, msg: SmtpMessage, heloName = "triply"): Promise<void> {
+export async function sendSmtp(cfg: SmtpConfig, msg: SmtpMessage, heloName = "golaly"): Promise<void> {
   const socket = await connect(cfg);
   const c = new Conversation(socket);
   try {

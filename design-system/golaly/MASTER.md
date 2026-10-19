@@ -1,7 +1,7 @@
 # Golaly Design System — "Atlas"
 
 > Source of truth for Golaly's visual language. Page-specific deviations live in
-> `design-system/triply/pages/<page>.md` and override this file for that page only.
+> `design-system/golaly/pages/<page>.md` and override this file for that page only.
 > Tokens are implemented in [`apps/web/src/app/globals.css`](../../apps/web/src/app/globals.css);
 > the day palette and travel-leg estimates live in [`apps/web/src/lib/trip-geo.ts`](../../apps/web/src/lib/trip-geo.ts).
 

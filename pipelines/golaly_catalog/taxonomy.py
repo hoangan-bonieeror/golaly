@@ -12,12 +12,12 @@ import psycopg
 
 @lru_cache
 def load_taxonomy() -> list[dict[str, Any]]:
-    return json.loads(resources.files("triply_catalog.data").joinpath("taxonomy.json").read_text("utf-8"))["categories"]
+    return json.loads(resources.files("golaly_catalog.data").joinpath("taxonomy.json").read_text("utf-8"))["categories"]
 
 
 @lru_cache
 def load_maps() -> dict[str, dict[str, str]]:
-    data = json.loads(resources.files("triply_catalog.data").joinpath("category_maps.json").read_text("utf-8"))
+    data = json.loads(resources.files("golaly_catalog.data").joinpath("category_maps.json").read_text("utf-8"))
     return {k: v for k, v in data.items() if not k.startswith("_")}
 
 

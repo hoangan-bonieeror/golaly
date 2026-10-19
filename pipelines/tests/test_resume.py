@@ -11,9 +11,9 @@ from urllib.parse import urlsplit, urlunsplit
 import psycopg
 import pytest
 
-from triply_catalog import db, pipeline
-from triply_catalog.sources.osm import OsmSource
-from triply_catalog.sources.overture import OvertureSource
+from golaly_catalog import db, pipeline
+from golaly_catalog.sources.osm import OsmSource
+from golaly_catalog.sources.overture import OvertureSource
 
 pytestmark = pytest.mark.integration
 
@@ -56,7 +56,7 @@ def _comparable(stats: dict) -> dict:
 
 @pytest.fixture()
 def twin_databases(database: str) -> Iterator[tuple[str, str]]:
-    names = ("triply_resume_a", "triply_resume_b")
+    names = ("golaly_resume_a", "golaly_resume_b")
     urls = tuple(_clone(database, n) for n in names)
     yield urls  # type: ignore[misc]
     for n in names:
@@ -101,7 +101,7 @@ def test_a_resumed_run_matches_an_uninterrupted_one(settings, twin_databases, mo
     assert by["overture"]["done"]
     assert by["osm"]["batches"] == 2 and not by["osm"]["done"] and by["osm"]["failed"]  # stopped mid-partition
 
-    # Continue it (what `triply-catalog resume <id>` and an Airflow retry do).
+    # Continue it (what `golaly-catalog resume <id>` and an Airflow retry do).
     p = pipeline.resume_params(b_settings, run["id"])
     b = pipeline.run_sync(b_settings, p["area"], p["bbox"], p["providers"], category_keys=p["category_keys"], sync_run_id=run["id"])
     assert b["status"] == "succeeded"
@@ -148,7 +148,7 @@ def test_only_unfinished_runs_can_be_resumed(settings, database):
 
 
 def test_verify_reports_the_done_criteria_and_the_review_queue(settings, database):
-    from triply_catalog.verify import verify_area
+    from golaly_catalog.verify import verify_area
 
     with db.connect(database) as c:
         country = c.execute("SELECT id FROM geo_areas WHERE slug = 'zv'").fetchone()

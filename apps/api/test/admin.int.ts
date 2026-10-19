@@ -21,8 +21,8 @@ beforeAll(async () => {
     if (url.endsWith("/auth/token")) return Response.json({ access_token: "tok" });
     return Response.json({ dag_run_id: `manual__${calls.length}` }, { status: 200 });
   };
-  an = await t.as("an@triply.dev");
-  minh = await t.as("minh@triply.dev");
+  an = await t.as("an@golaly.dev");
+  minh = await t.as("minh@golaly.dev");
   await t.prisma.geoArea.upsert({
     where: { slug: "zz" },
     create: { slug: "zz", name: "Testland", level: "COUNTRY", countryCode: "ZZ", source: "manual", minLng: 1, minLat: 1, maxLng: 2, maxLat: 2 },
@@ -43,7 +43,7 @@ beforeEach(() => {
   airflowDown = false;
 });
 
-const put = (a: Agent, url: string, body: object) => a.raw.put(`/api/v1${url}`).set("X-Requested-With", "triply").send(body);
+const put = (a: Agent, url: string, body: object) => a.raw.put(`/api/v1${url}`).set("X-Requested-With", "golaly").send(body);
 
 describe("access", () => {
   it("is admin-only", async () => {

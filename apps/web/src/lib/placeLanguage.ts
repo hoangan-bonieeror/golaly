@@ -3,12 +3,12 @@
  * Settings can pin one, or ask for local names only (what's written on the signs).
  * Kept per device in localStorage — it's a display preference.
  */
-const KEY = "triply.placeNames";
+const KEY = "golaly.placeNames";
 /**
  * Mirror of the choice for the server render (lib/api/server.ts), which can't read localStorage. Same values;
  * absent = same as the app language.
  */
-export const PLACE_NAMES_COOKIE = "triply-place-names";
+export const PLACE_NAMES_COOKIE = "golaly-place-names";
 
 function writeCookie(v: PlaceNameChoice) {
   if (typeof document === "undefined") return;

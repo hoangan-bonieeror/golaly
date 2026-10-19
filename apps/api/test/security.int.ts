@@ -116,7 +116,7 @@ describe("S10 · only the people in a repayment (or the owner) record it", () =>
     const [aId, bId] = [await idOf(a), await idOf(b)];
     const body = { fromId: aId, toId: bId, amount: 10_000 };
 
-    const refused = await viewer.post(`/trips/${trip.id}/settlements`, body).set({ "X-Triply-Locale": "vi" });
+    const refused = await viewer.post(`/trips/${trip.id}/settlements`, body).set({ "X-Golaly-Locale": "vi" });
     expect(refused.status).toBe(403);
     expect(refused.body.message).toBe("Chỉ người trả, người nhận hoặc chủ chuyến đi mới ghi được khoản trả lại.");
     expect((await a.post(`/trips/${trip.id}/settlements`, body)).status).toBe(201);
@@ -253,7 +253,7 @@ describe("S3 · guessing someone's password doesn't lock them out", () => {
   it("sign-in hands the browser a known-device cookie, scoped to the auth routes", async () => {
     const u = await t.register("s3c");
     const res = await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" });
-    const dev = (res.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_dev="));
+    const dev = (res.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("golaly_dev="));
     expect(dev).toMatch(/Path=\/api\/v1\/auth/);
     expect(dev).toMatch(/HttpOnly/);
   });
@@ -300,7 +300,7 @@ describe("S15 · sign-in doesn't reveal whether an account exists", () => {
 
 async function upload(a: Agent, color = "#2f6f5e") {
   const img = await sharp({ create: { width: 320, height: 240, channels: 3, background: color } }).jpeg().toBuffer();
-  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", img, { filename: "p.jpg", contentType: "image/jpeg" });
+  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", img, { filename: "p.jpg", contentType: "image/jpeg" });
   expect(res.status).toBe(201);
   return res.body.id as string;
 }

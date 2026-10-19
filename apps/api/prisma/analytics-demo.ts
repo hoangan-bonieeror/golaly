@@ -8,7 +8,7 @@
  *   npm run db:analytics-demo -w @triply/api -- --reset      # remove the generated data and make it again
  *   npm run db:analytics-demo -w @triply/api -- --remove     # only remove it
  *
- * Generated accounts use `@demo.triply.invalid` addresses, are flagged `is_demo`, and can't log in (no password).
+ * Generated accounts use `@demo.golaly.invalid` addresses, are flagged `is_demo`, and can't log in (no password).
  * Deterministic (seeded random), so two runs on the same day give the same shape. Refuses NODE_ENV=production.
  */
 import "dotenv/config";
@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type ItemType } from "../src/generated/prisma/client";
 
-const DOMAIN = "demo.triply.invalid";
+const DOMAIN = "demo.golaly.invalid";
 const DAY = 86_400_000;
 const arg = (name: string) => {
   const i = process.argv.indexOf(name);

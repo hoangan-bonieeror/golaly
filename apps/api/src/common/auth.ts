@@ -12,12 +12,12 @@ import { env } from "../config/env";
 import { PrismaService } from "../prisma/prisma.service";
 import { Errors } from "./http";
 
-export const ACCESS_COOKIE = "triply_at";
-export const REFRESH_COOKIE = "triply_rt";
+export const ACCESS_COOKIE = "golaly_at";
+export const REFRESH_COOKIE = "golaly_rt";
 /** A signed "known device" token (typ "device"); kept on logout so the device stays known. */
-export const DEVICE_COOKIE = "triply_dev";
+export const DEVICE_COOKIE = "golaly_dev";
 export const CSRF_HEADER = "x-requested-with";
-export const CSRF_VALUE = "triply";
+export const CSRF_VALUE = "golaly";
 
 export interface AuthUser {
   id: string;
@@ -95,7 +95,7 @@ export function readAccessToken(req: { cookies?: Record<string, string>; headers
 /**
  * Global guard, runs on every HTTP route:
  *  1. Authentication — verifies the access JWT (HTTP-only cookie or Bearer header) and its live session.
- *  2. CSRF — state-changing requests must carry `X-Requested-With: triply`. Browsers can't
+ *  2. CSRF — state-changing requests must carry `X-Requested-With: golaly`. Browsers can't
  *     add custom headers cross-site without a CORS preflight, which only WEB_ORIGIN passes.
  * Resource-level checks (ownership, membership, role) happen in services (spec §28).
  */

@@ -110,7 +110,7 @@ LANDMARK_GROUPS: set[str] = {"sights", "culture", "nature"}
 #: Order in which providers are published within a run: later providers attach to places created by earlier ones.
 PUBLISH_ORDER = ["manual", "overture", "fsq", "osm"]
 
-#: Licences and attributions are declared by each source's manifest (triply_catalog/sources/).
+#: Licences and attributions are declared by each source's manifest (golaly_catalog/sources/).
 
 
 def settings() -> Settings:

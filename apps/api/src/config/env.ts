@@ -114,7 +114,7 @@ const schema = z.object({
   /**
    * Shared secret between the web app's proxy (apps/web/src/proxy.ts) and the API. When the web app sits on
    * another host (Vercel → Render), the API only sees the web app's address; the proxy forwards the browser's
-   * address in `x-triply-client-ip` with this secret, and rate limits key on it only when the secret matches.
+   * address in `x-golaly-client-ip` with this secret, and rate limits key on it only when the secret matches.
    * Unset: rate limits use the connection's address (req.ip). At least 32 characters.
    */
   EDGE_SECRET: z

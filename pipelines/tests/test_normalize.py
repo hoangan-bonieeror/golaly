@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from triply_catalog.models import NormalizedPlace
-from triply_catalog.normalize import (
+from golaly_catalog.models import NormalizedPlace
+from golaly_catalog.normalize import (
     accent_search,
     content_hash,
     english_area_name,

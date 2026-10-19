@@ -1,5 +1,5 @@
 [project]
-name = "triply-catalog"
+name = "golaly-catalog"
 version = "0.1.0"
 description = "Golaly place catalog pipeline: imports open place data (Overture Maps, OpenStreetMap) into the app database."
 readme = "README.md"
@@ -17,14 +17,14 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
-triply-catalog = "triply_catalog.cli:main"
+golaly-catalog = "golaly_catalog.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["triply_catalog"]
+packages = ["golaly_catalog"]
 
 [tool.pytest.ini_options]
 markers = ["integration: needs PostgreSQL with PostGIS and Node.js"]

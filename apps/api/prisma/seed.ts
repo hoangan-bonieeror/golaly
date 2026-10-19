@@ -3,7 +3,7 @@
  *   npm run db:seed        — WIPES app tables (users, trips, posts, media rows and ALL places, including an imported
  *                            catalog) and loads demo users, trips and posts. To keep your data and only add the
  *                            in-progress demo trip, use `npm run db:demo-trip` (prisma/demo-trip.ts).
- * Demo accounts: an@ / sarah@ / minh@ / linh@ / nam@triply.dev — password "demo1234".
+ * Demo accounts: an@ / sarah@ / minh@ / linh@ / nam@golaly.dev — password "demo1234".
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -63,7 +63,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     await prisma.user.create({
       data: {
         id: u.id,
-        email: `${u.displayName.toLowerCase()}@triply.dev`,
+        email: `${u.displayName.toLowerCase()}@golaly.dev`,
         username: u.username,
         passwordHash,
         isDemo: true,
@@ -250,7 +250,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
   });
 
   if (!quiet) console.log(`Seeded ${db.users.length} demo users, ${db.trips.length} trips, ${db.items.length} itinerary items, ${db.posts.length} posts.`);
-  if (!quiet) console.log(`Demo login: an@triply.dev / ${DEMO_PASSWORD}`);
+  if (!quiet) console.log(`Demo login: an@golaly.dev / ${DEMO_PASSWORD}`);
   await prisma.$disconnect();
 }
 

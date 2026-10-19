@@ -11,10 +11,10 @@ services:
       POSTGRES_PASSWORD: triply
       POSTGRES_DB: triply
     ports:
-      # Host port is configurable (e.g. TRIPLY_DB_PORT=5433 in a .env next to this file
+      # Host port is configurable (e.g. GOLALY_DB_PORT=5433 in a .env next to this file; TRIPLY_DB_PORT still works
       # when another PostgreSQL already uses 5432). Update DATABASE_URL to match.
       # Bound to localhost only: the demo credentials must never be reachable from the network.
-      - "127.0.0.1:${TRIPLY_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${GOLALY_DB_PORT:-${TRIPLY_DB_PORT:-5432}}:5432"
     volumes:
       - triply-db:/var/lib/postgresql/data
       - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
@@ -103,7 +103,7 @@ services:
       DATABASE_URL: postgresql://triply:triply@db:5432/triply
       # The package is also mounted from ./pipelines (below) and put first on the path, so code changes
       # apply without rebuilding the image. Rebuild only when pyproject.toml dependencies change.
-      PYTHONPATH: /opt/triply/src
+      PYTHONPATH: /opt/golaly/src
       CATALOG_CONTACT: ${CATALOG_CONTACT:-}
       OVERTURE_RELEASE: ${OVERTURE_RELEASE:-}
       HF_TOKEN: ${HF_TOKEN:-}
@@ -115,9 +115,9 @@ services:
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
     volumes:
       - ./pipelines/dags:/opt/airflow/dags:ro
-      - ./pipelines/triply_catalog:/opt/triply/src/triply_catalog:ro
+      - ./pipelines/golaly_catalog:/opt/golaly/src/golaly_catalog:ro
       # dbt models apply without a rebuild too (target/ and logs/ stay in the container).
-      - ./analytics/models:/opt/triply/analytics/models:ro
+      - ./analytics/models:/opt/golaly/analytics/models:ro
       - triply-catalog:/data/catalog
     ports:
       - "127.0.0.1:8080:8080"
@@ -126,13 +126,13 @@ services:
   catalog:
     profiles: ["pipelines"]
     build: { context: ., dockerfile: pipelines/Dockerfile }
-    entrypoint: ["triply-catalog"]
+    entrypoint: ["golaly-catalog"]
     command: ["stats"]
     depends_on:
       db: { condition: service_healthy }
     environment: *catalog-env
     volumes:
-      - ./pipelines/triply_catalog:/opt/triply/src/triply_catalog:ro
+      - ./pipelines/golaly_catalog:/opt/golaly/src/golaly_catalog:ro
       - triply-catalog:/data/catalog
 
 volumes:

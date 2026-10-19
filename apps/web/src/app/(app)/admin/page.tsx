@@ -33,7 +33,7 @@ function Areas() {
     <div className="space-y-5">
       <AdminHeader
         title={parent ? `Regions of ${parent.toUpperCase()}` : "Areas"}
-        body="Each country's boundaries are imported once (triply-catalog bootstrap); after that, places sync per area. Sync a whole country or one province."
+        body="Each country's boundaries are imported once (golaly-catalog bootstrap); after that, places sync per area. Sync a whole country or one province."
         action={<LiveDot live={live} />}
       />
       <div className="flex flex-wrap items-center gap-3">
@@ -55,7 +55,7 @@ function Areas() {
         <EmptyState
           icon={<Globe2 className="size-7" />}
           title={filter ? "No matching areas" : "No areas yet"}
-          body={filter ? "Try another name." : "Import a country's boundaries first: triply-catalog bootstrap --country VN"}
+          body={filter ? "Try another name." : "Import a country's boundaries first: golaly-catalog bootstrap --country VN"}
         />
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-[var(--radius-card)] border border-line bg-surface">

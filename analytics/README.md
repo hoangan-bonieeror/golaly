@@ -64,4 +64,4 @@ uv run python run.py docs generate && uv run python run.py docs serve   # lineag
   in the image (`/opt/dbt`) so it never conflicts with Airflow's pins.
 
 Need data to look at? `npm run db:analytics-demo -w @triply/api` adds ~550 synthetic people over 90 days
-(`@demo.triply.invalid`, `is_demo`; `--reset` / `--remove`), then run the build.
+(`@demo.golaly.invalid`, `is_demo`; `--reset` / `--remove`), then run the build.

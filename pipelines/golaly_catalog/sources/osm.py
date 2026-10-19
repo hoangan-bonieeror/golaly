@@ -179,7 +179,7 @@ class OsmSource:
         if not partition.country:
             raise SourceConfigError(
                 f"Don't know which country {partition.key!r} is in, so which OpenStreetMap extract to use. Import the country's "
-                "boundaries first (triply-catalog boundaries --country XX), or set OSM_SOURCE to a Geofabrik .osm.pbf URL."
+                "boundaries first (golaly-catalog boundaries --country XX), or set OSM_SOURCE to a Geofabrik .osm.pbf URL."
             )
         return geofabrik_url(self.settings, partition.country)
 

@@ -2,16 +2,16 @@
 
 from pathlib import Path
 
-from triply_catalog.models import BBox, Partition
-from triply_catalog.providers.osm import category_candidates, to_place
-from triply_catalog.providers.overture import category_candidates as ovt_candidates
+from golaly_catalog.models import BBox, Partition
+from golaly_catalog.providers.osm import category_candidates, to_place
+from golaly_catalog.providers.overture import category_candidates as ovt_candidates
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 HOI_AN = BBox(108.2, 15.75, 108.45, 16.0)
 
 
 def fetch(settings, provider):
-    from triply_catalog.providers import get_provider
+    from golaly_catalog.providers import get_provider
 
     return {p.external_id: p for batch in get_provider(provider, settings).fetch(Partition(provider, "hoi-an", HOI_AN)) for p in batch}
 
@@ -82,7 +82,7 @@ def test_foursquare_filters_and_normalises(settings):
 def test_foursquare_needs_a_token_for_hugging_face(settings):
     import dataclasses
 
-    from triply_catalog.sources import get_source
+    from golaly_catalog.sources import get_source
 
     hf = dataclasses.replace(settings, fsq_base="hf://datasets/foursquare/fsq-os-places/release", hf_token=None)
     assert "HF_TOKEN" in get_source("fsq", hf).check()[0]
@@ -94,8 +94,8 @@ def test_osm_picks_the_geofabrik_extract_of_each_country(settings, tmp_path):
 
     import pytest
 
-    from triply_catalog.sources import SourceConfigError, get_source
-    from triply_catalog.sources.osm import geofabrik_url
+    from golaly_catalog.sources import SourceConfigError, get_source
+    from golaly_catalog.sources.osm import geofabrik_url
 
     auto = dataclasses.replace(settings, osm_source="", geofabrik_index=str(FIXTURES_DIR / "osm" / "geofabrik-index.json"), data_dir=tmp_path)
     assert geofabrik_url(auto, "cn").endswith("/asia/china-latest.osm.pbf")

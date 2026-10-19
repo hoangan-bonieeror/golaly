@@ -280,7 +280,7 @@ def build_fsq(con: duckdb.DuckDBPyConnection) -> None:
 
 
 OSM = """<?xml version='1.0' encoding='UTF-8'?>
-<osm version="0.6" generator="triply-fixture">
+<osm version="0.6" generator="golaly-fixture">
   <node id="1001" lat="15.87948" lon="108.33166" version="1">
     <tag k="amenity" v="fast_food"/><tag k="cuisine" v="vietnamese"/><tag k="name" v="Bánh Mì Phượng"/>
     <tag k="name:en" v="Banh Mi Phuong"/><tag k="opening_hours" v="Mo-Su 06:30-21:30"/><tag k="phone" v="+84 235 0000 001"/>

@@ -17,7 +17,7 @@ const COMMON = new Set(
   butterfly liverpool chelsea1 arsenal1 pokemon1 naruto123 doraemon samsung1 iphone123 football1 changeme changeme1
   admin123 admin1234 administrator root1234 test1234 testtest guest123 default1 secret123 supersecret qwerty11
   matkhau matkhau1 matkhau123 anhyeuem anhyeuem1 emyeuanh yeuemnhieu iloveyouvn vietnam1 vietnam123 hanoi123
-  saigon123 conchimnon 123456vn triply123 travel123 traveling vacation holiday1 demo1234`.split(/\s+/),
+  saigon123 conchimnon 123456vn triply123 golaly123 travel123 traveling vacation holiday1 demo1234`.split(/\s+/),
 );
 
 const ROWS = ["abcdefghijklmnopqrstuvwxyz", "01234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"];

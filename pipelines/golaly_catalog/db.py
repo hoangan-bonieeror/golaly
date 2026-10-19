@@ -15,7 +15,7 @@ from psycopg.types.json import Jsonb
 
 def connect(url: str) -> psycopg.Connection:
     conn = psycopg.connect(url, row_factory=dict_row, autocommit=False)
-    conn.execute("SET application_name = 'triply-catalog'")
+    conn.execute("SET application_name = 'golaly-catalog'")
     conn.commit()
     return conn
 

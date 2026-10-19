@@ -9,7 +9,7 @@ import { useCallback, useSyncExternalStore } from "react";
  */
 export type ThemePref = "system" | "light" | "dark";
 export type Theme = "light" | "dark";
-const KEY = "triply-theme";
+const KEY = "golaly-theme";
 
 /** Runs inline in <head> before the page paints. Keep it tiny and dependency-free. */
 export const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem("${KEY}");var d=p==="dark"||((!p||p==="system")&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})()`;

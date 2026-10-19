@@ -1,7 +1,7 @@
 /**
  * MVP Definition-of-Done journey (spec §51) against the REAL stack: web → API → Postgres.
  *
- *   npm run db:seed              # demo users: an@ / minh@ / sarah@triply.dev, password demo1234
+ *   npm run db:seed              # demo users: an@ / minh@ / sarah@golaly.dev, password demo1234
  *   npm run dev                  # API on :4000, web on :3000
  *   npx playwright install chromium   # once
  *   npm run e2e                  # (BASE_URL=... to override)
@@ -114,7 +114,7 @@ fs.mkdirSync(shots, { recursive: true });
 
   const B = await newUser("minh");
   await step("6. second person accepts — as Viewer they can't edit", async () => {
-    await login(B, "minh@triply.dev");
+    await login(B, "minh@golaly.dev");
     await B.goto(inviteLink.replace(/^https?:\/\/[^/]+/, BASE));
     await B.getByRole("button", { name: /Accept/ }).click();
     await B.waitForURL(tripUrl);
@@ -154,7 +154,7 @@ fs.mkdirSync(shots, { recursive: true });
   const C = await newUser("sarah");
   let forkUrl;
   await step("11–13. another user discovers, saves and forks the trip", async () => {
-    await login(C, "sarah@triply.dev");
+    await login(C, "sarah@golaly.dev");
     await C.goto(`${BASE}/explore`);
     await C.getByLabel("Search", { exact: true }).fill(stamp);
     await C.getByRole("link", { name: new RegExp(tripTitle) }).first().click();
@@ -272,7 +272,7 @@ fs.mkdirSync(shots, { recursive: true });
   let hoianTrip;
   await step("17c. after the trip: mark a stop, split an expense, settle up, see the recap", async () => {
     const id = await B.evaluate(() =>
-      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "triply" } })
+      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "golaly" } })
         .then((r) => r.json())
         .then((r) => r.items.find((t) => t.title === "Hội An with the crew")?.id),
     );
@@ -325,7 +325,7 @@ fs.mkdirSync(shots, { recursive: true });
     await C.goto(`${BASE}${hoianTrip}`);
     await C.getByText("This trip is over.").waitFor();
     if (await C.getByRole("button", { name: "Expenses" }).count()) throw new Error("visitor sees the expenses button");
-    const status = await C.evaluate((u) => fetch(`/api/v1${u}/expenses`, { headers: { "X-Requested-With": "triply" } }).then((r) => r.status), hoianTrip);
+    const status = await C.evaluate((u) => fetch(`/api/v1${u}/expenses`, { headers: { "X-Requested-With": "golaly" } }).then((r) => r.status), hoianTrip);
     if (status !== 403) throw new Error(`visitor got ${status} for expenses`);
   });
 
@@ -333,7 +333,7 @@ fs.mkdirSync(shots, { recursive: true });
   let saigonTrip;
   await step("17d. during the trip: today, swipe to mark, where to now, split the group", async () => {
     const id = await B.evaluate(() =>
-      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "triply" } })
+      fetch("/api/v1/trips?filter=all&limit=48", { headers: { "X-Requested-With": "golaly" } })
         .then((r) => r.json())
         .then((r) => r.items.find((t) => t.title === "Saigon long weekend")?.id),
     );
@@ -445,8 +445,8 @@ fs.mkdirSync(shots, { recursive: true });
       for (const vp of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
         await page.setViewportSize(vp);
         if (viDark) {
-          await page.context().addCookies([{ name: "triply-locale", value: "vi", url: BASE }]);
-          await page.evaluate(() => localStorage.setItem("triply-theme", "dark"));
+          await page.context().addCookies([{ name: "golaly-locale", value: "vi", url: BASE }]);
+          await page.evaluate(() => localStorage.setItem("golaly-theme", "dark"));
         }
         for (const r of list) {
           await page.goto(`${BASE}${r}`);
@@ -463,8 +463,8 @@ fs.mkdirSync(shots, { recursive: true });
           }
         }
         if (viDark) {
-          await page.context().clearCookies({ name: "triply-locale" });
-          await page.evaluate(() => localStorage.removeItem("triply-theme"));
+          await page.context().clearCookies({ name: "golaly-locale" });
+          await page.evaluate(() => localStorage.removeItem("golaly-theme"));
         }
       }
     await A.setViewportSize({ width: 1360, height: 900 });
@@ -475,7 +475,7 @@ fs.mkdirSync(shots, { recursive: true });
   // Catalog admin (phase 3): an admin manages a sync job and checks every admin screen (axe + no sideways scroll).
   await step("19. an admin manages sync jobs and reviews the catalog screens", async () => {
     const ADM = await newUser("admin");
-    await login(ADM, "an@triply.dev");
+    await login(ADM, "an@golaly.dev");
     await ADM.goto(`${BASE}/admin/jobs`);
     await ADM.getByRole("heading", { name: "Sync jobs" }).waitFor();
     await ADM.getByRole("button", { name: "New job" }).first().click();
@@ -518,14 +518,14 @@ fs.mkdirSync(shots, { recursive: true });
 
   // Leave the shared dev database as we found it: test trips must not linger in public Explore.
   await step("cleanup: delete the trips this run created", async () => {
-    const del = (p, url) => p.evaluate((id) => fetch(`/api/v1/trips/${id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status), url.split("/trips/")[1].split(/[?#]/)[0]);
+    const del = (p, url) => p.evaluate((id) => fetch(`/api/v1/trips/${id}`, { method: "DELETE", headers: { "X-Requested-With": "golaly" } }).then((r) => r.status), url.split("/trips/")[1].split(/[?#]/)[0]);
     if (forkUrl && (await del(C, forkUrl)) !== 200) throw new Error("fork not deleted");
     if (placeUrl) {
       const placeId = placeUrl.split("/places/")[1];
       const status = await C.evaluate(async (id) => {
         const place = await fetch(`/api/v1/places/${id}`).then((r) => r.json());
         const mine = place.photos.filter((p) => p.mine);
-        const res = await Promise.all(mine.map((p) => fetch(`/api/v1/place-photos/${p.id}`, { method: "DELETE", headers: { "X-Requested-With": "triply" } }).then((r) => r.status)));
+        const res = await Promise.all(mine.map((p) => fetch(`/api/v1/place-photos/${p.id}`, { method: "DELETE", headers: { "X-Requested-With": "golaly" } }).then((r) => r.status)));
         return res.every((s) => s === 200) ? 200 : 500;
       }, placeId);
       if (status !== 200) throw new Error("place photo not deleted");

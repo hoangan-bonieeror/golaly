@@ -13,20 +13,20 @@ describe("auth", () => {
     expect(res.body).toMatchObject({ email: "new.person@example.com", username: "new.person", onboarded: false });
     expect(res.body.passwordHash).toBeUndefined();
     const cookies = res.headers["set-cookie"] as unknown as string[];
-    expect(cookies.some((c) => c.startsWith("triply_at=") && /HttpOnly/i.test(c) && /SameSite=Lax/i.test(c))).toBe(true);
-    expect(cookies.some((c) => c.startsWith("triply_rt=") && /Path=\/api\/v1\/auth/.test(c))).toBe(true);
+    expect(cookies.some((c) => c.startsWith("golaly_at=") && /HttpOnly/i.test(c) && /SameSite=Lax/i.test(c))).toBe(true);
+    expect(cookies.some((c) => c.startsWith("golaly_rt=") && /Path=\/api\/v1\/auth/.test(c))).toBe(true);
     expect((await agent.get("/users/me")).body.username).toBe("new.person");
   });
 
   it("sets a readable session hint with the session, and clears it on logout", async () => {
     const u = await t.register("hint");
     const login = await t.anon().post("/auth/login", { email: u.email, password: "harbor-lantern-58" });
-    const hint = (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_si="));
-    expect(hint).toMatch(/^triply_si=1;/);
+    const hint = (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("golaly_si="));
+    expect(hint).toMatch(/^golaly_si=1;/);
     expect(hint).toMatch(/Path=\//);
     expect(hint).not.toMatch(/HttpOnly/i); // the web app reads it to skip "who am I?" for visitors
     const out = await u.post("/auth/logout");
-    expect((out.headers["set-cookie"] as unknown as string[]).some((c) => c.startsWith("triply_si=;"))).toBe(true);
+    expect((out.headers["set-cookie"] as unknown as string[]).some((c) => c.startsWith("golaly_si=;"))).toBe(true);
   });
 
   it("rejects duplicate usernames and invalid input with friendly 4xx errors", async () => {
@@ -40,7 +40,7 @@ describe("auth", () => {
 
   it("uses the same message for unknown email and wrong password", async () => {
     const a = await t.anon().post("/auth/login", { email: "nobody@example.com", password: "whatever1" });
-    const b = await t.anon().post("/auth/login", { email: "an@triply.dev", password: "wrong-password" });
+    const b = await t.anon().post("/auth/login", { email: "an@golaly.dev", password: "wrong-password" });
     expect(a.status).toBe(401);
     expect(b.status).toBe(401);
     expect(a.body.message).toBe(b.body.message);
@@ -52,26 +52,26 @@ describe("auth", () => {
   });
 
   it("blocks state-changing requests without the CSRF header", async () => {
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const res = await an.raw.post("/api/v1/trips").send({ title: "No header" });
     expect(res.status).toBe(403);
   });
 
   it("rotates refresh tokens and rejects reuse", async () => {
     const agent = t.anon();
-    await agent.post("/auth/login", { email: "linh@triply.dev", password: "demo1234" });
+    await agent.post("/auth/login", { email: "linh@golaly.dev", password: "demo1234" });
     const first = await agent.post("/auth/refresh");
     expect(first.status).toBe(200);
-    const rotated = (first.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_rt="))!.split(";")[0];
+    const rotated = (first.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("golaly_rt="))!.split(";")[0];
     expect((await agent.post("/auth/refresh")).status).toBe(200);
     // Replaying the just-rotated token right away is a benign multi-tab race: no new cookies, no logout.
-    const race = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "triply").set("Cookie", rotated);
+    const race = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "golaly").set("Cookie", rotated);
     expect(race.status).toBe(200);
     expect(race.body).toEqual({ ok: true, raced: true });
     expect(race.headers["set-cookie"]).toBeUndefined();
     // Replaying it later means it was copied: rejected, and the whole session is revoked.
-    await t.prisma.session.updateMany({ where: { prevTokenHash: sha256(rotated.slice("triply_rt=".length)) }, data: { rotatedAt: new Date(Date.now() - 60_000) } });
-    const replay = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "triply").set("Cookie", rotated);
+    await t.prisma.session.updateMany({ where: { prevTokenHash: sha256(rotated.slice("golaly_rt=".length)) }, data: { rotatedAt: new Date(Date.now() - 60_000) } });
+    const replay = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "golaly").set("Cookie", rotated);
     expect(replay.status).toBe(401);
     expect((await agent.post("/auth/refresh")).status).toBe(401);
     expect((await agent.get("/users/me")).status).toBe(401);
@@ -79,15 +79,15 @@ describe("auth", () => {
 
   it("logout revokes the session", async () => {
     const agent = t.anon();
-    const login = await agent.post("/auth/login", { email: "nam@triply.dev", password: "demo1234" });
-    const rt = (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("triply_rt="))!.split(";")[0];
+    const login = await agent.post("/auth/login", { email: "nam@golaly.dev", password: "demo1234" });
+    const rt = (login.headers["set-cookie"] as unknown as string[]).find((c) => c.startsWith("golaly_rt="))!.split(";")[0];
     expect((await agent.post("/auth/logout")).status).toBe(200);
-    const after = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "triply").set("Cookie", rt);
+    const after = await t.anon().raw.post("/api/v1/auth/refresh").set("X-Requested-With", "golaly").set("Cookie", rt);
     expect(after.status).toBe(401);
   });
 
   it("forgot-password never reveals whether an account exists", async () => {
-    const a = await t.anon().post("/auth/forgot-password", { email: "an@triply.dev" });
+    const a = await t.anon().post("/auth/forgot-password", { email: "an@golaly.dev" });
     const b = await t.anon().post("/auth/forgot-password", { email: "ghost@example.com" });
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);

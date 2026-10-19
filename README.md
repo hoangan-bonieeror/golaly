@@ -53,7 +53,7 @@ triply/
 │       ├── src/lib/          api client + query hooks · realtime · session · toast
 │       └── e2e/              definition-of-done.cjs (Playwright)
 ├── packages/shared/          types · permissions · schemas · api-types · fixtures/ (cases shared with Python)
-├── pipelines/                place catalog: triply_catalog (Python) · dags/ (Airflow) · tests/
+├── pipelines/                place catalog: golaly_catalog (Python) · dags/ (Airflow) · tests/
 ├── analytics/                dbt project: staging views → ephemeral intermediates → aggregate marts (see its README)
 ├── docs/                     ARCHITECTURE.md · screenshots
 ├── docker-compose.yml        PostGIS (dev) + optional full stack + optional Airflow
@@ -98,7 +98,7 @@ If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `
 
 > **Upgrading an existing checkout?** The database image is now `postgis/postgis:16-3.4-alpine`. `docker compose up -d db` recreates the container on the new image and keeps your data volume; then run `npm run db:deploy`.
 
-> **Port 5432 already taken** (e.g. a native Postgres is running)? Put `TRIPLY_DB_PORT=5433` in a `.env` file next to `docker-compose.yml` and use `localhost:5433` in your `DATABASE_URL` / `TEST_DATABASE_URL`.
+> **Port 5432 already taken** (e.g. a native Postgres is running)? Put `GOLALY_DB_PORT=5433` in a `.env` file next to `docker-compose.yml` and use `localhost:5433` in your `DATABASE_URL` / `TEST_DATABASE_URL`.
 
 ### 3. Create tables, load demo data, run
 
@@ -114,7 +114,7 @@ expenses in đồng, remix evidence). It touches nothing else, reuses catalog pl
 re-run (only those two trips are replaced; Saigon's dates move to today):
 
 ```bash
-npm run db:demo-trip -w @triply/api                             # both, owner an@triply.dev
+npm run db:demo-trip -w @triply/api                             # both, owner an@golaly.dev
 npm run db:demo-trip -w @triply/api -- --owner you@example.com  # owned by your own account
 npm run db:demo-trip -w @triply/api -- --trip hoian             # just one: saigon | hoian
 ```
@@ -123,11 +123,11 @@ Open **http://localhost:3000** and log in with a demo account (password `demo123
 
 | User | Email | Role in "Japan — 7 Days" |
 |---|---|---|
-| An | an@triply.dev | **Owner** |
-| Minh | minh@triply.dev | Editor |
-| Linh | linh@triply.dev | Viewer |
-| Nam | nam@triply.dev | Viewer |
-| Sarah | sarah@triply.dev | Not a member (public trips only); has a pending invite |
+| An | an@golaly.dev | **Owner** |
+| Minh | minh@golaly.dev | Editor |
+| Linh | linh@golaly.dev | Viewer |
+| Nam | nam@golaly.dev | Viewer |
+| Sarah | sarah@golaly.dev | Not a member (public trips only); has a pending invite |
 
 In development, a **flask button** (top bar on mobile, bottom-right on desktop) does a real login as any demo user, so you can switch between Owner, Editor, Viewer and an outsider quickly. It's hidden in production builds.
 
@@ -151,7 +151,7 @@ Google accounts are matched by Google's account id, then by **verified** email (
 
 ### Optional: catalog admin
 
-The demo account **an@triply.dev** is an admin; it sees **Admin** in the account menu (avatar, top right) and in Settings. To make another
+The demo account **an@golaly.dev** is an admin; it sees **Admin** in the account menu (avatar, top right) and in Settings. To make another
 account an admin: `UPDATE users SET role = 'ADMIN' WHERE email = 'you@example.com';` then sign in again.
 
 The admin screens read the database directly; starting a sync goes through Airflow, so run the pipeline profile
@@ -250,7 +250,7 @@ Not in this MVP (spec P2): AI planning, route optimisation, bookings, expense sp
 
 API reference, data model and design decisions are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-The visual language ("Atlas": map-first, paper + jade + vermilion, a colour per day, mono for times and distances, with an "Atlas Night" dark mode) is specified in **[design-system/triply/MASTER.md](design-system/triply/MASTER.md)**. The interface is in **English and Vietnamese** — how languages are chosen and how to add copy: **[apps/web/src/i18n/README.md](apps/web/src/i18n/README.md)**.
+The visual language ("Atlas": map-first, paper + jade + vermilion, a colour per day, mono for times and distances, with an "Atlas Night" dark mode) is specified in **[design-system/golaly/MASTER.md](design-system/golaly/MASTER.md)**. The interface is in **English and Vietnamese** — how languages are chosen and how to add copy: **[apps/web/src/i18n/README.md](apps/web/src/i18n/README.md)**.
 
 ---
 

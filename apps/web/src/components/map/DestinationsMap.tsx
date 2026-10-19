@@ -143,7 +143,7 @@ function TileDestinations({ destinations, className, styleUrl, onFail }: Props &
       for (const d of [...latest.current.destinations].sort((a, b) => b.tripCount - a.tripCount)) {
         const a = document.createElement("a");
         a.href = `/explore/${d.slug}`;
-        a.className = "triply-dest";
+        a.className = "golaly-dest";
         a.style.setProperty("--size", `${pinSize(d.tripCount)}px`);
         a.setAttribute("aria-label", `${d.name}, ${d.country} · ${t.explore.tripCount(d.tripCount)}`);
         a.innerHTML = `<span class="dot">${d.tripCount || ""}</span><span class="name"></span>`;

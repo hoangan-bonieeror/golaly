@@ -16,7 +16,7 @@ const num = (v: unknown) => (typeof v === "number" ? v : 0);
 const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const sum = (o: Obj, key: string) => Object.values(o).reduce<number>((n, v) => n + num(obj(v)[key]), 0);
 
-/** The pipeline's stats (see pipelines/triply_catalog/pipeline.py finalize) boiled down to the numbers people ask about. */
+/** The pipeline's stats (see pipelines/golaly_catalog/pipeline.py finalize) boiled down to the numbers people ask about. */
 function summarize(stats: Obj): { label: string; value: number }[] {
   const loaded = obj(stats.loaded);
   const publish = obj(stats.publish);

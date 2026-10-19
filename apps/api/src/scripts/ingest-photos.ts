@@ -3,7 +3,7 @@
  *
  *   npm run build -w @triply/api && npm run photos:ingest -w @triply/api
  *
- * Useful right after `triply-catalog photos --area …`. Safe to run while the API is up.
+ * Useful right after `golaly-catalog photos --area …`. Safe to run while the API is up.
  */
 import "reflect-metadata";
 import { Logger } from "@nestjs/common";

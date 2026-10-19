@@ -504,7 +504,7 @@ const equal = (amount: number, who: string[]) => who.map((k, i) => ({ userId: u(
 
 const invitations: TripInvitation[] = [
   {
-    id: seedId("inv:japan:sarah"), tripId: t("japan"), email: "sarah@triply.dev", role: "VIEWER",
+    id: seedId("inv:japan:sarah"), tripId: t("japan"), email: "sarah@golaly.dev", role: "VIEWER",
     token: "demo-k7Pq2xVb9LmN4sRt8WzA1cYe", expiresAt: ago(-24 * 6), invitedBy: u("an"),
   },
 ];

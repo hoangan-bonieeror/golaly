@@ -191,7 +191,7 @@ ${c.green(c.bold("Golaly on your phone"))}  ${c.dim("(the dev servers start belo
 ${lanUrl ? `  Same Wi-Fi:  ${c.bold(lanUrl)}` : ""}${tunnelUrl ? `\n  Anywhere:   ${c.bold(tunnelUrl)}  ${c.dim("(HTTPS — location features work)")}` : ""}
   This computer: http://localhost:${WEB}
 
-  ${c.dim("•")} Log in with your account or a demo one (an@triply.dev / demo1234 after npm run db:seed).
+  ${c.dim("•")} Log in with your account or a demo one (an@golaly.dev / demo1234 after npm run db:seed).
   ${c.dim("•")} Google sign-in only works on localhost (its redirect address is registered for that).
   ${c.dim("•")} ${tunnelUrl ? "Location (directions, \"Near me\") works on the HTTPS address; the Wi-Fi one is plain HTTP, where phones block it." : 'Same Wi-Fi is plain HTTP, so the phone\'s browser blocks location (directions, "Near me") — run with --tunnel for those.'}
   ${c.dim("•")} Windows asks once to let Node.js accept connections: allow it on ${c.bold("Private networks")}.

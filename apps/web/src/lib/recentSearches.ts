@@ -6,7 +6,7 @@
  */
 import { useSyncExternalStore } from "react";
 
-const KEY = "triply.recentSearches";
+const KEY = "golaly.recentSearches";
 const MAX = 6;
 const EMPTY: string[] = [];
 const listeners = new Set<() => void>();

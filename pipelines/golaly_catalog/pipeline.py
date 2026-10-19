@@ -66,7 +66,7 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
             if r["min_lng"] is not None
         ]
         if not parts:
-            raise ScopeError(f"Geo area {area!r} has no bounding box — run `triply-catalog boundaries` first.")
+            raise ScopeError(f"Geo area {area!r} has no bounding box — run `golaly-catalog boundaries` first.")
         return parts, True
     d = conn.execute(
         """SELECT d.slug, d.lat, d.lng, g.slug AS area_slug FROM destinations d
@@ -82,7 +82,7 @@ def resolve_scope(conn: psycopg.Connection, settings: Settings, area: str | None
         return [Partition("", d["slug"], box, country=country_at(conn, d["lat"], d["lng"]))], False
     if len(area) == 2 and area.isalpha():
         raise ScopeError(
-            f"Country {area.upper()!r} has no boundaries yet. Import them first: `triply-catalog boundaries --country {area.upper()}` "
+            f"Country {area.upper()!r} has no boundaries yet. Import them first: `golaly-catalog boundaries --country {area.upper()}` "
             f'(or the catalog_bootstrap DAG with {{"country": "{area.upper()}"}}), then sync --area {area}.'
         )
     raise ScopeError(f"No geo area or destination with slug {area!r} (geo areas look like 'vn' or 'vn-da-nang', destinations like 'hoi-an').")

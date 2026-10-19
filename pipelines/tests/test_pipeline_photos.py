@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
-from triply_catalog.photos import file_title_from_url, sync_photos, usable_license
+from golaly_catalog.photos import file_title_from_url, sync_photos, usable_license
 
 pytestmark = pytest.mark.integration
 
@@ -135,7 +135,7 @@ def fake():
 
 @pytest.fixture()
 def photo_settings(settings, database):
-    return dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/triply-ops")
+    return dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/golaly-ops")
 
 
 def run(photo_settings, fake, **kw):
@@ -170,7 +170,7 @@ def test_queues_licensed_photos_for_matched_places(photo_settings, fake, db):
     out = run(photo_settings, fake)
     assert out["items"] == 7 and out["matched"] == 5  # far beach and the unknown name aren't matched
     ua = fake.requests[0].headers["user-agent"]
-    assert "Golaly-catalog" in ua and "https://example.com/triply-ops" in ua
+    assert "Golaly-catalog" in ua and "https://example.com/golaly-ops" in ua
     p = photos(db)
 
     main = p["File:Japanese bridge main.jpg"]
@@ -214,20 +214,20 @@ def test_licence_change_hides_the_photo(photo_settings, fake, db):
 
 
 def test_unknown_area(photo_settings, fake):
-    from triply_catalog.pipeline import ScopeError
+    from golaly_catalog.pipeline import ScopeError
 
     with pytest.raises(ScopeError):
         sync_photos(photo_settings, "atlantis", None, client=httpx.Client(transport=httpx.MockTransport(fake)))
 
 
 def test_refuses_to_run_without_a_contact(photo_settings, fake):
-    from triply_catalog.photos import ContactMissing
+    from golaly_catalog.photos import ContactMissing
 
     for contact in (None, "", "me", "set CATALOG_CONTACT"):
         with pytest.raises(ContactMissing, match="CATALOG_CONTACT"):
             run(dataclasses.replace(photo_settings, contact=contact), fake)
     assert fake.requests == []  # nothing was sent to Wikimedia
-    assert "(+https://example.com/triply-ops) httpx/" in photo_settings.user_agent
+    assert "(+https://example.com/golaly-ops) httpx/" in photo_settings.user_agent
     assert "(+an@example.com)" in dataclasses.replace(photo_settings, contact="an@example.com").user_agent
 
 
@@ -241,8 +241,8 @@ def test_403_explains_the_user_agent_policy(photo_settings, db):
 
 def test_big_areas_are_queried_in_tiles_that_split_on_timeout(photo_settings, db):
     """A whole region in one query times out on the real service (ReadTimeout / 500): tiles, then quarters."""
-    from triply_catalog.models import BBox
-    from triply_catalog.photos import Wikimedia, tiles, wikidata_items
+    from golaly_catalog.models import BBox
+    from golaly_catalog.photos import Wikimedia, tiles, wikidata_items
 
     assert len(tiles(BBox(0, 0, 2, 1))) == 8  # 0.5° tiles
     for fake in (FakeWikimedia(max_span=0.1), FakeWikimedia(max_span=0.1, read_timeout=True)):

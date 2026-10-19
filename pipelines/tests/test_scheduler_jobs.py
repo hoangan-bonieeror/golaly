@@ -9,8 +9,8 @@ from datetime import datetime
 
 import pytest
 
-from triply_catalog import db, jobs
-from triply_catalog.cron import CronError, next_run
+from golaly_catalog import db, jobs
+from golaly_catalog.cron import CronError, next_run
 
 
 def test_cron():
@@ -72,7 +72,7 @@ def test_scheduler_starts_due_jobs_once(db_conn, clean_jobs):
 
 @pytest.mark.integration
 def test_a_job_run_reports_progress_and_quality(settings, db_conn, clean_jobs):
-    from triply_catalog.pipeline import run_sync
+    from golaly_catalog.pipeline import run_sync
 
     j = jobs.create_job(db_conn, "hoi-an food", "hoi-an", None, ["overture", "osm"], category_keys=["food"])
     run_id = jobs.queue_run(db_conn, j, "admin")
@@ -89,7 +89,7 @@ def test_a_job_run_reports_progress_and_quality(settings, db_conn, clean_jobs):
 def test_category_filter_only_publishes_those_groups(settings, db_conn):
     import uuid
 
-    from triply_catalog.publish import attach_and_create
+    from golaly_catalog.publish import attach_and_create
 
     run = str(uuid.uuid4())
     cats = {r["key"]: r["id"] for r in db_conn.execute("SELECT key, id::text AS id FROM categories").fetchall()}
@@ -108,7 +108,7 @@ def test_category_filter_only_publishes_those_groups(settings, db_conn):
 
 @pytest.mark.integration
 def test_a_failing_partition_is_recorded_and_cancel_stops_a_run(settings, db_conn, clean_jobs):
-    from triply_catalog.pipeline import extract_load, plan
+    from golaly_catalog.pipeline import extract_load, plan
 
     broken = dataclasses.replace(settings, osm_source=settings.osm_source + ".missing")
     run_id = db.start_run(db_conn, "test", {})
@@ -143,7 +143,7 @@ def test_run_changes_are_announced(db_conn, database):
 
 @pytest.mark.integration
 def test_admin_merge_is_republished_by_the_scheduler(settings, db_conn):
-    from triply_catalog import dedupe
+    from golaly_catalog import dedupe
 
     a, b = [
         r["id"]
@@ -168,7 +168,7 @@ def test_admin_merge_is_republished_by_the_scheduler(settings, db_conn):
 
 @pytest.mark.integration
 def test_cli_jobs(settings, monkeypatch, capsys, clean_jobs):
-    from triply_catalog import cli
+    from golaly_catalog import cli
 
     for k, v in {
         "DATABASE_URL": settings.database_url,

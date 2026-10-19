@@ -1,4 +1,4 @@
-# triply-catalog — place catalog pipeline
+# golaly-catalog — place catalog pipeline
 
 Imports places (sights, restaurants, cafés, hotels…) from **open data** into the Golaly database, for whichever
 country, province or destination an admin chooses. Python + DuckDB + PostGIS, orchestrated by Airflow, and also
@@ -12,7 +12,7 @@ runnable as a plain CLI.
 | App seed / admin edits | provider `manual` | — | yes |
 | [Wikimedia Commons](https://commons.wikimedia.org) via Wikidata | photos of places, with author and licence | per file: CC0, public domain, CC BY, CC BY-SA | yes (the API downloads them) |
 
-`uv run triply-catalog sources` lists every registered source with its manifest and whether it is configured.
+`uv run golaly-catalog sources` lists every registered source with its manifest and whether it is configured.
 
 The design (data model, matching rules, survivorship, Airflow layout, later phases) is in the Golaly design doc
 “Thiết kế: Catalog địa điểm & công cụ đồng bộ dữ liệu”.
@@ -63,24 +63,24 @@ cd pipelines
 uv sync --extra dev
 export DATABASE_URL=postgresql://triply:triply@localhost:5432/triply   # same as apps/api/.env
 
-uv run triply-catalog bootstrap              # taxonomy + adopt the app's existing places (source "manual")
-uv run triply-catalog boundaries --country VN   # country + 34 provinces from Overture divisions
-uv run triply-catalog sync --area hoi-an --dry-run   # counts only, writes nothing
-uv run triply-catalog sync --area hoi-an     # one destination (≈ minutes; downloads the Vietnam .pbf once, ~300 MB)
-uv run triply-catalog sync --area vn         # all of Vietnam, one partition per province
-uv run triply-catalog stats
+uv run golaly-catalog bootstrap              # taxonomy + adopt the app's existing places (source "manual")
+uv run golaly-catalog boundaries --country VN   # country + 34 provinces from Overture divisions
+uv run golaly-catalog sync --area hoi-an --dry-run   # counts only, writes nothing
+uv run golaly-catalog sync --area hoi-an     # one destination (≈ minutes; downloads the Vietnam .pbf once, ~300 MB)
+uv run golaly-catalog sync --area vn         # all of Vietnam, one partition per province
+uv run golaly-catalog stats
 ```
 
 ### Adding a country — in this order
 
-1. **Boundaries** — `catalog_bootstrap` with `{"country": "CN"}` (CLI: `triply-catalog boundaries --country CN`).
+1. **Boundaries** — `catalog_bootstrap` with `{"country": "CN"}` (CLI: `golaly-catalog boundaries --country CN`).
    Creates the country, its provinces/states (slugs like `cn`, `cn-yunnan`) and one destination per province.
    Nothing can be synced for a country before this step.
 2. **Places** — `catalog_sync` with `{"area": "cn"}` (one task per province). OpenStreetMap uses the country's
    Geofabrik extract automatically (China → `asia/china-latest.osm.pbf`, downloaded once, ~1–2 GB for big countries).
 3. **Photos** — nothing to do: `catalog_photos` starts by itself after the sync (Airflow Asset). Run it by hand
    only to re-check a whole area.
-4. **Check** — `triply-catalog status --area cn`: boundaries, records per source (and how many were published,
+4. **Check** — `golaly-catalog status --area cn`: boundaries, records per source (and how many were published,
    unmapped or outside the boundaries), places Explore can show, the last runs. A country appears in Explore's
    "Where" picker once at least one of its provinces has published places (the API caches the list for 5 minutes).
 
@@ -90,19 +90,19 @@ mainland China, so expect far fewer places there.
 ### Duplicates
 
 ```bash
-uv run triply-catalog dedupe --area hoi-an --dry-run     # what a pass over existing places would merge / queue
-uv run triply-catalog dedupe --area vn                   # syncs do this for what they touch; run once for older data
-uv run triply-catalog merges list --area hoi-an          # pairs waiting for review (highest score first)
-uv run triply-catalog merges decide <candidate-id> merge # or reject (a rejected pair is never merged automatically)
-uv run triply-catalog merges undo <merge-id>             # put a merge back exactly as it was
+uv run golaly-catalog dedupe --area hoi-an --dry-run     # what a pass over existing places would merge / queue
+uv run golaly-catalog dedupe --area vn                   # syncs do this for what they touch; run once for older data
+uv run golaly-catalog merges list --area hoi-an          # pairs waiting for review (highest score first)
+uv run golaly-catalog merges decide <candidate-id> merge # or reject (a rejected pair is never merged automatically)
+uv run golaly-catalog merges undo <merge-id>             # put a merge back exactly as it was
 ```
 
 **Measuring it** (phase 2 goal: ≥ 98 % precision for automatic merges). Export pairs spread over the score bands,
 label them by hand, then measure each threshold:
 
 ```bash
-uv run triply-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # fill the `label` column: same / different
-uv run triply-catalog merges evaluate pairs.csv                            # precision / recall at 0.6 … 0.95
+uv run golaly-catalog merges sample --area hoi-an --n 200 --out pairs.csv   # fill the `label` column: same / different
+uv run golaly-catalog merges evaluate pairs.csv                            # precision / recall at 0.6 … 0.95
 ```
 
 Thresholds and radii are settings (`CATALOG_MERGE_AUTO`, `CATALOG_MERGE_REVIEW`, `CATALOG_MERGE_RADIUS_M`, …), so the
@@ -111,18 +111,18 @@ measured best value can be applied without a code change.
 ### Photos (Wikimedia Commons)
 
 ```bash
-export CATALOG_CONTACT="https://github.com/<you>/triply"   # required: a URL or email (Wikimedia answers 403 without one)
-uv run triply-catalog photos --area hoi-an --dry-run   # what would be queued
-uv run triply-catalog photos --area hoi-an             # queue them (then the API downloads them)
-uv run triply-catalog photos --area hoi-an --only-due  # only places never checked, renamed, moved or checked > 30 days ago
-uv run triply-catalog sync --area hoi-an --photos      # sync, then photos for the places that need them (like Airflow)
+export CATALOG_CONTACT="https://github.com/<you>/golaly"   # required: a URL or email (Wikimedia answers 403 without one)
+uv run golaly-catalog photos --area hoi-an --dry-run   # what would be queued
+uv run golaly-catalog photos --area hoi-an             # queue them (then the API downloads them)
+uv run golaly-catalog photos --area hoi-an --only-due  # only places never checked, renamed, moved or checked > 30 days ago
+uv run golaly-catalog sync --area hoi-an --photos      # sync, then photos for the places that need them (like Airflow)
 npm run build -w @triply/api && npm run photos:ingest -w @triply/api   # optional: download now instead of waiting
 ```
 
 `CATALOG_CONTACT` is required by [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy):
 requests that don't say how to reach the operator get **403 "Please respect our robot policy"**. The command refuses to
 start without it; the API needs the same variable (in `apps/api/.env`, or the root `.env` for Docker) to download
-the queued photos. In PowerShell: `$env:CATALOG_CONTACT = "https://github.com/<you>/triply"`.
+the queued photos. In PowerShell: `$env:CATALOG_CONTACT = "https://github.com/<you>/golaly"`.
 
 How it works: one Wikidata query per province/box finds items with coordinates, a main image (P18) or a Commons
 category (P373), and their names in vi/en/fr/de/ja/ko/zh. Each item is matched to **one** place, exactly through an
@@ -136,7 +136,7 @@ Re-runs refresh credits, keep moderators' decisions and hide files whose licence
 `catalog_photos` with `{"area": "vn"}`.
 
 **Automatically after a sync.** When `catalog_sync` publishes places, its last task (`announce`) emits the Airflow
-Asset `triply://catalog/places` with the areas that were fully synced; `catalog_photos` is scheduled on that Asset and
+Asset `golaly://catalog/places` with the areas that were fully synced; `catalog_photos` is scheduled on that Asset and
 looks for photos of those areas, incrementally:
 
 - only places that are new, renamed or moved since their last check (a database trigger clears
@@ -161,14 +161,14 @@ its terms once, create a read token, then:
 
 ```bash
 export HF_TOKEN=hf_…                                   # PowerShell: $env:HF_TOKEN = "hf_…"
-uv run triply-catalog sources                          # fsq should say "ready": true
-uv run triply-catalog sync --area hoi-an --providers overture,osm,fsq
+uv run golaly-catalog sources                          # fsq should say "ready": true
+uv run golaly-catalog sync --area hoi-an --providers overture,osm,fsq
 ```
 
 DuckDB reads only the row groups of the area from Hugging Face. Closed venues close their place, listings flagged as
 non-existent / private / inappropriate are skipped, and so are venues nobody refreshed for `FSQ_MAX_AGE_YEARS` (3).
 Categories are mapped by path (`Dining and Drinking > Restaurant > …`, most specific first) in
-`data/category_maps.json`; `triply-catalog stats` shows how many records stay unmapped. Foursquare is not in the
+`data/category_maps.json`; `golaly-catalog stats` shows how many records stay unmapped. Foursquare is not in the
 default source list (`--providers`, the DAG's `providers`) because it needs an account.
 
 `--area` accepts a geo area slug (`vn`, `vn-da-nang`, `vn-ha-noi`), a destination slug (`hoi-an` → its point ± 15 km)
@@ -182,7 +182,7 @@ docker compose --profile pipelines run --rm catalog bootstrap
 docker compose --profile pipelines run --rm catalog boundaries --country VN
 ```
 
-`pipelines/dags/` and `pipelines/triply_catalog/` are mounted into the containers, so code changes apply without a
+`pipelines/dags/` and `pipelines/golaly_catalog/` are mounted into the containers, so code changes apply without a
 rebuild (restart the `airflow` service to reload the package). Rebuild (`docker compose --profile pipelines up -d --build`)
 only when dependencies in `pyproject.toml` change. Set `CATALOG_CONTACT` in the root `.env` for the photos step.
 
@@ -237,23 +237,23 @@ CLI `jobs run`   ─┘                                   │        └→ NOTI
   Airflow restarts or a task is cleared, the retry skips finished partitions and already-loaded batches and ends
   with the same numbers as an uninterrupted run (Overture and Foursquare are read in id order so batches line up;
   if the order ever differs, the partition is simply loaded again). A failed / partial / cancelled run can be
-  continued as the same run: **Resume** on its admin page, or `triply-catalog resume <run-id>`.
+  continued as the same run: **Resume** on its admin page, or `golaly-catalog resume <run-id>`.
 
 The same from the CLI:
 
 ```bash
-uv run triply-catalog jobs add "vn weekly" --area vn --schedule "0 3 * * mon"   # cron, UTC; omit --schedule for by-hand only
-uv run triply-catalog jobs add "hoi an food" --area hoi-an --categories food,drink --no-photos
-uv run triply-catalog jobs list
-uv run triply-catalog jobs run "vn weekly" --dry-run
-uv run triply-catalog jobs disable "vn weekly"     # enable / delete
+uv run golaly-catalog jobs add "vn weekly" --area vn --schedule "0 3 * * mon"   # cron, UTC; omit --schedule for by-hand only
+uv run golaly-catalog jobs add "hoi an food" --area hoi-an --categories food,drink --no-photos
+uv run golaly-catalog jobs list
+uv run golaly-catalog jobs run "vn weekly" --dry-run
+uv run golaly-catalog jobs disable "vn weekly"     # enable / delete
 ```
 
 ### Whole country — the phase 3 check
 
 ```bash
-uv run triply-catalog sync --area vn          # or Admin → Areas → Việt Nam → Sync now (34 provinces × sources)
-uv run triply-catalog verify --area vn        # exit code 0 = done criteria met
+uv run golaly-catalog sync --area vn          # or Admin → Areas → Việt Nam → Sync now (34 provinces × sources)
+uv run golaly-catalog verify --area vn        # exit code 0 = done criteria met
 ```
 
 `verify` checks the area's last real run: finished as `succeeded` (otherwise it prints the `resume` command), every
@@ -265,7 +265,7 @@ uninterrupted run.
 
 ## Adding a source
 
-Every source — places or photos, open or paid — is one module in `triply_catalog/sources/` implementing the interface in
+Every source — places or photos, open or paid — is one module in `golaly_catalog/sources/` implementing the interface in
 `sources/base.py`, plus one line in the registry (`sources/__init__.py`). The adapter only splits the scope and returns
 normalised records; it never touches the database. Matching, merging, saving, credits and the licence filter are shared.
 
@@ -288,7 +288,7 @@ normalised records; it never touches the database. Matching, merging, saving, cr
    records. A place source also needs its categories in `data/category_maps.json` and a place in `FIELD_PRIORITY`
    / `PUBLISH_ORDER` (`config.py`).
 
-`triply_catalog.providers` still works as an alias of the place sources for older imports.
+`golaly_catalog.providers` still works as an alias of the place sources for older imports.
 
 ## Configuration
 
@@ -312,9 +312,9 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `CATALOG_PHOTO_RECHECK_DAYS` | `30` | incremental photo runs re-check a place after this many days |
 | `CATALOG_ALERT_WEBHOOK` | — | Slack-compatible webhook for failed / `needs_review` runs and quality warnings |
 
-Category mapping lives in `triply_catalog/data/taxonomy.json` (Golaly's categories, vi/en labels) and
+Category mapping lives in `golaly_catalog/data/taxonomy.json` (Golaly's categories, vi/en labels) and
 `category_maps.json` (Overture category / OSM tag → Golaly category). Unmapped records are stored but not published;
-`triply-catalog stats` shows how many.
+`golaly-catalog stats` shows how many.
 
 ## Tests
 

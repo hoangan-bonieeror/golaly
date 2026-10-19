@@ -6,13 +6,13 @@ catalog_scheduler  every 10 minutes: start the sync_jobs whose cron schedule is 
                    recount unmapped source categories after syncs
 catalog_dry_run    a sync in one rolled-back transaction: what a job would change (the admin's "Dry run" button)
 catalog_photos     queue openly licensed photos (Wikimedia Commons) for an area's places; the API downloads them.
-                   Runs by itself after a sync (Asset triply://catalog/places) for the places that need it, or by hand.
+                   Runs by itself after a sync (Asset golaly://catalog/places) for the places that need it, or by hand.
 
 Trigger catalog_sync from the Airflow UI ("Trigger DAG w/ config") or the REST API:
 
     POST /api/v2/dags/catalog_sync/dagRuns   {"logical_date": null, "conf": {"area": "hoi-an", "providers": ["overture", "osm"]}}
 
-The work itself lives in the `triply_catalog` package (also runnable without Airflow: `triply-catalog sync --area hoi-an`).
+The work itself lives in the `golaly_catalog` package (also runnable without Airflow: `golaly-catalog sync --area hoi-an`).
 Airflow only adds scheduling, retries per partition, parallelism and a UI. Every step is idempotent, so a retried
 task or a re-run DAG never duplicates data.
 """
@@ -42,21 +42,21 @@ log = logging.getLogger(__name__)
 
 #: Emitted by catalog_sync when places were published that need photos; catalog_photos is scheduled on it.
 #: extra = {"areas": [...], "bbox": str | None, "sync_run_id": str}
-PLACES = Asset("triply://catalog/places")
+PLACES = Asset("golaly://catalog/places")
 
 try:  # the registry is cheap to read (no DuckDB/pyosmium import); fall back if the package isn't importable here
-    from triply_catalog.sources import keys as _source_keys
+    from golaly_catalog.sources import keys as _source_keys
 
     PLACE_SOURCES = _source_keys("places")
     DEFAULT_SOURCES = _source_keys("places", default_only=True)
 except Exception:  # pragma: no cover
     PLACE_SOURCES = DEFAULT_SOURCES = ["overture", "osm"]
 
-DEFAULT_ARGS = {"owner": "triply", "retries": 2, "retry_delay": timedelta(minutes=2)}
+DEFAULT_ARGS = {"owner": "golaly", "retries": 2, "retry_delay": timedelta(minutes=2)}
 
 
 def _settings():
-    from triply_catalog.config import settings
+    from golaly_catalog.config import settings
 
     return settings()
 
@@ -74,12 +74,12 @@ def _ids(values: Any) -> list[Any]:
     catchup=False,
     max_active_runs=1,  # one writer at a time; the CLI uses an advisory lock for the same reason
     default_args=DEFAULT_ARGS,
-    tags=["triply", "catalog"],
+    tags=["golaly", "catalog"],
     params={
         "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
         "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
         "providers": Param(
-            list(DEFAULT_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}, description="place sources (registry: triply_catalog/sources)"
+            list(DEFAULT_SOURCES), type="array", items={"type": "string", "enum": PLACE_SOURCES}, description="place sources (registry: golaly_catalog/sources)"
         ),
         "sync_run_id": Param(None, type=["null", "string"], description="existing sync_runs.id (set by the admin API); created if empty"),
         "photos": Param(True, type="boolean", description="afterwards, look for photos of the places that need it (catalog_photos)"),
@@ -90,14 +90,14 @@ def _ids(values: Any) -> list[Any]:
 def catalog_sync():
     @task
     def start() -> str:
-        from triply_catalog import db, pipeline
+        from golaly_catalog import db, pipeline
 
         p = get_current_context()["params"]
         if not p.get("area") and not p.get("bbox"):
             raise ValueError("set either 'area' or 'bbox'")
         if p.get("sync_run_id"):
             # A run queued by the admin API / scheduler, or one being resumed (its finished partitions are skipped).
-            from triply_catalog.taxonomy import sync_taxonomy
+            from golaly_catalog.taxonomy import sync_taxonomy
 
             with db.connect(_settings().database_url) as conn:
                 sync_taxonomy(conn)
@@ -107,14 +107,14 @@ def catalog_sync():
 
     @task
     def plan(sync_id: str) -> list[dict[str, Any]]:
-        from triply_catalog import pipeline
+        from golaly_catalog import pipeline
 
         p = get_current_context()["params"]
         return pipeline.plan(_settings(), sync_id, p.get("area"), p.get("bbox"), list(p["providers"]), list(p.get("category_keys") or []))
 
     @task(max_active_tis_per_dagrun=4, execution_timeout=timedelta(hours=2), map_index_template="{{ partition_label }}")
     def extract_load(sync_id: str, part: dict[str, Any]) -> dict[str, Any]:
-        from triply_catalog import db, pipeline
+        from golaly_catalog import db, pipeline
 
         key = f"{part['provider']}/{part['key']}"
         get_current_context()["partition_label"] = key  # shown instead of the map index in the UI
@@ -125,7 +125,7 @@ def catalog_sync():
 
     @task(trigger_rule=TriggerRule.ALL_DONE, retries=0)
     def finalize(sync_id: str, parts: list[dict[str, Any]], loaded: Any) -> dict[str, Any]:
-        from triply_catalog import pipeline
+        from golaly_catalog import pipeline
 
         done = _ids(loaded)
         complete = len(done) == len(parts)
@@ -139,7 +139,7 @@ def catalog_sync():
 
     @task(trigger_rule=TriggerRule.ALL_DONE, retries=1)
     def finish(sync_id: str, stats: dict[str, Any] | None) -> dict[str, Any]:
-        from triply_catalog import pipeline
+        from golaly_catalog import pipeline
 
         if not stats:
             pipeline.finish(_settings(), sync_id, "failed", {}, "finalize failed — see the Airflow task log")
@@ -153,7 +153,7 @@ def catalog_sync():
     def announce(sync_id: str, parts: list[dict[str, Any]], stats: dict[str, Any]) -> dict[str, Any]:
         """One task (not the mapped ones) emits the Asset event that starts catalog_photos. Skipped — no event —
         when photos are turned off, no area finished, or no place in the finished areas needs checking."""
-        from triply_catalog import photos, pipeline
+        from golaly_catalog import photos, pipeline
 
         ctx = get_current_context()
         p = ctx["params"]
@@ -185,7 +185,7 @@ def catalog_sync():
     catchup=False,
     max_active_runs=1,
     default_args=DEFAULT_ARGS,
-    tags=["triply", "catalog"],
+    tags=["golaly", "catalog"],
     params={"country": Param("VN", type="string", minLength=2, maxLength=2)},
 )
 def catalog_bootstrap():
@@ -193,7 +193,7 @@ def catalog_bootstrap():
     def taxonomy_and_seed() -> dict[str, Any]:
         import uuid
 
-        from triply_catalog import db, pipeline, publish, taxonomy
+        from golaly_catalog import db, pipeline, publish, taxonomy
 
         s = _settings()
         with db.connect(s.database_url) as conn:
@@ -206,8 +206,8 @@ def catalog_bootstrap():
 
     @task
     def boundaries(_: dict[str, Any]) -> dict[str, int]:
-        from triply_catalog import boundaries as b
-        from triply_catalog import db
+        from golaly_catalog import boundaries as b
+        from golaly_catalog import db
 
         s = _settings()
         with db.connect(s.database_url) as conn:
@@ -224,7 +224,7 @@ def catalog_bootstrap():
     catchup=False,
     max_active_runs=1,
     default_args={**DEFAULT_ARGS, "retries": 0},
-    tags=["triply", "catalog"],
+    tags=["golaly", "catalog"],
 )
 def catalog_scheduler():
     try:
@@ -234,14 +234,14 @@ def catalog_scheduler():
 
     @task
     def due_jobs() -> list[dict[str, Any]]:
-        from triply_catalog import db, jobs
+        from golaly_catalog import db, jobs
 
         with db.connect(_settings().database_url) as conn:
             return jobs.start_due_jobs(conn)
 
     @task
     def republish() -> int:
-        from triply_catalog import db, dedupe
+        from golaly_catalog import db, dedupe
 
         s = _settings()
         with db.connect(s.database_url) as conn:
@@ -252,7 +252,7 @@ def catalog_scheduler():
     @task(execution_timeout=timedelta(minutes=30))
     def recount_unmapped() -> int | None:
         """Admin → Categories reads a summary; recount it after syncs (minutes on a big catalog)."""
-        from triply_catalog import db, jobs
+        from golaly_catalog import db, jobs
 
         with db.connect(_settings().database_url) as conn:
             return jobs.refresh_unmapped_if_stale(conn)
@@ -270,7 +270,7 @@ def catalog_scheduler():
     catchup=False,
     max_active_runs=2,
     default_args={**DEFAULT_ARGS, "retries": 0},
-    tags=["triply", "catalog"],
+    tags=["golaly", "catalog"],
     params={
         "area": Param("hoi-an", type=["null", "string"]),
         "bbox": Param(None, type=["null", "string"]),
@@ -283,7 +283,7 @@ def catalog_scheduler():
 def catalog_dry_run():
     @task(execution_timeout=timedelta(hours=2))
     def dry_run() -> dict[str, Any]:
-        from triply_catalog import pipeline
+        from golaly_catalog import pipeline
 
         p = get_current_context()["params"]
         out = pipeline.run_sync(
@@ -310,7 +310,7 @@ def catalog_dry_run():
     catchup=False,
     max_active_runs=1,  # one polite client towards Wikimedia at a time
     default_args={**DEFAULT_ARGS, "retry_delay": timedelta(minutes=10)},
-    tags=["triply", "catalog", "photos"],
+    tags=["golaly", "catalog", "photos"],
     params={
         "area": Param("hoi-an", type=["null", "string"], description="geo area slug (vn, vn-da-nang) or destination slug (hoi-an)"),
         "bbox": Param(None, type=["null", "string"], description="minLng,minLat,maxLng,maxLat — instead of area"),
@@ -320,7 +320,7 @@ def catalog_dry_run():
 def catalog_photos():
     @task(execution_timeout=timedelta(hours=3))
     def queue_photos() -> dict[str, Any]:
-        from triply_catalog.photos import sync_photos
+        from golaly_catalog.photos import sync_photos
 
         ctx = get_current_context()
         events = [e for evs in (ctx.get("triggering_asset_events") or {}).values() for e in evs]
@@ -337,8 +337,8 @@ def catalog_photos():
 
 def photos_after_sync(extras: list[dict[str, Any]], sync_photos: Any = None) -> dict[str, Any]:
     """Incremental photo runs for the areas of one or more finished syncs (the Asset events' extras)."""
-    from triply_catalog.photos import ContactMissing
-    from triply_catalog.photos import sync_photos as default_sync
+    from golaly_catalog.photos import ContactMissing
+    from golaly_catalog.photos import sync_photos as default_sync
 
     sync_photos = sync_photos or default_sync
     areas = list(dict.fromkeys(a for x in extras for a in x.get("areas") or []))

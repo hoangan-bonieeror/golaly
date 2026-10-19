@@ -43,7 +43,7 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 | Secret | Where to get it |
 |---|---|
 | `NEON_DATABASE_URL` | Neon → project *Golaly* → branch *production* → Connect → **turn pooling OFF** (host without `-pooler`), keep `?sslmode=require` |
-| `RENDER_DEPLOY_HOOK_URL` | Render → *triply-api* → Settings → Deploy Hook (copy the whole URL) |
+| `RENDER_DEPLOY_HOOK_URL` | Render → *golaly-api* → Settings → Deploy Hook (copy the whole URL) |
 | `BACKUP_PASSPHRASE` | `openssl rand -base64 48` — **keep a copy in your password manager**; without it the backups can't be opened |
 | `RENDER_API_KEY` | Render → Account settings → API keys (lets CI wait for the deploy to go live; optional) |
 | `VERCEL_TOKEN` | vercel.com/account/tokens |
@@ -53,17 +53,17 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 
 | Variable | Example |
 |---|---|
-| `RENDER_SERVICE_ID` | `srv-…` (in the Render dashboard URL of *triply-api*) |
+| `RENDER_SERVICE_ID` | `srv-…` (in the Render dashboard URL of *golaly-api*) |
 | `API_URL` | `https://triply-api.onrender.com` — **required**: the web build's `API_ORIGIN` and `NEXT_PUBLIC_REALTIME_URL` |
 | `MEDIA_ORIGIN` | the R2 bucket's public URL (optional; without it `/media` goes through the API, which redirects) |
-| `WEB_URL` | `https://triply.vercel.app` (optional; defaults to the deployment URL) |
+| `WEB_URL` | `https://golaly.vercel.app` (optional; defaults to the deployment URL) |
 
 > Why the web build takes these from GitHub and not from Vercel: `vercel pull` can't read env vars marked
 > **Sensitive** (it gets empty strings), and the `/api/v1` rewrite is compiled in at build time — an empty
 > `API_ORIGIN` deployed a site where every API call was a 404. `next.config.ts` now refuses to build on Vercel
 > without `API_ORIGIN`, and the smoke test calls `/api/v1/auth/providers` through the rewrite.
 
-### 2. Render (*triply-api*)
+### 2. Render (*golaly-api*)
 
 - Settings → Build & Deploy → **Auto-Deploy: Off** (`render.yaml`: `autoDeployTrigger: off`). CI triggers the deploy through the hook,
   pinned to the tested commit (`&ref=<sha>`), and only after the migrations ran.
@@ -102,10 +102,10 @@ Settings → Branches → rule for `main` → *Require status checks to pass*: `
 
 ## Restore a backup
 
-1. Actions → Backup → the run → download the artifact (a zip holding `triply-<time>.dump.gpg`).
-2. Decrypt: `gpg --decrypt triply-<time>.dump.gpg > triply.dump` (asks for `BACKUP_PASSPHRASE`).
+1. Actions → Backup → the run → download the artifact (a zip holding `golaly-<time>.dump.gpg`).
+2. Decrypt: `gpg --decrypt golaly-<time>.dump.gpg > golaly.dump` (asks for `BACKUP_PASSPHRASE`).
 3. Restore into a **new** Neon branch (or a local database) first, check it, then point the app at it:
-   `pg_restore --no-owner --no-privileges -d "<connection string>" triply.dump`
+   `pg_restore --no-owner --no-privileges -d "<connection string>" golaly.dump`
    (PostGIS must be available; `pg_restore` 18 reads the dump.)
 
 ## Not included (yet)

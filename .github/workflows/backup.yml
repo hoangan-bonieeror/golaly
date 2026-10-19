@@ -37,18 +37,18 @@ jobs:
       - name: Dump (custom format; pg_dump 18 reads any older server)
         run: |
           docker run --rm -e DATABASE_URL postgres:18-alpine \
-            sh -c 'pg_dump --format=custom --compress=9 --no-owner --no-privileges "$DATABASE_URL"' > triply.dump
+            sh -c 'pg_dump --format=custom --compress=9 --no-owner --no-privileges "$DATABASE_URL"' > golaly.dump
           # A dump that pg_restore can't list is not a backup.
-          docker run --rm -i postgres:18-alpine pg_restore --list < triply.dump > toc.txt
+          docker run --rm -i postgres:18-alpine pg_restore --list < golaly.dump > toc.txt
           tables=$(grep -c ' TABLE DATA ' toc.txt || true)
-          echo "Dump: $(du -h triply.dump | cut -f1), $tables tables" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Dump: $(du -h golaly.dump | cut -f1), $tables tables" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$tables" -gt 10 ] || { echo "::error::Dump looks empty"; exit 1; }
       - name: Encrypt
         run: |
-          name="triply-$(date -u +%Y%m%dT%H%MZ).dump.gpg"
+          name="golaly-$(date -u +%Y%m%dT%H%MZ).dump.gpg"
           gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
-            --symmetric --cipher-algo AES256 --output "$name" triply.dump 3<<<"$BACKUP_PASSPHRASE"
-          shred -u triply.dump toc.txt
+            --symmetric --cipher-algo AES256 --output "$name" golaly.dump 3<<<"$BACKUP_PASSPHRASE"
+          shred -u golaly.dump toc.txt
           echo "NAME=$name" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

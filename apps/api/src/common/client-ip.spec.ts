@@ -16,35 +16,35 @@ describe("clientIp (S2)", () => {
     setSecret(SECRET);
     expect(
       clientIp(
-        req({ "x-triply-edge": SECRET, "x-triply-client-ip": "203.0.113.9" }),
+        req({ "x-golaly-edge": SECRET, "x-golaly-client-ip": "203.0.113.9" }),
       ),
     ).toBe("203.0.113.9");
-    expect(viaEdge(req({ "x-triply-edge": SECRET }))).toBe(true);
+    expect(viaEdge(req({ "x-golaly-edge": SECRET }))).toBe(true);
   });
 
   it("ignores the header from anyone else", () => {
     setSecret(SECRET);
-    expect(clientIp(req({ "x-triply-client-ip": "203.0.113.9" }))).toBe(
+    expect(clientIp(req({ "x-golaly-client-ip": "203.0.113.9" }))).toBe(
       "10.0.0.1",
     );
     expect(
       clientIp(
-        req({ "x-triply-edge": "wrong", "x-triply-client-ip": "203.0.113.9" }),
+        req({ "x-golaly-edge": "wrong", "x-golaly-client-ip": "203.0.113.9" }),
       ),
     ).toBe("10.0.0.1");
     expect(
       clientIp(
-        req({ "x-triply-edge": SECRET, "x-triply-client-ip": "not-an-ip" }),
+        req({ "x-golaly-edge": SECRET, "x-golaly-client-ip": "not-an-ip" }),
       ),
     ).toBe("10.0.0.1");
   });
 
   it("does nothing when no secret is configured", () => {
     setSecret(undefined);
-    expect(viaEdge(req({ "x-triply-edge": "" }))).toBe(false);
+    expect(viaEdge(req({ "x-golaly-edge": "" }))).toBe(false);
     expect(
       clientIp(
-        req({ "x-triply-edge": "", "x-triply-client-ip": "203.0.113.9" }),
+        req({ "x-golaly-edge": "", "x-golaly-client-ip": "203.0.113.9" }),
       ),
     ).toBe("10.0.0.1");
   });

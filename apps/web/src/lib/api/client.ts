@@ -37,7 +37,7 @@ export const currentRequestLocale = () => uiLocale;
 
 /** Rotates the session cookies. Shared by REST retries and the realtime socket. */
 export async function refreshSession(): Promise<boolean> {
-  refreshing ??= fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include", headers: { "X-Requested-With": "triply" } })
+  refreshing ??= fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include", headers: { "X-Requested-With": "golaly" } })
     .then((r) => r.ok)
     .catch(() => false)
     .finally(() => setTimeout(() => (refreshing = null), 0));
@@ -58,7 +58,7 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
         Accept: "application/json",
         "Accept-Language": lang,
         [LOCALE_HEADER]: uiLocale,
-        ...(method !== "GET" ? { "X-Requested-With": "triply" } : {}),
+        ...(method !== "GET" ? { "X-Requested-With": "golaly" } : {}),
         ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
       },
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),

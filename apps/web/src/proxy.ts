@@ -9,8 +9,8 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 export function proxy(request: NextRequest) {
   const headers = new Headers(request.headers);
-  headers.delete("x-triply-edge");
-  headers.delete("x-triply-client-ip");
+  headers.delete("x-golaly-edge");
+  headers.delete("x-golaly-client-ip");
   const secret = process.env.EDGE_SECRET;
   const ip = (
     request.headers.get("x-real-ip") ??
@@ -18,8 +18,8 @@ export function proxy(request: NextRequest) {
     ""
   ).trim();
   if (secret && ip) {
-    headers.set("x-triply-client-ip", ip);
-    headers.set("x-triply-edge", secret);
+    headers.set("x-golaly-client-ip", ip);
+    headers.set("x-golaly-edge", secret);
   }
   return NextResponse.next({ request: { headers } });
 }

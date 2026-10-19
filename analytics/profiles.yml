@@ -1,5 +1,5 @@
 # Connection from the environment (run.py fills PG* from DATABASE_URL).
-triply:
+golaly:
   target: default
   outputs:
     default:

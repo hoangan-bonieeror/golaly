@@ -491,7 +491,7 @@ wheels = [
 ]
 
 [[package]]
-name = "triply-catalog"
+name = "golaly-catalog"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

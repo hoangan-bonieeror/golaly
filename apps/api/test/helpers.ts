@@ -32,7 +32,7 @@ const API = "/api/v1";
 
 function wrap(raw: TestAgent): Agent {
   let cookieHeader = "";
-  const csrf = (t: request.Test) => t.set("X-Requested-With", "triply");
+  const csrf = (t: request.Test) => t.set("X-Requested-With", "golaly");
   return {
     raw,
     get: (url) => raw.get(API + url),
@@ -61,7 +61,7 @@ export async function createTestContext(): Promise<TestContext> {
     anon: () => wrap(request.agent(server)),
     async as(email, password = DEMO_PASSWORD) {
       const raw = request.agent(server);
-      const res = await raw.post(`${API}/auth/login`).set("X-Requested-With", "triply").send({ email, password });
+      const res = await raw.post(`${API}/auth/login`).set("X-Requested-With", "golaly").send({ email, password });
       if (res.status !== 200) throw new Error(`login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
       const a = wrap(raw);
       (a as unknown as { cookie: string }).cookie = (res.headers["set-cookie"] as unknown as string[]).map((c) => c.split(";")[0]).join("; ");
@@ -71,14 +71,14 @@ export async function createTestContext(): Promise<TestContext> {
       const u = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
       const token = randomToken();
       await prisma.emailVerificationToken.create({ data: { userId, email: u.email, tokenHash: sha256(token), expiresAt: new Date(Date.now() + 3_600_000) } });
-      const res = await request(server).post(`${API}/auth/verify-email`).set("X-Requested-With", "triply").send({ token });
+      const res = await request(server).post(`${API}/auth/verify-email`).set("X-Requested-With", "golaly").send({ token });
       if (res.status !== 200) throw new Error(`verify failed: ${res.status} ${JSON.stringify(res.body)}`);
     },
     async register(prefix, opts) {
       const n = `${prefix}${Date.now().toString(36)}${counter++}`.toLowerCase().slice(0, 24);
       const email = `${n}@example.com`;
       const raw = request.agent(server);
-      const res = await raw.post(`${API}/auth/register`).set("X-Requested-With", "triply").send({ email, username: n, password: "harbor-lantern-58" });
+      const res = await raw.post(`${API}/auth/register`).set("X-Requested-With", "golaly").send({ email, username: n, password: "harbor-lantern-58" });
       if (res.status !== 201) throw new Error(`register failed: ${res.status} ${JSON.stringify(res.body)}`);
       const a = wrap(raw);
       (a as unknown as { cookie: string }).cookie = (res.headers["set-cookie"] as unknown as string[]).map((c) => c.split(";")[0]).join("; ");

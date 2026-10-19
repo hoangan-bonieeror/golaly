@@ -119,7 +119,7 @@ function TilePlacesMap({ places, center, radiusKm, activeId, focusId, className,
         if (!entry) {
           const node = document.createElement("button");
           node.type = "button";
-          node.className = "triply-pin";
+          node.className = "golaly-pin";
           node.appendChild(document.createElement("span"));
           node.addEventListener("click", (e) => {
             e.stopPropagation();

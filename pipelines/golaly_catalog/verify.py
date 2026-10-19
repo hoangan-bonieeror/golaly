@@ -1,4 +1,4 @@
-"""`triply-catalog verify --area vn`: has a big sync reached the phase 3 "done" bar, and where is review needed?
+"""`golaly-catalog verify --area vn`: has a big sync reached the phase 3 "done" bar, and where is review needed?
 
 Checks the area's last real (non-dry) run and the catalog it produced:
 
@@ -24,7 +24,7 @@ def verify_area(settings: Settings, area: str) -> dict[str, Any]:
     with db.connect(settings.database_url) as conn:
         g = conn.execute("SELECT id, name, level::text AS level FROM geo_areas WHERE slug = %s", [slug]).fetchone()
         if not g:
-            raise LookupError(f"No geo area '{slug}'. Import its boundaries first (triply-catalog boundaries --country …).")
+            raise LookupError(f"No geo area '{slug}'. Import its boundaries first (golaly-catalog boundaries --country …).")
         regions = conn.execute(
             """SELECT r.id, r.slug, r.name,
                       (SELECT count(*) FROM places p WHERE p.area_id = r.id AND p.status = 'ACTIVE' AND p.merged_into_id IS NULL) AS places
@@ -62,7 +62,7 @@ def verify_area(settings: Settings, area: str) -> dict[str, Any]:
         checks.append({"check": name, "ok": ok, **({"detail": detail} if detail is not None else {})})
 
     if not run:
-        check("a sync has run for this area", False, f"run: triply-catalog sync --area {slug}  (or catalog_sync with {{'area': '{slug}'}})")
+        check("a sync has run for this area", False, f"run: golaly-catalog sync --area {slug}  (or catalog_sync with {{'area': '{slug}'}})")
     else:
         progress = run["progress"] or {}
         stats = run["stats"] or {}
@@ -71,7 +71,7 @@ def verify_area(settings: Settings, area: str) -> dict[str, Any]:
             run["status"] == "succeeded",
             None
             if run["status"] == "succeeded"
-            else f"status {run['status']} — continue it: triply-catalog resume {run['id']} (or Resume on the admin run page)",
+            else f"status {run['status']} — continue it: golaly-catalog resume {run['id']} (or Resume on the admin run page)",
         )
         total = int(progress.get("total") or 0)
         done = int(run["partitions_done"] or progress.get("done") or 0)
@@ -102,6 +102,6 @@ def verify_area(settings: Settings, area: str) -> dict[str, Any]:
         "review_queue": {
             "pending_pairs": sum(q["pairs"] for q in queue),
             "by_region": [{"region": q["region"], "pairs": q["pairs"], "likely_same": q["likely"]} for q in queue],
-            "how": "Admin → Duplicates, filter by region slug; or triply-catalog merges list --area <region>",
+            "how": "Admin → Duplicates, filter by region slug; or golaly-catalog merges list --area <region>",
         },
     }

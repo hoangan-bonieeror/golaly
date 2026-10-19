@@ -5,14 +5,14 @@ typed TypeScript objects, so a missing or misspelt key is a type error, not a bl
 
 ## How the language is chosen
 
-1. The `triply-locale` cookie (set by the language switch in the account menu, Settings and the auth pages).
+1. The `golaly-locale` cookie (set by the language switch in the account menu, Settings and the auth pages).
 2. Otherwise the browser's `Accept-Language` (Vietnamese if it prefers `vi`, else English).
 3. Signed in: the language saved on the account (`user_profiles.locale`) wins after sign-in on a new device,
    and switching saves it back, so emails and other devices follow.
 
 The root layout reads it on the server (`getLocale()` in `server.ts`) so the first HTML is already in the right
 language; `I18nProvider` (in `client.tsx`) switches instantly afterwards and refetches server-built text.
-Every API call sends `X-Triply-Locale`; the API answers errors, notification sentences and category names in it.
+Every API call sends `X-Golaly-Locale`; the API answers errors, notification sentences and category names in it.
 Place names follow the interface language unless Settings pins another (`lib/placeLanguage.ts`).
 
 ## Catalog layout

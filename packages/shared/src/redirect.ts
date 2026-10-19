@@ -8,7 +8,7 @@ export function safeNext(next: unknown, fallback = "/home"): string {
   // Backslashes, control characters and whitespace have no business in our own paths.
   if (/[\\\s\u0000-\u001f\u007f]/.test(next)) return fallback;
   try {
-    const base = "https://triply.invalid";
+    const base = "https://golaly.invalid";
     const u = new URL(next, base);
     if (u.origin !== base) return fallback;
     return `${u.pathname}${u.search}${u.hash}`;

@@ -23,7 +23,7 @@ try:
 except ImportError:  # Airflow 2.x
     from airflow.operators.bash import BashOperator
 
-ANALYTICS_DIR = "/opt/triply/analytics"
+ANALYTICS_DIR = "/opt/golaly/analytics"
 DBT_PYTHON = "/opt/dbt/bin/python"
 
 
@@ -34,7 +34,7 @@ DBT_PYTHON = "/opt/dbt/bin/python"
     catchup=False,
     max_active_runs=1,
     default_args={"retries": 2, "retry_delay": timedelta(minutes=5)},
-    tags=["triply", "analytics"],
+    tags=["golaly", "analytics"],
     doc_md=__doc__,
 )
 def analytics_daily():

@@ -1,5 +1,5 @@
 # Production image for the Golaly web app. Build from the repo root:
-#   docker build -f apps/web/Dockerfile -t triply-web .
+#   docker build -f apps/web/Dockerfile -t golaly-web .
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo
 # Rewrites (/api/v1, /media) are resolved at build time, so API_ORIGIN must be known here.

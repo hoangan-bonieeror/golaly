@@ -154,7 +154,7 @@ async function syncMap(m: MapLibreMap | null, markers: Markers, latest: Latest, 
     if (!entry) {
       const node = document.createElement("button");
       node.type = "button";
-      node.className = "triply-pin";
+      node.className = "golaly-pin";
       node.appendChild(document.createElement("span"));
       node.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -324,7 +324,7 @@ export function TileMap({
     }
     if (!me.current) {
       const node = document.createElement("div");
-      node.className = "triply-me";
+      node.className = "golaly-me";
       node.setAttribute("role", "img");
       me.current = new lib.Marker({ element: node, anchor: "center" }).setLngLat([directions.from.lng, directions.from.lat]).addTo(m);
     }

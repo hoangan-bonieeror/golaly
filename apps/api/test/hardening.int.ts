@@ -14,7 +14,7 @@ afterAll(() => t.app.close());
 describe("sessions", () => {
   it("logout ends the session immediately — the old access cookie stops working", async () => {
     const u = await t.register("lo");
-    const access = u.cookies().split("; ").find((c) => c.startsWith("triply_at="))!;
+    const access = u.cookies().split("; ").find((c) => c.startsWith("golaly_at="))!;
     expect((await t.anon().raw.get("/api/v1/users/me").set("Cookie", access)).status).toBe(200);
     expect((await u.post("/auth/logout")).status).toBe(200);
     expect((await t.anon().raw.get("/api/v1/users/me").set("Cookie", access)).status).toBe(401);
@@ -156,7 +156,7 @@ describe("input validation", () => {
   });
 
   it("lists are paginated with a cursor", async () => {
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const first = (await an.get("/trips?limit=1")).body;
     expect(first.items).toHaveLength(1);
     expect(first.nextCursor).toBe(first.items[0].id);

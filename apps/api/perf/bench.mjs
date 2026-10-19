@@ -12,7 +12,7 @@
  */
 const API = (process.env.API_URL ?? "http://localhost:4000").replace(/\/$/, "") + "/api/v1";
 const RUNS = Number(process.env.PERF_RUNS ?? 5);
-const EMAIL = process.env.PERF_EMAIL ?? "an@triply.dev";
+const EMAIL = process.env.PERF_EMAIL ?? "an@golaly.dev";
 const PASSWORD = process.env.PERF_PASSWORD ?? "demo1234";
 const BUDGET = { user: Number(process.env.PERF_BUDGET_MS ?? 300), admin: Number(process.env.PERF_ADMIN_BUDGET_MS ?? 800) };
 
@@ -29,7 +29,7 @@ async function call(path) {
 async function login() {
   const res = await fetch(API + "/auth/login", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-requested-with": "triply" },
+    headers: { "content-type": "application/json", "x-requested-with": "golaly" },
     body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
   });
   if (!res.ok) return false;

@@ -1,4 +1,4 @@
-from triply_catalog.boundaries import area_slug
+from golaly_catalog.boundaries import area_slug
 
 
 def test_latin_primary_names_keep_their_slug():

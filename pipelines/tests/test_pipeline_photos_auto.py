@@ -10,10 +10,10 @@ import dataclasses
 import httpx
 import pytest
 
-from triply_catalog.photos import Candidate, count_due, row_values, save, sync_photos
-from triply_catalog.pipeline import photo_scope, run_sync
-from triply_catalog.sources import SourceConfigError
-from triply_catalog.sources.base import Manifest, NormalizedPhoto
+from golaly_catalog.photos import Candidate, count_due, row_values, save, sync_photos
+from golaly_catalog.pipeline import photo_scope, run_sync
+from golaly_catalog.sources import SourceConfigError
+from golaly_catalog.sources.base import Manifest, NormalizedPhoto
 
 from .test_pipeline_photos import FakeWikimedia
 
@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture()
 def photo_settings(settings, database):
-    return dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/triply-ops")
+    return dataclasses.replace(settings, wikimedia_delay=0, contact="https://example.com/golaly-ops")
 
 
 def run(photo_settings, fake, **kw):
@@ -137,7 +137,7 @@ def test_storage_modes_are_enforced_when_saving(db):
 
 
 def test_place_records_from_non_store_sources_are_refused(db):
-    from triply_catalog.load import load_batch
+    from golaly_catalog.load import load_batch
 
     with pytest.raises(SourceConfigError, match="can't be stored"):
         load_batch(db, "00000000-0000-0000-0000-000000000000", [], "terms", "x", storage="id_only")

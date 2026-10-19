@@ -43,7 +43,7 @@ export function placeRider(root: SVGGElement, kind: Vehicle, color: string, angl
 /** A standalone rider element for a map marker (40 × 40, centred on the route tip). */
 export function riderElement(): { el: HTMLDivElement; g: SVGGElement } {
   const el = document.createElement("div");
-  el.className = "triply-rider";
+  el.className = "golaly-rider";
   el.setAttribute("aria-hidden", "true");
   el.innerHTML = `<svg width="44" height="44" viewBox="-22 -22 44 44" style="overflow:visible;display:block"><g></g></svg>`;
   return { el, g: el.querySelector("g")! };

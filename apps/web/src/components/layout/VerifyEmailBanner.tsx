@@ -7,7 +7,7 @@ import { useAction } from "@/lib/api/queries";
 import { useT } from "@/i18n/client";
 
 /** Hidden for a few days after "×", then shown again while the address is still unconfirmed. */
-const DISMISS_KEY = "triply-verify-dismissed";
+const DISMISS_KEY = "golaly-verify-dismissed";
 const DISMISS_MS = 3 * 86_400_000;
 
 function dismissedRecently() {

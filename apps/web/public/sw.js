@@ -11,10 +11,10 @@
  * the person changes — logout, someone else signing in, a session that ended (postMessage({ type: "clear" })).
  * Built assets stay: they're the same for everyone.
  */
-const VERSION = "v2"; // v2: media moved out of the static cache (so it can be cleared with the data)
-const STATIC = `triply-static-${VERSION}`;
-const DATA = `triply-data-${VERSION}`;
-const MEDIA = `triply-media-${VERSION}`;
+const VERSION = "v3"; // v2: media moved out of the static cache (so it can be cleared with the data); v3: caches renamed (golaly-*), so the old ones are removed
+const STATIC = `golaly-static-${VERSION}`;
+const DATA = `golaly-data-${VERSION}`;
+const MEDIA = `golaly-media-${VERSION}`;
 const MEDIA_MAX = 300;
 
 self.addEventListener("install", () => self.skipWaiting());

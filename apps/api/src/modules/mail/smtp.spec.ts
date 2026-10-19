@@ -90,7 +90,7 @@ beforeAll(() => {
   cert = { key: readFileSync(path.join(dir, "k.pem"), "utf8"), cert: readFileSync(path.join(dir, "c.pem"), "utf8") };
 });
 
-const msg = { from: "Golaly Đà Lạt <noreply@triply.test>", to: "lan@example.com", subject: "Xác nhận email Golaly của bạn", text: "Xin chào!\n.leading dot line\nhttps://example.com/verify?token=abc" };
+const msg = { from: "Golaly Đà Lạt <noreply@golaly.test>", to: "lan@example.com", subject: "Xác nhận email Golaly của bạn", text: "Xin chào!\n.leading dot line\nhttps://example.com/verify?token=abc" };
 const bodyOf = (data: string) => Buffer.from(data.split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
 
 describe("smtp", () => {
@@ -103,7 +103,7 @@ describe("smtp", () => {
   it("encodes Vietnamese subjects and names, and a body no line of which starts with a dot", () => {
     const m = buildMessage(msg, new Date("2026-10-19T08:00:00Z"));
     expect(m).toContain(`Subject: =?UTF-8?B?${Buffer.from(msg.subject).toString("base64")}?=`);
-    expect(m).toContain(`From: =?UTF-8?B?${Buffer.from("Golaly Đà Lạt").toString("base64")}?= <noreply@triply.test>`);
+    expect(m).toContain(`From: =?UTF-8?B?${Buffer.from("Golaly Đà Lạt").toString("base64")}?= <noreply@golaly.test>`);
     expect(m).toContain("Date: Mon, 19 Oct 2026 08:00:00 +0000");
     expect(m.split("\r\n").some((l) => l.startsWith("."))).toBe(false);
     expect(bodyOf(m)).toBe(msg.text.replace(/\n/g, "\r\n"));
@@ -111,12 +111,12 @@ describe("smtp", () => {
 
   it("delivers over STARTTLS with AUTH PLAIN", async () => {
     const srv = await fakeServer({ startTls: true, password: "s3cret", cert });
-    const cfg: SmtpConfig = { ...parseSmtpUrl(`smtp://me%40triply.test:s3cret@localhost:${srv.port}`), tls: { ca: cert.cert } };
+    const cfg: SmtpConfig = { ...parseSmtpUrl(`smtp://me%40golaly.test:s3cret@localhost:${srv.port}`), tls: { ca: cert.cert } };
     await sendSmtp(cfg, msg);
     await srv.close();
     expect(srv.received).toHaveLength(1);
     const r = srv.received[0];
-    expect(r).toMatchObject({ tls: true, auth: "me@triply.test", from: "MAIL FROM:<noreply@triply.test>", to: "RCPT TO:<lan@example.com>" });
+    expect(r).toMatchObject({ tls: true, auth: "me@golaly.test", from: "MAIL FROM:<noreply@golaly.test>", to: "RCPT TO:<lan@example.com>" });
     expect(bodyOf(r.data)).toContain("token=abc");
   });
 

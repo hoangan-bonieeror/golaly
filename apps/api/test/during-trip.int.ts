@@ -6,7 +6,7 @@ let t: TestContext;
 beforeAll(async () => (t = await createTestContext()));
 afterAll(() => t.app.close());
 
-const VI = { "X-Triply-Locale": "vi" };
+const VI = { "X-Golaly-Locale": "vi" };
 const place = (name: string) => t.prisma.place.findFirstOrThrow({ where: { name }, select: { id: true } }).then((p) => p.id);
 // 2026-10-14 is a Wednesday.
 const DAY = "2026-10-14";

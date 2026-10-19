@@ -5,8 +5,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { env } from "../config/env";
 
-export const EDGE_HEADER = "x-triply-edge";
-export const CLIENT_IP_HEADER = "x-triply-client-ip";
+export const EDGE_HEADER = "x-golaly-edge";
+export const CLIENT_IP_HEADER = "x-golaly-client-ip";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
@@ -21,7 +21,7 @@ export function viaEdge(req: Pick<Request, "headers">): boolean {
 
 /**
  * The browser's address, for rate limits and audit context. Requests through the web proxy carry it in
- * `x-triply-client-ip` (trusted only with the shared secret); anything else — a direct call to the API host, a
+ * `x-golaly-client-ip` (trusted only with the shared secret); anything else — a direct call to the API host, a
  * spoofed header without the secret — falls back to the connection's address as Express sees it (TRUST_PROXY).
  */
 export function clientIp(req: Pick<Request, "headers" | "ip">): string {

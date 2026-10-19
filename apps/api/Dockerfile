@@ -1,6 +1,6 @@
 # Production image for the Golaly API. Build from the repo root:
-#   docker build -f apps/api/Dockerfile -t triply-api .
-#   docker build -f apps/api/Dockerfile --target migrate -t triply-api-migrate .   # one-off migration job
+#   docker build -f apps/api/Dockerfile -t golaly-api .
+#   docker build -f apps/api/Dockerfile --target migrate -t golaly-api-migrate .   # one-off migration job
 
 # ── build: full toolchain (TypeScript, Nest CLI, Prisma CLI) ───────────────────
 FROM node:22-bookworm-slim AS build

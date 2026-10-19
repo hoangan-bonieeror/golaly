@@ -5,7 +5,7 @@
 2. `fetch_photos` (matched items only): licence, author and a ≤2400 px rendition of the main image and of the
    category's *quality* images (Quality / Featured / Valued) from the Commons API.
 
-Matching, licence filtering, choosing and saving are shared (`triply_catalog.photos`).
+Matching, licence filtering, choosing and saving are shared (`golaly_catalog.photos`).
 """
 
 from __future__ import annotations

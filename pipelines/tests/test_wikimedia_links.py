@@ -1,6 +1,6 @@
 """Links from Wikimedia metadata become hrefs on place pages: only http(s) may pass."""
 
-from triply_catalog.sources.wikimedia import _first_link, _http
+from golaly_catalog.sources.wikimedia import _first_link, _http
 
 
 def test_http_only():

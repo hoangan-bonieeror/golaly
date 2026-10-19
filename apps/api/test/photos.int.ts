@@ -12,7 +12,7 @@ afterAll(() => t.app.close());
 const place = (key: string) => seedId(`place:${key}`);
 const jpeg = (color: string, w = 800, h = 600) => sharp({ create: { width: w, height: h, channels: 3, background: color } }).jpeg().toBuffer();
 async function upload(a: Agent, color = "#a4471f"): Promise<string> {
-  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", await jpeg(color), { filename: "p.jpg", contentType: "image/jpeg" });
+  const res = await a.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", await jpeg(color), { filename: "p.jpg", contentType: "image/jpeg" });
   expect(res.status).toBe(201);
   return res.body.id;
 }
@@ -42,7 +42,7 @@ describe("user photos", () => {
   });
 
   it("trusted travelers publish at once; the photo becomes the place's cover with a credit", async () => {
-    const sarah = await t.as("sarah@triply.dev"); // has public trips
+    const sarah = await t.as("sarah@golaly.dev"); // has public trips
     const res = await sarah.post(`/places/${place("roastery")}/photos`, { mediaId: await upload(sarah, "#6b3a1f") });
     expect(res.body.status).toBe("APPROVED");
     const d = await detail(t.anon(), "roastery");
@@ -53,7 +53,7 @@ describe("user photos", () => {
   });
 
   it("can be shared from the uploader's own post only", async () => {
-    const sarah = await t.as("sarah@triply.dev");
+    const sarah = await t.as("sarah@golaly.dev");
     const mediaId = await upload(sarah, "#f5cd5b");
     const post = (await sarah.post("/posts", { title: "Lantern night", body: "", mediaIds: [mediaId] })).body;
     const ok = await sarah.post(`/places/${place("ancient-town")}/photos`, { mediaId, postId: post.id });
@@ -63,9 +63,9 @@ describe("user photos", () => {
   });
 
   it("uploaders can remove their photo; others can't", async () => {
-    const sarah = await t.as("sarah@triply.dev");
+    const sarah = await t.as("sarah@golaly.dev");
     const photo = (await sarah.post(`/places/${place("cao-lau")}/photos`, { mediaId: await upload(sarah) })).body as PlacePhotoView;
-    const minh = await t.as("minh@triply.dev");
+    const minh = await t.as("minh@golaly.dev");
     expect((await minh.delete(`/place-photos/${photo.id}`)).status).toBe(403);
     expect((await sarah.delete(`/place-photos/${photo.id}`)).status).toBe(200);
     expect((await detail(t.anon(), "cao-lau")).photos.map((p) => p.id)).not.toContain(photo.id);
@@ -76,10 +76,10 @@ describe("moderation", () => {
   it("admins review the queue; others can't see it", async () => {
     const u = await t.register("queued", { verified: true });
     const photo = (await u.post(`/places/${place("tra-que")}/photos`, { mediaId: await upload(u) })).body as PlacePhotoView;
-    const minh = await t.as("minh@triply.dev");
+    const minh = await t.as("minh@golaly.dev");
     expect((await minh.get("/admin/place-photos")).status).toBe(403);
     expect((await minh.patch(`/place-photos/${photo.id}`, { status: "APPROVED" })).status).toBe(403);
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     expect((await an.get("/users/me")).body.isAdmin).toBe(true);
     const queue = (await an.get("/admin/place-photos?filter=pending")).body as Paged<ModerationPhoto>;
     expect(queue.items.find((p) => p.id === photo.id)).toMatchObject({ place: { name: "Trà Quế Vegetable Village", destinationName: "Hội An" } });
@@ -90,7 +90,7 @@ describe("moderation", () => {
   });
 
   it("three separate reports from established accounts hide a photo until a moderator restores it", async () => {
-    const sarah = await t.as("sarah@triply.dev");
+    const sarah = await t.as("sarah@golaly.dev");
     const photo = (await sarah.post(`/places/${place("hoian-museum")}/photos`, { mediaId: await upload(sarah) })).body as PlacePhotoView;
     const shown = async () => (await detail(t.anon(), "hoian-museum")).photos.map((p) => p.id).includes(photo.id);
     // Fresh sign-ups are counted for moderators but can't take a photo down (S18).
@@ -107,7 +107,7 @@ describe("moderation", () => {
     }
     // Hidden photos can't be reported (or probed) by others any more.
     expect((await (await t.register("late")).post("/reports", { target: "PLACE_PHOTO", targetId: photo.id, reason: "SPAM" })).status).toBe(404);
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const hidden = (await an.get("/admin/place-photos?filter=hidden")).body as Paged<ModerationPhoto>;
     expect(hidden.items.find((p) => p.id === photo.id)?.reportCount).toBe(6);
     await an.patch(`/place-photos/${photo.id}`, { status: "APPROVED" });
@@ -122,7 +122,7 @@ describe("imported photos (Wikimedia Commons)", () => {
   const calls: { url: string; init?: RequestInit }[] = [];
   beforeAll(async () => {
     ingest = t.app.get(PhotoIngestService);
-    ingest.userAgent = "Golaly/0.2 (+https://example.com/triply-ops) node";
+    ingest.userAgent = "Golaly/0.2 (+https://example.com/golaly-ops) node";
     const img = await jpeg("#2f6b3a", 1600, 1000);
     ingest.fetcher = (async (url: URL | string, init?: RequestInit) => {
       calls.push({ url: String(url), init });
@@ -152,7 +152,7 @@ describe("imported photos (Wikimedia Commons)", () => {
     const row = await queue("an-bang");
     expect(await ingest.ingestBatch(10)).toMatchObject({ stored: 1, failed: 0 });
     expect(calls[0].init?.redirect).toBe("error");
-    expect((calls[0].init?.headers as Record<string, string>)["User-Agent"]).toBe("Golaly/0.2 (+https://example.com/triply-ops) node");
+    expect((calls[0].init?.headers as Record<string, string>)["User-Agent"]).toBe("Golaly/0.2 (+https://example.com/golaly-ops) node");
     const d = await detail(t.anon(), "an-bang");
     const p = d.photos.find((x) => x.id === row.id)!;
     expect(p.image.url).toMatch(/^\/media\/imported\/.+_1280\.webp$/);
@@ -169,7 +169,7 @@ describe("imported photos (Wikimedia Commons)", () => {
     await ingest.ingestBatch(10);
     expect(await t.prisma.media.count()).toBe(before);
     expect((await t.prisma.placePhoto.findUniqueOrThrow({ where: { id: twin.id } })).mediaId).not.toBeNull();
-    const sarah = await t.as("sarah@triply.dev");
+    const sarah = await t.as("sarah@golaly.dev");
     const mine = (await sarah.post(`/places/${place("coconut-forest")}/photos`, { mediaId: await upload(sarah) })).body as PlacePhotoView;
     expect((await detail(t.anon(), "coconut-forest")).photos.map((p) => p.id)).toEqual([mine.id, twin.id]);
   });
@@ -183,7 +183,7 @@ describe("imported photos (Wikimedia Commons)", () => {
       expect(calls.length).toBe(n);
       expect((await t.prisma.placePhoto.findUniqueOrThrow({ where: { id: row.id } })).ingestAttempts).toBe(0);
     } finally {
-      ingest.userAgent = "Golaly/0.2 (+https://example.com/triply-ops) node";
+      ingest.userAgent = "Golaly/0.2 (+https://example.com/golaly-ops) node";
     }
     expect((await ingest.ingestBatch(10)).stored).toBe(1);
   });

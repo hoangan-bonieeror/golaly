@@ -18,7 +18,7 @@ describe("privacy (spec §34)", () => {
     expect(profileTrips.map((x: { id: string }) => x.id)).not.toContain(japan.id);
     expect((await t.anon().get(`/trips/${japan.id}`)).body.message).toBe("This trip is private.");
     // The owner still sees it on their own profile.
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     expect((await an.get("/users/an.nguyen/trips")).body.map((x: { id: string }) => x.id)).toContain(japan.id);
   });
 
@@ -121,7 +121,7 @@ describe("discovery", () => {
     expect(page.places.length).toBeGreaterThan(0);
     expect((await t.anon().get("/destinations/atlantis")).status).toBe(404);
     const japan = await demoTrip(t.prisma, "Japan — 7 Days");
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const places = (await an.get(`/places/search?tripId=${japan.id}`)).body;
     expect(places.length).toBeGreaterThan(0);
   });
@@ -131,16 +131,16 @@ describe("media", () => {
   it("accepts real images (re-encoded, EXIF stripped, thumbnail) and rejects anything else", async () => {
     const u = await t.register("pic");
     const png = await sharp({ create: { width: 300, height: 200, channels: 3, background: "#0e6e6a" } }).png().toBuffer();
-    const ok = await u.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", png, { filename: "a.png", contentType: "image/png" });
+    const ok = await u.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", png, { filename: "a.png", contentType: "image/png" });
     expect(ok.status).toBe(201);
     expect(ok.body).toMatchObject({ width: 300, height: 200, mimeType: "image/webp" });
     expect(ok.body.thumbUrl).toMatch(/_thumb\.webp$/);
     expect((await u.raw.get(ok.body.url)).status).toBe(200);
 
-    const fake = await u.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", Buffer.from("not an image"), { filename: "x.png", contentType: "image/png" });
+    const fake = await u.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", Buffer.from("not an image"), { filename: "x.png", contentType: "image/png" });
     expect(fake.status).toBe(415);
     const tiny = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#000" } }).png().toBuffer();
-    const small = await u.raw.post("/api/v1/media").set("X-Requested-With", "triply").attach("file", tiny, { filename: "t.png", contentType: "image/png" });
+    const small = await u.raw.post("/api/v1/media").set("X-Requested-With", "golaly").attach("file", tiny, { filename: "t.png", contentType: "image/png" });
     expect(small.status).toBe(422);
 
     expect((await u.patch("/users/me", { avatarMediaId: ok.body.id })).body.avatarUrl).toBe(ok.body.thumbUrl);

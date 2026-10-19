@@ -6,7 +6,7 @@ let t: TestContext;
 beforeAll(async () => (t = await createTestContext()));
 afterAll(() => t.app.close());
 
-const VI = { "X-Triply-Locale": "vi" };
+const VI = { "X-Golaly-Locale": "vi" };
 
 describe("interface language", () => {
   it("answers errors and field messages in the requested language; English stays the default", async () => {
@@ -47,7 +47,7 @@ describe("interface language", () => {
   });
 
   it("seeded notifications are stored as messages too", async () => {
-    const an = await t.as("an@triply.dev");
+    const an = await t.as("an@golaly.dev");
     const texts = (await an.get("/notifications").set(VI)).body.items.map((n: { text: string }) => n.text);
     expect(texts).toContain("đã bắt đầu theo dõi bạn");
     expect(texts).toContain("đã thêm “teamLab Planets” vào Ngày 2 của Japan — 7 Days");
