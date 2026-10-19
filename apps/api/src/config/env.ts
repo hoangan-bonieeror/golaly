@@ -49,6 +49,8 @@ const schema = z.object({
    * "off" disables it (e.g. on extra replicas; the queue is safe to share either way).
    */
   PHOTO_INGEST: z.enum(["on", "off"]).default("on"),
+  /** Visitors' public reads cached for a minute (common/public-cache.ts). Default on, except in tests (they change rows directly). */
+  PUBLIC_CACHE: z.enum(["on", "off"]).default(process.env.NODE_ENV === "test" ? "off" : "on"),
   /** Requests at least this slow are logged with their database time (common/timing.ts). */
   SLOW_REQUEST_MS: z.coerce.number().int().min(1).default(500),
   /** Check new passwords against Have I Been Pwned (k-anonymity; fails open). Default: on, except in tests. */

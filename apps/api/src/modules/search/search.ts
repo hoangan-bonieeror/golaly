@@ -14,6 +14,7 @@ import { listablePlace, placeInclude, postInclude, toPlaceView, toPostView, toTr
 import { PrismaService } from "../../prisma/prisma.service";
 import type { Prisma } from "../../generated/prisma/client";
 import { TrigramRanker, byRank } from "./ranker";
+import { PublicCache } from "../../common/public-cache";
 
 /** Only PUBLIC, non-deleted trips are ever discoverable (LINK_ONLY is unlisted — spec §34). */
 export const DISCOVERABLE: Prisma.TripWhereInput = { visibility: "PUBLIC", deletedAt: null };
@@ -161,24 +162,28 @@ export class SearchController {
   ) {}
 
   @Public()
+  @PublicCache()
   @Get("search")
   run(@Query(new ZodPipe(searchQuerySchema)) q: z.infer<typeof searchQuerySchema>, @ViewerId() me: string | null) {
     return this.search.search(q.q, q.type, q.limit, me);
   }
 
   @Public()
+  @PublicCache()
   @Get("explore")
   home(@ViewerId() me: string | null) {
     return this.explore.explore(me);
   }
 
   @Public()
+  @PublicCache()
   @Get("destinations")
   destinations() {
     return this.search.destinations("", 100);
   }
 
   @Public()
+  @PublicCache()
   @Get("destinations/:slug")
   destination(@Param("slug") slug: string, @ViewerId() me: string | null) {
     return this.explore.destination(slug, me);

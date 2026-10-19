@@ -9,6 +9,7 @@ import path from "node:path";
 import { AppModule } from "./app.module";
 import { localeMiddleware } from "./common/locale";
 import { timingMiddleware } from "./common/timing";
+import { clearPublicCacheOnWrite } from "./common/public-cache";
 import { corsOrigins, env } from "./config/env";
 
 export async function createApp() {
@@ -18,6 +19,7 @@ export async function createApp() {
   // Only trusted hops may set the client IP that rate limits key on (see TRUST_PROXY in env.ts).
   app.set("trust proxy", env.TRUST_PROXY);
   app.use(timingMiddleware); // first, so the timing covers everything below
+  app.use(clearPublicCacheOnWrite);
   app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(cookieParser());
   app.use(localeMiddleware);

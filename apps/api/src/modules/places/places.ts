@@ -23,6 +23,7 @@ import { MediaModule } from "../media/media";
 import { DISCOVERABLE } from "../search/search";
 import { PhotoIngestService, PlacePhotosController, PlacePhotosService } from "./photos";
 import { PLACE_COLUMNS, TrigramRanker, byRank, placeCandidates, relevance } from "../search/ranker";
+import { PublicCache } from "../../common/public-cache";
 
 /** Default search radius (km) around a destination / around the device. */
 const RADIUS = { destination: 10, near: 5 } as const;
@@ -435,24 +436,28 @@ export class PlacesController {
   ) {}
 
   @Public()
+  @PublicCache()
   @Get("categories")
   categories() {
     return this.places.categories();
   }
 
   @Public()
+  @PublicCache()
   @Get("areas")
   areas() {
     return this.places.areas();
   }
 
   @Public()
+  @PublicCache()
   @Get("browse")
   browse(@Query(new ZodPipe(placeBrowseQuerySchema)) q: PlaceBrowseQuery, @ViewerId() me: string | null) {
     return this.places.browse(q, me);
   }
 
   @Public()
+  @PublicCache()
   @Get("search")
   async search(@Query(new ZodPipe(placeSearchQuery)) q: z.infer<typeof placeSearchQuery>, @ViewerId() me: string | null) {
     // Trip destinations are only used for ranking, and only if the viewer may see the trip.
@@ -473,6 +478,7 @@ export class PlacesController {
   }
 
   @Public()
+  @PublicCache()
   @Get(":id")
   detail(@Param("id", ParseUUIDPipe) id: string, @ViewerId() me: string | null) {
     return this.places.detail(id, me);

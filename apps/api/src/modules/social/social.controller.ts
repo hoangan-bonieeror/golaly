@@ -12,6 +12,7 @@ import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { SocialService } from "./social.service";
+import { PublicCache } from "../../common/public-cache";
 
 const Uuid = new ParseUUIDPipe();
 const commentsQuery = pageQuerySchema.extend({ limit: z.coerce.number().int().min(1).max(100).default(50) });
@@ -22,6 +23,7 @@ export class SocialController {
   constructor(private readonly social: SocialService) {}
 
   @Public()
+  @PublicCache()
   @Get("feed")
   feed(@ViewerId() me: string | null, @Query(new ZodPipe(feedQuery)) q: z.infer<typeof feedQuery>) {
     return this.social.feed(me, q.mode, q.cursor, q.limit);
