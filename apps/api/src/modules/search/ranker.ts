@@ -89,6 +89,17 @@ export function textMatch(q: string, cols: TextColumns, fuzzy = true): Prisma.Sq
 
 /** Relevance score for ORDER BY … DESC (higher is better); null when the query has no usable words. */
 export function relevance(q: string, cols: TextColumns): Prisma.Sql | null {
+  const parts = relevanceParts(q, cols);
+  return parts && Prisma.sql`(${parts.coarse} + (${parts.sim}))`;
+}
+
+/**
+ * The score in two parts: `coarse` (name/phrase tiers and word hits — cheap comparisons on short columns) and `sim`
+ * (trigram word similarity against the whole search text — most of the cost). Each word adds at most 1 to `sim`, so
+ * `maxSim` bounds how far it can move a row: rows whose coarse score is more than that below the N-th best can't make
+ * the top N, and their similarity never needs computing (see rankPlaces).
+ */
+export function relevanceParts(q: string, cols: TextColumns): { coarse: Prisma.Sql; sim: Prisma.Sql; maxSim: number } | null {
   const words = queryWords(q);
   if (!words.length) return null;
   const text = Prisma.raw(cols.text);
@@ -102,7 +113,7 @@ export function relevance(q: string, cols: TextColumns): Prisma.Sql | null {
     ? Prisma.join(words.filter((w) => w.accented).map((w) => Prisma.sql`(lower(${Prisma.raw(cols.rawName!)}) ~ ${wordStart(w.accented!)})::int`), " + ")
     : Prisma.sql`0`;
   const sim = Prisma.join(words.map((w) => Prisma.sql`word_similarity(${w.plain}, ${text})`), " + ");
-  return Prisma.sql`(${tier} * 100 + (${nameHits}) * 10 + (${accentHits}) * 5 + (${sim}))`;
+  return { coarse: Prisma.sql`(${tier} * 100 + (${nameHits}) * 10 + (${accentHits}) * 5)`, sim, maxSim: words.length };
 }
 
 /** Search columns of the places table, aliased `p`. */
@@ -133,6 +144,30 @@ export interface Candidates {
 export async function placeCandidates(prisma: PrismaService, q: string, conds: Prisma.Sql[]): Promise<Candidates | null> {
   const words = queryWords(q);
   if (!words.length) return null;
+  const exactSql = exactCandidatesSql(q, conds);
+  // These queries must use the trigram / name indexes. With a LIMIT and an optimistic guess of how many rows match,
+  // the planner sometimes prefers reading the table until it has enough — evaluating `<%` per row costs far more
+  // than it assumes, and a word that matches nothing then means reading every row. So, for these queries only:
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL enable_seqscan = off`;
+    const rows = await tx.$queryRaw<{ id: string; src: number }[]>(exactSql);
+    if (rows.length) {
+      return { ids: [...new Set(rows.map((r) => r.id))], capped: rows.filter((r) => r.src === 1).length > TEXT_CANDIDATES, fuzzy: false };
+    }
+    return fuzzyCandidates(tx, q, conds);
+  });
+}
+
+/** Close spellings, when nothing matched exactly (inside the enable_seqscan = off transaction). */
+async function fuzzyCandidates(tx: Pick<PrismaService, "$queryRaw">, q: string, conds: Prisma.Sql[]): Promise<Candidates> {
+  if (!queryWords(q).some((w) => w.plain.length >= FUZZY_MIN)) return { ids: [], capped: false, fuzzy: false };
+  const where = Prisma.join([...conds, textMatch(q, PLACE_COLUMNS, true)!], " AND ");
+  const near = await tx.$queryRaw<{ id: string }[]>`SELECT p.id::text AS id FROM places p WHERE ${where} LIMIT ${TEXT_CANDIDATES + 1}`;
+  return { ids: near.map((r) => r.id), capped: near.length > TEXT_CANDIDATES, fuzzy: true };
+}
+
+/** The exact (word-start) candidates: `id`, `src` (1 = text match, 2 = name starts with the phrase). */
+function exactCandidatesSql(q: string, conds: Prisma.Sql[]): Prisma.Sql {
   const where = (m: Prisma.Sql) => Prisma.join([...conds, m], " AND ");
   const exact = textMatch(q, PLACE_COLUMNS, false)!;
   const phrase = normalizeSearch(q);
@@ -147,21 +182,34 @@ export async function placeCandidates(prisma: PrismaService, q: string, conds: P
          ORDER BY p.name_norm COLLATE "C" LIMIT ${PREFIX_SCAN}) p
        WHERE ${exact} LIMIT ${PREFIX_CANDIDATES})`
     : Prisma.empty;
-  // These queries must use the trigram / name indexes. With a LIMIT and an optimistic guess of how many rows match,
-  // the planner sometimes prefers reading the table until it has enough — evaluating `<%` per row costs far more
-  // than it assumes, and a word that matches nothing then means reading every row. So, for these queries only:
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SET LOCAL enable_seqscan = off`;
-    const rows = await tx.$queryRaw<{ id: string; src: number }[]>`
+  return Prisma.sql`
       (SELECT p.id::text AS id, 1 AS src FROM places p WHERE ${where(exact)} LIMIT ${TEXT_CANDIDATES + 1})
       ${byPrefix}`;
-    if (rows.length) {
-      return { ids: [...new Set(rows.map((r) => r.id))], capped: rows.filter((r) => r.src === 1).length > TEXT_CANDIDATES, fuzzy: false };
-    }
-    if (!words.some((w) => w.plain.length >= FUZZY_MIN)) return { ids: [], capped: false, fuzzy: false };
-    const near = await tx.$queryRaw<{ id: string }[]>`
-      SELECT p.id::text AS id FROM places p WHERE ${where(textMatch(q, PLACE_COLUMNS, true)!)} LIMIT ${TEXT_CANDIDATES + 1}`;
-    return { ids: near.map((r) => r.id), capped: near.length > TEXT_CANDIDATES, fuzzy: true };
+}
+
+/**
+ * The best `limit` places for a text query, in one statement: candidates (as placeCandidates) and ranking together,
+ * so the ids never travel to the API and back. Ranked by relevance(), then rating and data quality — the same order
+ * as before — but the expensive similarity part is only computed for rows that can still reach the top (see
+ * relevanceParts). Falls back to close spellings when nothing matches exactly.
+ */
+export async function rankPlaces(prisma: PrismaService, q: string, conds: Prisma.Sql[], limit: number): Promise<string[]> {
+  const parts = relevanceParts(q, PLACE_COLUMNS);
+  if (!parts) return [];
+  const rankIds = (ids: Prisma.Sql) => Prisma.sql`
+    WITH c AS (SELECT p.id, ${parts.coarse} AS coarse FROM places p WHERE p.id IN (${ids})),
+         cut AS (SELECT coarse FROM c ORDER BY coarse DESC OFFSET ${limit - 1} LIMIT 1)
+    SELECT p.id::text AS id FROM c JOIN places p ON p.id = c.id
+    WHERE c.coarse >= coalesce((SELECT coarse FROM cut), -1) - ${parts.maxSim}
+    ORDER BY c.coarse + (${parts.sim}) DESC, p.rating DESC NULLS LAST, p.quality_score DESC, p.id
+    LIMIT ${limit}`;
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SET LOCAL enable_seqscan = off`;
+    const rows = await tx.$queryRaw<{ id: string }[]>(rankIds(Prisma.sql`SELECT id::uuid FROM (${exactCandidatesSql(q, conds)}) cand`));
+    if (rows.length) return rows.map((r) => r.id);
+    const near = await fuzzyCandidates(tx, q, conds);
+    if (!near.ids.length) return [];
+    return (await tx.$queryRaw<{ id: string }[]>(rankIds(Prisma.sql`SELECT unnest(${near.ids}::uuid[])`))).map((r) => r.id);
   });
 }
 
@@ -184,14 +232,8 @@ export class TrigramRanker {
   trips(q: string, limit: number) {
     return this.run(`"trips"`, `"id"`, { text: "search_text" }, q, limit, Prisma.sql`AND visibility = 'PUBLIC' AND deleted_at IS NULL`);
   }
-  async places(q: string, limit: number) {
-    const found = await placeCandidates(this.prisma, q, [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`]);
-    const score = relevance(q, PLACE_COLUMNS);
-    if (!found?.ids.length || !score) return [];
-    const rows = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT p.id::text AS id FROM places p WHERE p.id = ANY(${found.ids}::uuid[])
-      ORDER BY ${score} DESC, p.rating DESC NULLS LAST, p.quality_score DESC LIMIT ${limit}`;
-    return rows.map((r) => r.id);
+  places(q: string, limit: number) {
+    return rankPlaces(this.prisma, q, [Prisma.sql`p.status = 'ACTIVE' AND p.merged_into_id IS NULL`], limit);
   }
   destinations(q: string, limit: number) {
     // Curated names are often English ("Hanoi"), so accents only help ranking here, never filter.

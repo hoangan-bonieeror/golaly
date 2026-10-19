@@ -369,7 +369,8 @@ model Place {
   @@index([updatedAt(sort: Desc), id]) // admin place list: newest first, without sorting the whole catalog
   // Partial / expression indexes Prisma can't describe live only in their SQL migrations (keep them when generating
   // a new migration): places_needs_publish_idx, places_listable_rank_idx, places_area_rank_idx,
-  // places_area_category_idx, places_name_c_idx — see 20261014000000_* … 20261014000003_*.
+  // places_area_category_idx, places_name_c_idx — see 20261014000000_* … 20261014000003_* — and
+  // places_search_unfilled_idx (20261021000000_*).
   @@map("places")
 }
 

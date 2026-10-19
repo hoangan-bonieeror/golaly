@@ -52,13 +52,22 @@ export class SearchIndexService implements OnApplicationBootstrap {
       await this.prisma.destination.update({ where: { id: d.id }, data: { searchText: normalizeSearch(`${d.name} ${d.country}`) } });
       n++;
     }
-    const places = await this.prisma.place.findMany({
-      where: { OR: [{ searchText: "" }, { searchAccent: "" }] },
-      include: { destination: { select: { name: true, country: true } }, area: { select: { name: true } } },
-    });
-    for (const p of places) {
-      await this.prisma.place.update({ where: { id: p.id }, data: SearchIndexService.placeText(p) });
-      n++;
+    // Literal '' (not a parameter) so the planner can use places_search_unfilled_idx: without it this read the whole
+    // catalog on every start. In batches, so a large backfill (after a big import) doesn't load everything at once.
+    const seen = new Set<string>(); // a place with no text at all stays empty: don't loop on it
+    for (;;) {
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`SELECT id FROM places WHERE search_text = '' OR search_accent = '' LIMIT ${500 + seen.size}`;
+      const ids = rows.map((r) => r.id).filter((id) => !seen.has(id));
+      if (!ids.length) break;
+      ids.forEach((id) => seen.add(id));
+      const places = await this.prisma.place.findMany({
+        where: { id: { in: ids } },
+        include: { destination: { select: { name: true, country: true } }, area: { select: { name: true } } },
+      });
+      for (const p of places) {
+        await this.prisma.place.update({ where: { id: p.id }, data: SearchIndexService.placeText(p) });
+        n++;
+      }
     }
     const trips = await this.prisma.trip.findMany({ where: { searchText: "" }, select: { id: true, updatedAt: true, title: true, description: true, destinations: { select: { destination: { select: { name: true, country: true } } } } } });
     for (const t of trips) {
