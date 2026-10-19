@@ -17,6 +17,14 @@ export const nav: Messages["nav"] = {
   tabBar: "Thanh điều hướng",
   searchLabel: "Tìm trên TRIPLY",
   searchPlaceholder: "Tìm địa điểm, chuyến đi và mọi người",
+  suggest: {
+    label: "Gợi ý",
+    places: "Địa điểm",
+    destinations: "Điểm đến",
+    seeAll: (q: string) => `Xem tất cả kết quả cho “${q}”`,
+    none: (q: string) => `Chưa có địa điểm hay điểm đến nào khớp “${q}”`,
+    count: (n: number) => `${n} gợi ý`,
+  },
   account: (name) => `Tài khoản: ${name}`,
   accountNav: "Tài khoản",
   createSheet: {

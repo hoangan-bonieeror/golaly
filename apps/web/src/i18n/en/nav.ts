@@ -16,6 +16,14 @@ export const nav = {
   tabBar: "Tab bar",
   searchLabel: "Search TRIPLY",
   searchPlaceholder: "Search places, trips and people",
+  suggest: {
+    label: "Suggestions",
+    places: "Places",
+    destinations: "Destinations",
+    seeAll: (q: string) => `See all results for “${q}”`,
+    none: (q: string) => `No places or destinations match “${q}” yet`,
+    count: (n: number) => (n === 1 ? "1 suggestion" : `${n} suggestions`),
+  },
   account: (name: string) => `Account: ${name}`,
   accountNav: "Account",
   createSheet: {

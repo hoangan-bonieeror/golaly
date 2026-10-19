@@ -26,6 +26,7 @@ import type {
   PostView,
   ProfileView,
   SearchResults,
+  SearchSuggestions,
   TripDetail,
   TripSummary,
   TripTarget,
@@ -96,6 +97,15 @@ export const useExplore = () =>
   useQuery({ queryKey: keys.explore, queryFn: () => api.get<{ destinations: DestinationView[]; trips: TripSummary[]; places: PlaceView[] }>("/explore") });
 export const useDestinations = () => useQuery({ queryKey: keys.destinations, queryFn: () => api.get<DestinationView[]>("/destinations"), staleTime: 5 * 60_000 });
 export const useDestination = (slug: string) => useQuery({ queryKey: keys.destination(slug), queryFn: () => api.get<DestinationPage>(`/destinations/${slug}`), retry: false });
+/** Type-ahead under the navbar search: keeps the previous list while the next one loads, so it doesn't flicker. */
+export const useSuggestions = (q: string) =>
+  useQuery({
+    queryKey: keys.suggest(q),
+    queryFn: ({ signal }) => api.get<SearchSuggestions>(`/search/suggest${qs({ q })}`, signal),
+    enabled: q.length >= 2,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+  });
 export const useSearch = (q: string, type: string, enabled = true) =>
   useQuery({ queryKey: keys.search(q, type), queryFn: () => api.get<SearchResults>(`/search${qs({ q, type, limit: 30 })}`), placeholderData: (prev) => prev, enabled });
 export const usePlaceSearch = (q: string, tripId?: string) =>

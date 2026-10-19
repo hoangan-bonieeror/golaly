@@ -19,7 +19,7 @@
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { orderBySlot, slotForTime, splitEqually, type ItemSlot } from "@triply/shared";
+import { normalizeSearch, orderBySlot, slotForTime, splitEqually, type ItemSlot } from "@triply/shared";
 import { PrismaClient, type ItemType } from "../src/generated/prisma/client";
 import { createSeed, type DB } from "./seed-data/data";
 import { seedId } from "./seed-data/ids";
@@ -116,6 +116,7 @@ async function addTrip(prisma: PrismaClient, db: DB, key: TripKey, ownerId: stri
       data: {
         id: p.id,
         name: p.name,
+        nameNorm: normalizeSearch(p.name),
         category: p.category as ItemType,
         categoryId: categories.get(db.placeCategories[p.id] ?? "") ?? null,
         destinationId,

@@ -417,6 +417,12 @@ export interface SearchResults {
   destinations: DestinationView[];
 }
 
+/** Type-ahead under the search field: the best few places and destinations for what's typed so far. */
+export interface SearchSuggestions {
+  places: PlaceView[];
+  destinations: DestinationView[];
+}
+
 export interface DestinationPage {
   destination: Destination;
   popularTrips: TripSummary[];

@@ -191,6 +191,21 @@ fs.mkdirSync(shots, { recursive: true });
     await C.getByRole("link", { name: `@tester_${stamp}` }).waitFor();
   });
 
+  await step("16b. navbar search suggests places and destinations as you type", async () => {
+    const box = C.getByRole("combobox", { name: "Search TRIPLY" });
+    await box.fill("hoi an");
+    const list = C.getByRole("listbox", { name: "Suggestions" });
+    await list.getByRole("option", { name: /Hội An Ancient Town/ }).waitFor();
+    await list.getByRole("option", { name: /^Hội An/ }).first().waitFor();
+    await box.press("ArrowDown");
+    await box.press("Enter");
+    await C.waitForURL(/\/explore\/hoi-an$/);
+    await box.fill("zzqxv");
+    await list.getByText(/No places or destinations match/).waitFor();
+    await box.press("Enter");
+    await C.waitForURL(/\/explore\?q=zzqxv$/);
+  });
+
   let placeUrl;
   await step("17. explores places around a destination and adds one to a trip", async () => {
     await A.goto(`${BASE}/explore?tab=places&dest=tokyo`);

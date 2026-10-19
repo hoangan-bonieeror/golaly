@@ -11,7 +11,7 @@ import { hash } from "@node-rs/argon2";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient, type ItemType, type NotificationType, type Prisma } from "../src/generated/prisma/client";
 import { createSeed } from "./seed-data/data";
-import { notificationText, orderBySlot, slotForTime, type ItemSlot } from "@triply/shared";
+import { normalizeSearch, notificationText, orderBySlot, slotForTime, type ItemSlot } from "@triply/shared";
 
 const DEMO_PASSWORD = "demo1234";
 
@@ -97,6 +97,7 @@ export async function seedDatabase(url: string | undefined = process.env.DATABAS
     data: db.places.map((p) => ({
       id: p.id,
       name: p.name,
+      nameNorm: normalizeSearch(p.name),
       category: p.category as ItemType,
       categoryId: categoryId.get(db.placeCategories[p.id] ?? "") ?? defaults.get(p.category) ?? null,
       destinationId: p.destinationId,

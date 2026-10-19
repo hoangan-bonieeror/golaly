@@ -2,9 +2,11 @@ import { Controller, Get, Injectable, Module, Param, Query } from "@nestjs/commo
 import {
   normalizeSearch,
   searchQuerySchema,
+  suggestQuerySchema,
   type DestinationPage,
   type DestinationView,
   type SearchResults,
+  type SearchSuggestions,
   type TripSummary,
 } from "@triply/shared";
 import { z } from "zod";
@@ -18,6 +20,10 @@ import { PublicCache } from "../../common/public-cache";
 
 /** Only PUBLIC, non-deleted trips are ever discoverable (LINK_ONLY is unlisted — spec §34). */
 export const DISCOVERABLE: Prisma.TripWhereInput = { visibility: "PUBLIC", deletedAt: null };
+
+/** How many of each the type-ahead shows. */
+const SUGGEST_PLACES = 6;
+const SUGGEST_DESTINATIONS = 3;
 
 /**
  * SearchService abstraction (spec §33). The Postgres implementation ranks with pg_trgm over
@@ -77,6 +83,17 @@ export class PostgresSearchProvider implements SearchProvider {
       people: byRank(people, peopleIds).map((u) => ({ ...toUserSummary(u), homeBase: u.profile?.homeBase ?? null })),
       destinations,
     };
+  }
+
+  /**
+   * Type-ahead under the search field (navbar): the best few places and destinations for what's typed so far.
+   * Same matching and ranking as the full search, without trips and people (the Explore page has those).
+   */
+  async suggest(q: string, viewerId: string | null): Promise<SearchSuggestions> {
+    if (q.trim().length < 2 || !normalizeSearch(q)) return { places: [], destinations: [] };
+    const [placeIds, destinations] = await Promise.all([this.rank.places(q, SUGGEST_PLACES), this.destinations(q, SUGGEST_DESTINATIONS)]);
+    const places = placeIds.length ? await this.prisma.place.findMany({ where: { id: { in: placeIds } }, include: placeInclude(viewerId) }) : [];
+    return { places: byRank(places, placeIds).map(toPlaceView), destinations };
   }
 
   async destinations(q: string, limit: number): Promise<DestinationView[]> {
@@ -160,6 +177,13 @@ export class SearchController {
     private readonly search: PostgresSearchProvider,
     private readonly explore: ExploreService,
   ) {}
+
+  @Public()
+  @PublicCache()
+  @Get("search/suggest")
+  suggest(@Query(new ZodPipe(suggestQuerySchema)) q: z.infer<typeof suggestQuerySchema>, @ViewerId() me: string | null) {
+    return this.search.suggest(q.q, me);
+  }
 
   @Public()
   @PublicCache()

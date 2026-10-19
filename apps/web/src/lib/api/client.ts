@@ -46,7 +46,7 @@ export async function refreshSession(): Promise<boolean> {
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-async function request<T>(method: Method, path: string, body?: unknown, retry = true): Promise<T> {
+async function request<T>(method: Method, path: string, body?: unknown, retry = true, signal?: AbortSignal): Promise<T> {
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   let res: Response;
   const lang = placeNameHeader() ?? uiLocale;
@@ -62,13 +62,16 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
         ...(body !== undefined && !isForm ? { "Content-Type": "application/json" } : {}),
       },
       body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
+      signal,
     });
-  } catch {
+  } catch (e) {
+    if (signal?.aborted) throw e; // superseded (e.g. the next keystroke): not a connection problem
+
     throw new ApiError(0, localizeMessage("Can't reach TRIPLY right now. Check your connection and try again.", uiLocale));
   }
 
   if (res.status === 401 && retry && !path.startsWith("/auth/")) {
-    if (await refreshSession()) return request<T>(method, path, body, false);
+    if (await refreshSession()) return request<T>(method, path, body, false, signal);
   }
   if (!res.ok) {
     let data: Partial<ApiErrorBody> = {};
@@ -88,7 +91,8 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>("GET", path),
+  /** `signal` cancels the request (TanStack Query passes one to every query function). */
+  get: <T>(path: string, signal?: AbortSignal) => request<T>("GET", path, undefined, true, signal),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body ?? {}),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body ?? {}),

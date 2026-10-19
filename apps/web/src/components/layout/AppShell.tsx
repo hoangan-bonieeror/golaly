@@ -16,6 +16,7 @@ import { Logo } from "./Logo";
 import { LanguageSwitch, ThemeSwitch } from "./Preferences";
 import { VerifyEmailBanner } from "./VerifyEmailBanner";
 import { syncOfflineOwner } from "@/lib/offline";
+import { NavSearch } from "./NavSearch";
 
 const PROTECTED = ["/trips", "/trips/new", "/saved", "/notifications", "/settings", "/posts/new"];
 const PROTECTED_PREFIX = ["/invitations/", "/trips/new", "/admin"];
@@ -184,35 +185,6 @@ function MobileTab({ href, label, a11yLabel, active, children }: { href: string;
       {children}
       {label}
     </Link>
-  );
-}
-
-/** Global search: jumps to Explore with the query (Explore shows trips, places, people and destinations). */
-function NavSearch() {
-  const t = useT();
-  const router = useRouter();
-  const [q, setQ] = useState("");
-  return (
-    <form
-      role="search"
-      className="relative hidden max-w-[420px] flex-1 lg:block"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const v = q.trim();
-        router.push(v ? `/explore?q=${encodeURIComponent(v)}` : "/explore");
-      }}
-    >
-      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted" aria-hidden />
-      <input
-        type="search"
-        aria-label={t.nav.searchLabel}
-        placeholder={t.nav.searchPlaceholder}
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        maxLength={100}
-        className="h-10 w-full rounded-xl border border-line bg-sand pl-10 pr-3 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-      />
-    </form>
   );
 }
 

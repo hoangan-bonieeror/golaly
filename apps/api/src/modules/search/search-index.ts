@@ -18,10 +18,13 @@ export class SearchIndexService implements OnApplicationBootstrap {
     return normalizeSearch([t.title, t.description, ...t.destinations.flatMap((d) => [d.destination.name, d.destination.country])].join(" ")).slice(0, 4000);
   }
 
-  /** Same parts and order as the catalog pipeline (publish.refresh_names_and_search), minus imported names. */
+  /**
+   * Same parts and order as the catalog pipeline (publish.refresh_names_and_search), minus imported names. `nameNorm`
+   * drives the name tiers of the ranking (an exact or prefix match on the name beats a match elsewhere in the text).
+   */
   static placeText(p: { name: string; address: string; destination: { name: string; country: string } | null; area: { name: string } | null }) {
     const text = [p.name, p.address, p.destination?.name ?? "", p.destination?.country ?? "", p.area ? splitAreaName(p.area.name).short : ""].join(" ");
-    return { searchText: normalizeSearch(text).slice(0, 4000), searchAccent: accentSearch(text).slice(0, 4000) };
+    return { nameNorm: normalizeSearch(p.name), searchText: normalizeSearch(text).slice(0, 4000), searchAccent: accentSearch(text).slice(0, 4000) };
   }
 
   async trip(tripId: string, tx: Tx = this.prisma) {
@@ -44,7 +47,7 @@ export class SearchIndexService implements OnApplicationBootstrap {
     if (env.NODE_ENV === "test") await run;
   }
 
-  /** Fills empty search_text columns. Safe to run repeatedly. */
+  /** Fills empty search columns (and places' name_norm). Safe to run repeatedly. */
   async backfill() {
     let n = 0;
     const dests = await this.prisma.destination.findMany({ where: { searchText: "" } });
@@ -52,11 +55,12 @@ export class SearchIndexService implements OnApplicationBootstrap {
       await this.prisma.destination.update({ where: { id: d.id }, data: { searchText: normalizeSearch(`${d.name} ${d.country}`) } });
       n++;
     }
-    // Literal '' (not a parameter) so the planner can use places_search_unfilled_idx: without it this read the whole
-    // catalog on every start. In batches, so a large backfill (after a big import) doesn't load everything at once.
+    // Literal '' (not a parameter) so the planner can use places_search_unfilled_idx and the name_norm index: without
+    // them this read the whole catalog on every start. In batches, so a large backfill (after a big import) doesn't
+    // load everything at once. Places created outside the catalog pipeline (seed, demo) may arrive without name_norm.
     const seen = new Set<string>(); // a place with no text at all stays empty: don't loop on it
     for (;;) {
-      const rows = await this.prisma.$queryRaw<{ id: string }[]>`SELECT id FROM places WHERE search_text = '' OR search_accent = '' LIMIT ${500 + seen.size}`;
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`SELECT id FROM places WHERE search_text = '' OR search_accent = '' OR (name_norm = '' AND name <> '') LIMIT ${500 + seen.size}`;
       const ids = rows.map((r) => r.id).filter((id) => !seen.has(id));
       if (!ids.length) break;
       ids.forEach((id) => seen.add(id));

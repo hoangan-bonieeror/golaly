@@ -193,6 +193,8 @@ export const searchQuerySchema = z.object({
   type: z.enum(["all", "trips", "places", "people", "destinations"]).default("all"),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
+/** Type-ahead: two characters at least (fewer return nothing). */
+export const suggestQuerySchema = z.object({ q: z.string().trim().max(100).default("") });
 const latLng = z
   .string()
   .regex(/^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$/, "Use “lat,lng”.")

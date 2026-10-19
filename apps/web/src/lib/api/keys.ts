@@ -14,6 +14,7 @@ export const keys = {
   destinations: ["destinations"] as const,
   destination: (slug: string) => ["destination", slug] as const,
   search: (q: string, type: string) => ["search", q, type] as const,
+  suggest: (q: string) => ["search", "suggest", q] as const,
   places: (q: string, tripId?: string) => ["places", q, tripId ?? ""] as const,
   savedPlaces: ["places", "saved"] as const,
   categories: ["places", "categories"] as const,
