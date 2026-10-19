@@ -294,7 +294,7 @@ def publish(
     dedupe: bool = True,
     category_keys: list[str] | None = None,
 ) -> dict[str, Any]:
-    """`category_keys` (a job's filter): only records in those TRIPLY groups / categories become or join places."""
+    """`category_keys` (a job's filter): only records in those Golaly groups / categories become or join places."""
     stats: dict[str, Any] = {}
     for provider in [p for p in PUBLISH_ORDER if p in providers]:
         stats[provider] = attach_and_create(conn, settings, run_id, provider, require_area, category_keys)

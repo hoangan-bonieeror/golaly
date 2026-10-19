@@ -1,5 +1,5 @@
 /**
- * Languages TRIPLY's interface is available in, and the copy the API and the web share:
+ * Languages Golaly's interface is available in, and the copy the API and the web share:
  * server messages (errors, validation) and notification sentences.
  *
  * Server messages are authored in English at the throw site (readable code, English logs) and

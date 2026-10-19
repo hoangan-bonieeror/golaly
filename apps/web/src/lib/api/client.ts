@@ -67,7 +67,7 @@ async function request<T>(method: Method, path: string, body?: unknown, retry = 
   } catch (e) {
     if (signal?.aborted) throw e; // superseded (e.g. the next keystroke): not a connection problem
 
-    throw new ApiError(0, localizeMessage("Can't reach TRIPLY right now. Check your connection and try again.", uiLocale));
+    throw new ApiError(0, localizeMessage("Can't reach Golaly right now. Check your connection and try again.", uiLocale));
   }
 
   if (res.status === 401 && retry && !path.startsWith("/auth/")) {

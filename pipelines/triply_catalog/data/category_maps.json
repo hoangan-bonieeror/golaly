@@ -1,5 +1,5 @@
 {
- "_comment": "Provider category → TRIPLY category key. Overture: basic_category or any taxonomy.hierarchy level. OSM: 'key=value' or 'key=value;refine=value' (most specific wins). Foursquare (fsq): a category path ('Dining and Drinking > Restaurant'); a place's own path is tried first, then each parent path.",
+ "_comment": "Provider category → Golaly category key. Overture: basic_category or any taxonomy.hierarchy level. OSM: 'key=value' or 'key=value;refine=value' (most specific wins). Foursquare (fsq): a category path ('Dining and Drinking > Restaurant'); a place's own path is tried first, then each parent path.",
  "overture": {
   "restaurant": "food.restaurant",
   "vietnamese_restaurant": "food.vietnamese",

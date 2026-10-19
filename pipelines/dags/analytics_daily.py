@@ -1,4 +1,4 @@
-"""TRIPLY analytics DAG.
+"""Golaly analytics DAG.
 
 analytics_daily   every night at 02:17 UTC: rebuild the analytics marts (dbt models + tests in analytics/) on the
                   app database, so the admin dashboard's cohorts and stickiness are fresh. The marts read app

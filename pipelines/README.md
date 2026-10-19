@@ -1,6 +1,6 @@
 # triply-catalog — place catalog pipeline
 
-Imports places (sights, restaurants, cafés, hotels…) from **open data** into the TRIPLY database, for whichever
+Imports places (sights, restaurants, cafés, hotels…) from **open data** into the Golaly database, for whichever
 country, province or destination an admin chooses. Python + DuckDB + PostGIS, orchestrated by Airflow, and also
 runnable as a plain CLI.
 
@@ -14,7 +14,7 @@ runnable as a plain CLI.
 
 `uv run triply-catalog sources` lists every registered source with its manifest and whether it is configured.
 
-The design (data model, matching rules, survivorship, Airflow layout, later phases) is in the TRIPLY design doc
+The design (data model, matching rules, survivorship, Airflow layout, later phases) is in the Golaly design doc
 “Thiết kế: Catalog địa điểm & công cụ đồng bộ dữ liệu”.
 
 ## How it works
@@ -131,7 +131,7 @@ published, up to 300 m it waits in the moderation queue (`/admin/photos`). From 
 to 3 large landscape *Quality / Featured / Valued* images from the category, and only free licences that allow
 commercial use and changes (CC0, public domain, CC BY, CC BY-SA). Author, licence and source are stored and shown
 next to every photo. The pipeline writes rows to `place_photos` with a `remote_url`; the API's ingester downloads
-them (only from `upload.wikimedia.org`, https, no redirects, size-capped) into TRIPLY's own media in three WebP sizes.
+them (only from `upload.wikimedia.org`, https, no redirects, size-capped) into Golaly's own media in three WebP sizes.
 Re-runs refresh credits, keep moderators' decisions and hide files whose licence changed. Airflow: DAG
 `catalog_photos` with `{"area": "vn"}`.
 
@@ -207,7 +207,7 @@ Everything above can be driven from the app: sign in as an admin and open **Admi
 | **Runs** | Every run (scheduled, admin, CLI) with live progress over Socket.IO; a run page shows what it did, quality warnings, record-level errors and **Cancel** |
 | **Duplicates** | Pairs scored 0.6–0.85, side by side with the fields that differ; *merge* / *different places*, undo |
 | **Places** | Any place (hidden and closed too): edit name, address, phone, website, hours, category, position, visibility. Every edited field is **locked** against imports until you unlock it; history and merges (with undo) on the same page |
-| **Categories** | Source categories with no mapping (their records aren't published), existing mappings, TRIPLY's categories with counts. A new mapping applies on the area's next sync. The unmapped list is a summary (`catalog_unmapped_categories`) recounted by `catalog_scheduler` after syncs, or with **Recount** — counting live reads the jsonb of every unmapped record |
+| **Categories** | Source categories with no mapping (their records aren't published), existing mappings, Golaly's categories with counts. A new mapping applies on the area's next sync. The unmapped list is a summary (`catalog_unmapped_categories`) recounted by `catalog_scheduler` after syncs, or with **Recount** — counting live reads the jsonb of every unmapped record |
 
 How a run gets started:
 
@@ -312,8 +312,8 @@ normalised records; it never touches the database. Matching, merging, saving, cr
 | `CATALOG_PHOTO_RECHECK_DAYS` | `30` | incremental photo runs re-check a place after this many days |
 | `CATALOG_ALERT_WEBHOOK` | — | Slack-compatible webhook for failed / `needs_review` runs and quality warnings |
 
-Category mapping lives in `triply_catalog/data/taxonomy.json` (TRIPLY's categories, vi/en labels) and
-`category_maps.json` (Overture category / OSM tag → TRIPLY category). Unmapped records are stored but not published;
+Category mapping lives in `triply_catalog/data/taxonomy.json` (Golaly's categories, vi/en labels) and
+`category_maps.json` (Overture category / OSM tag → Golaly category). Unmapped records are stored but not published;
 `triply-catalog stats` shows how many.
 
 ## Tests

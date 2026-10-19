@@ -90,7 +90,7 @@ beforeAll(() => {
   cert = { key: readFileSync(path.join(dir, "k.pem"), "utf8"), cert: readFileSync(path.join(dir, "c.pem"), "utf8") };
 });
 
-const msg = { from: "TRIPLY Đà Lạt <noreply@triply.test>", to: "lan@example.com", subject: "Xác nhận email TRIPLY của bạn", text: "Xin chào!\n.leading dot line\nhttps://example.com/verify?token=abc" };
+const msg = { from: "Golaly Đà Lạt <noreply@triply.test>", to: "lan@example.com", subject: "Xác nhận email Golaly của bạn", text: "Xin chào!\n.leading dot line\nhttps://example.com/verify?token=abc" };
 const bodyOf = (data: string) => Buffer.from(data.split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
 
 describe("smtp", () => {
@@ -103,7 +103,7 @@ describe("smtp", () => {
   it("encodes Vietnamese subjects and names, and a body no line of which starts with a dot", () => {
     const m = buildMessage(msg, new Date("2026-10-19T08:00:00Z"));
     expect(m).toContain(`Subject: =?UTF-8?B?${Buffer.from(msg.subject).toString("base64")}?=`);
-    expect(m).toContain(`From: =?UTF-8?B?${Buffer.from("TRIPLY Đà Lạt").toString("base64")}?= <noreply@triply.test>`);
+    expect(m).toContain(`From: =?UTF-8?B?${Buffer.from("Golaly Đà Lạt").toString("base64")}?= <noreply@triply.test>`);
     expect(m).toContain("Date: Mon, 19 Oct 2026 08:00:00 +0000");
     expect(m.split("\r\n").some((l) => l.startsWith("."))).toBe(false);
     expect(bodyOf(m)).toBe(msg.text.replace(/\n/g, "\r\n"));

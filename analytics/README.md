@@ -1,4 +1,4 @@
-# TRIPLY analytics (dbt)
+# Golaly analytics (dbt)
 
 Turns the app's own Postgres tables into small **aggregate marts** for the admin dashboard
 (`/admin/analytics` → *Cohorts & stickiness*). ELT inside the warehouse the app already has: no extra

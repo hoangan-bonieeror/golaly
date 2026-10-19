@@ -4,7 +4,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ─────────────────────────────────────────────────────────────
-   TRIPLY design tokens — "Atlas"
+   Golaly design tokens — "Atlas"
    The map is the hero: warm paper canvas, ink text, a deep jade primary and a
    vermilion route accent. Day colours keep a multi-day trip legible at a glance.
    Token names are kept from the previous theme (sand = paper) so components follow.

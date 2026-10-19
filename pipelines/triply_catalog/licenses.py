@@ -1,7 +1,7 @@
 """One licence filter for every source.
 
 Accepted: free for commercial use and changes — CC0, public domain, CC BY, CC BY-SA, and the dataset licences
-TRIPLY's place sources use (ODbL, CDLA-Permissive, Apache-2.0). Rejected: NC/ND variants, fair use, "all rights
+Golaly's place sources use (ODbL, CDLA-Permissive, Apache-2.0). Rejected: NC/ND variants, fair use, "all rights
 reserved", and anything with extra restrictions (trademark, personality rights…).
 """
 

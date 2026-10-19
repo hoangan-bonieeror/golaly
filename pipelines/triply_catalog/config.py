@@ -82,7 +82,7 @@ class Settings:
         # a way to reach the operator are refused with 403 ("Please respect our robot policy").
         import httpx
 
-        return f"TRIPLY-catalog/0.2 (+{self.contact}) httpx/{httpx.__version__}"
+        return f"Golaly-catalog/0.2 (+{self.contact}) httpx/{httpx.__version__}"
 
 
 #: Which provider wins for each published field (survivorship). "manual" = admin / seed data.

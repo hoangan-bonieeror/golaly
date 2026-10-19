@@ -1,7 +1,7 @@
 import type { Messages } from "../types";
 
 export const titles: Messages["titles"] = {
-  default: "TRIPLY — Cùng lên kế hoạch. Cùng khám phá. Cùng lên đường.",
+  default: "Golaly — Cùng lên kế hoạch. Cùng khám phá. Cùng lên đường.",
   description: "Nền tảng lên kế hoạch du lịch kết nối, biến chuyến đi thật của người đi trước thành kế hoạch bạn có thể dùng lại và cùng nhau chỉnh sửa.",
   home: "Trang chủ",
   explore: "Khám phá",

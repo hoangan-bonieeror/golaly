@@ -354,7 +354,7 @@ def alert(settings: Settings, run_id: str, status: str, stats: dict[str, Any], e
         return
     import httpx
 
-    lines = [f"TRIPLY catalog run {run_id}: {status}"]
+    lines = [f"Golaly catalog run {run_id}: {status}"]
     if error:
         lines.append(error[:500])
     lines += [f"- {w}" for w in warnings]

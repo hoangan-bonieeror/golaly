@@ -22,7 +22,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const me = useMe();
   const pathname = usePathname();
   if (me.isLoading) return <PageLoader />;
-  if (!me.data?.isAdmin) return <EmptyState level="h1" icon={<ShieldAlert className="size-7" />} title="Admins only" body="This part of TRIPLY is for the team that runs the catalog." />;
+  if (!me.data?.isAdmin) return <EmptyState level="h1" icon={<ShieldAlert className="size-7" />} title="Admins only" body="This part of Golaly is for the team that runs the catalog." />;
   return (
     <div className="space-y-6">
       <nav aria-label="Admin sections" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">

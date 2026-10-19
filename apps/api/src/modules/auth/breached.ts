@@ -25,7 +25,7 @@ export class BreachedPasswords {
     const prefix = sha1.slice(0, 5);
     const suffix = sha1.slice(5);
     try {
-      const res = await this.fetcher(RANGE_API + prefix, { headers: { "Add-Padding": "true", "User-Agent": "TRIPLY" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      const res = await this.fetcher(RANGE_API + prefix, { headers: { "Add-Padding": "true", "User-Agent": "Golaly" }, signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       for (const line of (await res.text()).split("\n")) {
         const [hash, count] = line.trim().split(":");

@@ -96,7 +96,7 @@ export const after = {
     currencySaved: "Currency updated",
     add: "Add expense",
     addForItem: "Add expense",
-    empty: "No expenses yet. Add the first one — dinner, a taxi, tickets — and TRIPLY works out who owes whom.",
+    empty: "No expenses yet. Add the first one — dinner, a taxi, tickets — and Golaly works out who owes whom.",
     balances: "Balances",
     paid: (x: string) => `paid ${x}`,
     isOwed: (x: string) => `gets back ${x}`,

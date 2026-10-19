@@ -135,8 +135,8 @@ export class PhotoIngestService implements OnModuleInit, OnModuleDestroy {
   private running = false;
   /** The CLI drain script turns the timer off and runs batches itself. */
   static autoStart = true;
-  /** "TRIPLY/0.2 (+contact) node" per Wikimedia's User-Agent policy; null → imports wait (see env.ts). */
-  userAgent: string | null = env.PHOTO_USER_AGENT ?? (env.CATALOG_CONTACT ? `TRIPLY/0.2 (+${env.CATALOG_CONTACT}) node/${process.versions.node}` : null);
+  /** "Golaly/0.2 (+contact) node" per Wikimedia's User-Agent policy; null → imports wait (see env.ts). */
+  userAgent: string | null = env.PHOTO_USER_AGENT ?? (env.CATALOG_CONTACT ? `Golaly/0.2 (+${env.CATALOG_CONTACT}) node/${process.versions.node}` : null);
   private warnedNoContact = false;
   /** Swappable in tests; production uses the global fetch. */
   fetcher: typeof fetch = (...a) => fetch(...a);

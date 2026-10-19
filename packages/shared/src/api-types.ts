@@ -86,7 +86,7 @@ export interface PlaceView {
   /** CLOSED places stay visible inside existing itineraries but can't be added again. */
   status: "ACTIVE" | "CLOSED" | "HIDDEN";
   savedByMe: boolean;
-  /** TRIPLY taxonomy key, e.g. "drink.cafe" (null only for legacy rows). The group is the part before the dot. */
+  /** Golaly taxonomy key, e.g. "drink.cafe" (null only for legacy rows). The group is the part before the dot. */
   categoryKey: string | null;
   /** Human label of that category ("Café"); falls back to the item type label. */
   categoryLabel: string;

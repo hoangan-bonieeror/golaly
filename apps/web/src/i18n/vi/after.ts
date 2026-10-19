@@ -95,7 +95,7 @@ export const after: Messages["after"] = {
     currencySaved: "Đã đổi loại tiền",
     add: "Thêm khoản chi",
     addForItem: "Thêm chi phí",
-    empty: "Chưa có khoản chi nào. Thêm khoản đầu tiên — bữa tối, taxi, vé — TRIPLY sẽ tính ai nợ ai.",
+    empty: "Chưa có khoản chi nào. Thêm khoản đầu tiên — bữa tối, taxi, vé — Golaly sẽ tính ai nợ ai.",
     balances: "Số dư",
     paid: (x) => `đã trả ${x}`,
     isOwed: (x) => `được nhận lại ${x}`,

@@ -170,7 +170,7 @@ def test_queues_licensed_photos_for_matched_places(photo_settings, fake, db):
     out = run(photo_settings, fake)
     assert out["items"] == 7 and out["matched"] == 5  # far beach and the unknown name aren't matched
     ua = fake.requests[0].headers["user-agent"]
-    assert "TRIPLY-catalog" in ua and "https://example.com/triply-ops" in ua
+    assert "Golaly-catalog" in ua and "https://example.com/triply-ops" in ua
     p = photos(db)
 
     main = p["File:Japanese bridge main.jpg"]

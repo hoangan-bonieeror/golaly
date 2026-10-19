@@ -24,7 +24,7 @@ export interface DB {
   follows: { followerId: string; followingId: string }[];
   destinations: Destination[];
   places: Place[];
-  /** place id → TRIPLY category key (taxonomy). */
+  /** place id → Golaly category key (taxonomy). */
   placeCategories: Record<string, string>;
   trips: Trip[];
   members: TripMember[];
@@ -178,7 +178,7 @@ const placeSeeds: PlaceSeed[] = [
   ["livraria", "Livraria Lello", "PLACE", "porto", "R. das Carmelitas 144", 41.1469, -8.6149, 4.4],
 ];
 
-/** TRIPLY category (taxonomy key) per seed place; the rest get their item type's default. */
+/** Golaly category (taxonomy key) per seed place; the rest get their item type's default. */
 const placeCategoryKeys: Record<string, string> = {
   hnd: "transport.airport", kix: "transport.airport", "dan-ang": "transport.airport",
   "shinjuku-hotel": "lodging.hotel", "kyoto-ryokan": "lodging.guesthouse", "old-quarter-hotel": "lodging.hotel", "nam-hai": "lodging.resort",

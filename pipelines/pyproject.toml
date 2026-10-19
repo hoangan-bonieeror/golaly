@@ -1,7 +1,7 @@
 [project]
 name = "triply-catalog"
 version = "0.1.0"
-description = "TRIPLY place catalog pipeline: imports open place data (Overture Maps, OpenStreetMap) into the app database."
+description = "Golaly place catalog pipeline: imports open place data (Overture Maps, OpenStreetMap) into the app database."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

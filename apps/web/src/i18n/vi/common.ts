@@ -1,7 +1,7 @@
 import type { Messages } from "../types";
 
 export const common: Messages["common"] = {
-  appName: "TRIPLY",
+  appName: "Golaly",
   tagline: { plan: "Cùng lên kế hoạch.", discover: "Cùng khám phá.", travel: "Cùng lên đường." },
   save: "Lưu",
   saved: "Đã lưu",
@@ -34,7 +34,7 @@ export const common: Messages["common"] = {
   create: "Tạo",
   errors: {
     generic: "Đã có lỗi xảy ra. Vui lòng thử lại.",
-    offline: "Không kết nối được tới TRIPLY. Hãy kiểm tra mạng rồi thử lại.",
+    offline: "Không kết nối được tới Golaly. Hãy kiểm tra mạng rồi thử lại.",
     notFoundTitle: "Có vẻ bạn đã đi lạc khỏi bản đồ",
     notFoundBody: "Trang này không tồn tại.",
     backHome: "Về trang chủ",

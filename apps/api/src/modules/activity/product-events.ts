@@ -47,7 +47,7 @@ export class ProductEventsService {
 
   /**
    * Records `trip.opened_on_trip` when a member opens a trip while it is under way: the signal for "do groups use
-   * TRIPLY during the trip, not only to plan it". Trip dates have no time zone, so a day on either side counts
+   * Golaly during the trip, not only to plan it". Trip dates have no time zone, so a day on either side counts
    * (the API runs in UTC). At most once per person, trip and UTC day per instance; analytics count distinct days.
    */
   openedOnTrip(userId: string | null, trip: { id: string; startDate: Date | null; endDate: Date | null; members: { userId: string }[] }, now = new Date()) {

@@ -1,4 +1,4 @@
-# Production image for the TRIPLY web app. Build from the repo root:
+# Production image for the Golaly web app. Build from the repo root:
 #   docker build -f apps/web/Dockerfile -t triply-web .
 FROM node:22-bookworm-slim AS build
 WORKDIR /repo

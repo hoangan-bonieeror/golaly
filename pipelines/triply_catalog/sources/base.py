@@ -15,7 +15,7 @@ from typing import Any, Literal, Protocol, runtime_checkable
 from ..models import BBox, NormalizedPlace, Partition
 
 Kind = Literal["places", "photos"]
-#: store      — records (and photo files) may be copied into TRIPLY's database and media.
+#: store      — records (and photo files) may be copied into Golaly's database and media.
 #: reference  — keep ids, credits and links only; the app shows the source's own content (e.g. a hotlinked photo).
 #: id_only    — keep the source's id and nothing else (Google Places terms).
 Storage = Literal["store", "reference", "id_only"]
@@ -70,7 +70,7 @@ class Manifest:
 
 
 #: Places created by hand or by the demo seed. Not a fetchable source, but it takes part in matching and survivorship.
-MANUAL = Manifest(key="manual", name="TRIPLY", provides=frozenset({"places"}), license="TRIPLY", attribution="TRIPLY", partitioning="extract")
+MANUAL = Manifest(key="manual", name="Golaly", provides=frozenset({"places"}), license="Golaly", attribution="Golaly", partitioning="extract")
 
 
 # ── errors ───────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ class QueryTooBig(SourceError, RuntimeError):
 
 @dataclass(frozen=True)
 class PlaceRef:
-    """How to find the TRIPLY place a photo belongs to: external ids, names, coordinates — whatever the source knows."""
+    """How to find the Golaly place a photo belongs to: external ids, names, coordinates — whatever the source knows."""
 
     #: e.g. {"wikidata": "Q…"} (matched against OSM `wikidata` tags) or {"osm": "w123"} / {"fsq": "…"} (place_sources ids).
     ids: dict[str, str] = field(default_factory=dict)
@@ -195,7 +195,7 @@ class PhotoSource(Source, Protocol):
 
     def fetch_photos(self, subjects: list[Subject]) -> PhotoBatch:
         """Photos (with licence and credits) for the subjects that matched a place. Called only for matched
-        subjects, so a source doesn't pay for photos of things TRIPLY doesn't know."""
+        subjects, so a source doesn't pay for photos of things Golaly doesn't know."""
         ...
 
 

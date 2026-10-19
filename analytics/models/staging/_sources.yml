@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: app
-    description: The TRIPLY app's own tables (written by the NestJS API; schema owned by Prisma migrations).
+    description: The Golaly app's own tables (written by the NestJS API; schema owned by Prisma migrations).
     schema: public
     tables:
       - name: users

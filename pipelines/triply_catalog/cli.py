@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     ja.add_argument("--area")
     ja.add_argument("--bbox")
     ja.add_argument("--providers", default=",".join(keys("places", default_only=True)))
-    ja.add_argument("--categories", default="", help="comma-separated TRIPLY groups / categories (default: all)")
+    ja.add_argument("--categories", default="", help="comma-separated Golaly groups / categories (default: all)")
     ja.add_argument("--schedule", help='5-field cron in UTC, e.g. "0 3 * * mon" (omit: by hand only)')
     ja.add_argument("--no-photos", action="store_true")
     jsub.add_parser("list")

@@ -1,4 +1,4 @@
-// TRIPLY database schema (spec §24–26).
+// Golaly database schema (spec §24–26).
 // UUID primary keys everywhere — nothing sequential is ever exposed publicly.
 // Soft deletion (deletedAt) for users, trips, posts and comments.
 
@@ -938,7 +938,7 @@ model GeoAreaName {
   @@map("geo_area_names")
 }
 
-/// TRIPLY's own two-level taxonomy (e.g. food → food.cafe). Provider categories map onto it.
+/// Golaly's own two-level taxonomy (e.g. food → food.cafe). Provider categories map onto it.
 model Category {
   id        String   @id @default(uuid()) @db.Uuid
   parentId  String?  @map("parent_id") @db.Uuid
@@ -957,7 +957,7 @@ model Category {
   @@map("categories")
 }
 
-/// provider category → TRIPLY category. `external_category` is e.g. "cafe" (Overture) or "amenity=cafe" (OSM).
+/// provider category → Golaly category. `external_category` is e.g. "cafe" (Overture) or "amenity=cafe" (OSM).
 model CategoryMap {
   provider         String
   externalCategory String   @map("external_category")
@@ -1064,7 +1064,7 @@ model SyncJob {
   /// "minLng,minLat,maxLng,maxLat" instead of an area.
   bbox         String?
   providers    String[]  @default(["overture", "osm"])
-  /// Empty = every category; otherwise TRIPLY group / category keys ("food", "sights.historic").
+  /// Empty = every category; otherwise Golaly group / category keys ("food", "sights.historic").
   categoryKeys String[]  @default([]) @map("category_keys")
   /// 5-field cron in UTC ("0 3 * * 1"); null = by hand only.
   schedule     String?
@@ -1159,7 +1159,7 @@ model PlaceEdit {
   @@map("place_edits")
 }
 
-/// A photo shown on a place page: uploaded by a TRIPLY user, or imported from an open source
+/// A photo shown on a place page: uploaded by a Golaly user, or imported from an open source
 /// (Wikimedia Commons) with the credits its licence requires. Imported rows start with `remoteUrl`
 /// and no media; the API's photo ingester downloads and re-encodes them into `media`.
 model PlacePhoto {

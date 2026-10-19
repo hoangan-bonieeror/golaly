@@ -175,7 +175,7 @@ export class AnalyticsService {
 
   /**
    * Group trips (2+ members) under way at some point in each period, and the share (%) where at least two members
-   * used TRIPLY during the trip.
+   * used Golaly during the trip.
    */
   private async onTripUse(start: string, from: string, end: string) {
     const [r] = await this.prisma.$queryRaw<{ cur_total: number; cur_used: number; prev_total: number; prev_used: number }[]>`

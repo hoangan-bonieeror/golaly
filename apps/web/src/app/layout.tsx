@@ -10,7 +10,7 @@ import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = (await getMessages()).titles;
-  return { title: { default: t.default, template: "%s · TRIPLY" }, description: t.description };
+  return { title: { default: t.default, template: "%s · Golaly" }, description: t.description };
 }
 
 export const viewport: Viewport = {

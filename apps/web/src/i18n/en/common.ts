@@ -1,6 +1,6 @@
 /** Words and phrases used across many screens. */
 export const common = {
-  appName: "TRIPLY",
+  appName: "Golaly",
   tagline: { plan: "Plan together.", discover: "Discover together.", travel: "Travel together." },
   save: "Save",
   saved: "Saved",
@@ -34,7 +34,7 @@ export const common = {
   /** Errors and empty states shared by every page. */
   errors: {
     generic: "Something went wrong. Please try again.",
-    offline: "Can't reach TRIPLY right now. Check your connection and try again.",
+    offline: "Can't reach Golaly right now. Check your connection and try again.",
     notFoundTitle: "Looks like you wandered off the map",
     notFoundBody: "That page doesn't exist.",
     backHome: "Back home",

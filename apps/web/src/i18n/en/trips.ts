@@ -286,7 +286,7 @@ export const trips = {
     link: "Invite link",
     role: "Role",
     emailLabel: "Email address",
-    emailHint: "They'll get an email, plus an in-app notification if they already use TRIPLY.",
+    emailHint: "They'll get an email, plus an in-app notification if they already use Golaly.",
     emailPlaceholder: "friend@example.com",
     badEmail: "That email doesn't look right.",
     send: "Send invite",

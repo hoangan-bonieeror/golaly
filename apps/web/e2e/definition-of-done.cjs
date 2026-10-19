@@ -192,7 +192,7 @@ fs.mkdirSync(shots, { recursive: true });
   });
 
   await step("16b. navbar search suggests places and destinations as you type", async () => {
-    const box = C.getByRole("combobox", { name: "Search TRIPLY" });
+    const box = C.getByRole("combobox", { name: "Search Golaly" });
     await box.fill("hoi an");
     const list = C.getByRole("listbox", { name: "Suggestions" });
     await list.getByRole("option", { name: /Hội An Ancient Town/ }).waitFor();

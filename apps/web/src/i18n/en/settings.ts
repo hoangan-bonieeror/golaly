@@ -20,7 +20,7 @@ export const settings = {
   },
   language: {
     title: "Language",
-    hint: "The language of menus, buttons and emails from TRIPLY.",
+    hint: "The language of menus, buttons and emails from Golaly.",
   },
   placeNames: {
     title: "Place names",
@@ -36,7 +36,7 @@ export const settings = {
   suggestions: {
     title: "Planning suggestions",
     label: "Use my trip activity to improve suggestions",
-    hint: "What you plan, vote on and skip helps TRIPLY suggest better plans for everyone. It's pseudonymised and never shown to other people. Off unless you turn it on.",
+    hint: "What you plan, vote on and skip helps Golaly suggest better plans for everyone. It's pseudonymised and never shown to other people. Off unless you turn it on.",
     on: "Thanks — your activity will help improve suggestions",
     off: "Your activity won't be used for suggestions",
   },

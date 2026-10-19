@@ -1,4 +1,4 @@
-# TRIPLY architecture
+# Golaly architecture
 
 ## Request flow
 

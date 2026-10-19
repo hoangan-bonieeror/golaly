@@ -50,7 +50,7 @@ def load_batch(conn: psycopg.Connection, run_id: str, batch: list[NormalizedPlac
             SELECT x.category_id FROM unnest(d.category_candidates) WITH ORDINALITY AS c(k, ord)
             CROSS JOIN LATERAL (
               SELECT cm.category_id FROM category_maps cm WHERE cm.provider = d.provider AND cm.external_category = c.k
-              UNION ALL  -- manual records may name a TRIPLY category directly (curated places keep their exact category)
+              UNION ALL  -- manual records may name a Golaly category directly (curated places keep their exact category)
               SELECT cat.id FROM categories cat WHERE d.provider = 'manual' AND cat.key = c.k
             ) x
             ORDER BY c.ord LIMIT 1

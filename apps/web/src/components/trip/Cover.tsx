@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Generated "postcard" cover art — an original TRIPLY visual motif used in
+ * Generated "postcard" cover art — an original Golaly visual motif used in
  * place of user photos in the prototype. Deterministic per seed, so every
  * trip/post keeps its own look. When a photo was uploaded, it's layered on top.
  */

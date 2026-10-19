@@ -12,10 +12,10 @@ export const nav: Messages["nav"] = {
   settings: "Cài đặt",
   admin: "Quản trị",
   create: "Tạo",
-  homeLink: "Trang chủ TRIPLY",
+  homeLink: "Trang chủ Golaly",
   mainNav: "Điều hướng chính",
   tabBar: "Thanh điều hướng",
-  searchLabel: "Tìm trên TRIPLY",
+  searchLabel: "Tìm trên Golaly",
   searchPlaceholder: "Tìm địa điểm, chuyến đi và mọi người",
   suggest: {
     label: "Gợi ý",

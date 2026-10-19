@@ -21,7 +21,7 @@ export const settings: Messages["settings"] = {
   },
   language: {
     title: "Ngôn ngữ",
-    hint: "Ngôn ngữ của menu, nút bấm và email TRIPLY gửi cho bạn.",
+    hint: "Ngôn ngữ của menu, nút bấm và email Golaly gửi cho bạn.",
   },
   placeNames: {
     title: "Tên địa điểm",
@@ -37,7 +37,7 @@ export const settings: Messages["settings"] = {
   suggestions: {
     title: "Gợi ý lên kế hoạch",
     label: "Dùng hoạt động trong chuyến đi của tôi để cải thiện gợi ý",
-    hint: "Những gì bạn lên kế hoạch, bình chọn và bỏ qua giúp TRIPLY gợi ý kế hoạch tốt hơn cho mọi người. Dữ liệu được ẩn danh hoá và không bao giờ hiển thị cho người khác. Mặc định tắt.",
+    hint: "Những gì bạn lên kế hoạch, bình chọn và bỏ qua giúp Golaly gợi ý kế hoạch tốt hơn cho mọi người. Dữ liệu được ẩn danh hoá và không bao giờ hiển thị cho người khác. Mặc định tắt.",
     on: "Cảm ơn bạn — hoạt động của bạn sẽ giúp cải thiện gợi ý",
     off: "Hoạt động của bạn sẽ không được dùng cho gợi ý",
   },

@@ -1,5 +1,5 @@
 /*
- * TRIPLY offline support (roadmap phase 2). Hand-written, no framework.
+ * Golaly offline support (roadmap phase 2). Hand-written, no framework.
  *
  * - Built assets (/_next/static, hashed and immutable) and media: cache first.
  * - Trip pages and the data they need (the trip, its expenses, the signed-in user, the trips list):

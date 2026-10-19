@@ -296,7 +296,7 @@ export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 
 /**
  * `onTripUse` = of the group trips (2+ travelers) under way during the period, the share where at least two of them
- * used TRIPLY while it was under way (opened it, or changed or marked something).
+ * used Golaly while it was under way (opened it, or changed or marked something).
  */
 export type AnalyticsKpiKey = "newUsers" | "activeUsers" | "tripsCreated" | "collabRate" | "tripsHappened" | "onTripUse";
 

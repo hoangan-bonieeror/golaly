@@ -42,7 +42,7 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 
 | Secret | Where to get it |
 |---|---|
-| `NEON_DATABASE_URL` | Neon → project *Triply* → branch *production* → Connect → **turn pooling OFF** (host without `-pooler`), keep `?sslmode=require` |
+| `NEON_DATABASE_URL` | Neon → project *Golaly* → branch *production* → Connect → **turn pooling OFF** (host without `-pooler`), keep `?sslmode=require` |
 | `RENDER_DEPLOY_HOOK_URL` | Render → *triply-api* → Settings → Deploy Hook (copy the whole URL) |
 | `BACKUP_PASSPHRASE` | `openssl rand -base64 48` — **keep a copy in your password manager**; without it the backups can't be opened |
 | `RENDER_API_KEY` | Render → Account settings → API keys (lets CI wait for the deploy to go live; optional) |

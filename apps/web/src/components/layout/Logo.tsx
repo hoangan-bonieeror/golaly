@@ -5,7 +5,7 @@ import { cx } from "@/lib/utils";
 export const LOGO_ROUTE = "M8 22 C 12 10, 18 26, 24 11";
 
 /**
- * TRIPLY mark: three stops joined by a route — plan, discover, travel.
+ * Golaly mark: three stops joined by a route — plan, discover, travel.
  * It comes alive on first paint: the dashed route draws itself (through a mask, so the dashes stay
  * put) and the stops pop in order; hovering the link it sits in makes them hop. Static under reduced motion.
  */
@@ -31,7 +31,7 @@ export function Logo({ className, light }: { className?: string; light?: boolean
   return (
     <span className={cx("inline-flex items-center gap-2", className)}>
       <LogoMark />
-      <span className={cx("font-display text-[22px] font-bold tracking-tight", light ? "text-white" : "text-ink")}>triply</span>
+      <span className={cx("font-display text-[22px] font-bold tracking-tight", light ? "text-white" : "text-ink")}>golaly</span>
     </span>
   );
 }

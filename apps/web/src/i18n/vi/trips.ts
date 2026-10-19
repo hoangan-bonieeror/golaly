@@ -278,7 +278,7 @@ export const trips: Messages["trips"] = {
     link: "Link mời",
     role: "Vai trò",
     emailLabel: "Địa chỉ email",
-    emailHint: "Họ sẽ nhận được email, kèm thông báo trong ứng dụng nếu đã dùng TRIPLY.",
+    emailHint: "Họ sẽ nhận được email, kèm thông báo trong ứng dụng nếu đã dùng Golaly.",
     emailPlaceholder: "banbe@example.com",
     badEmail: "Email này có vẻ chưa đúng.",
     send: "Gửi lời mời",

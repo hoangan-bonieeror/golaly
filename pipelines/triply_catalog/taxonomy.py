@@ -1,4 +1,4 @@
-"""TRIPLY taxonomy + provider category maps (data/*.json) → categories / category_maps tables."""
+"""Golaly taxonomy + provider category maps (data/*.json) → categories / category_maps tables."""
 
 from __future__ import annotations
 

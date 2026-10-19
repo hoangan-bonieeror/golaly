@@ -1,13 +1,13 @@
-# Triply Design System — "Atlas"
+# Golaly Design System — "Atlas"
 
-> Source of truth for Triply's visual language. Page-specific deviations live in
+> Source of truth for Golaly's visual language. Page-specific deviations live in
 > `design-system/triply/pages/<page>.md` and override this file for that page only.
 > Tokens are implemented in [`apps/web/src/app/globals.css`](../../apps/web/src/app/globals.css);
 > the day palette and travel-leg estimates live in [`apps/web/src/lib/trip-geo.ts`](../../apps/web/src/lib/trip-geo.ts).
 
 ## Mood
 
-A good paper map on a café table. The **map is the hero**: Triply is where a group plans *where*
+A good paper map on a café table. The **map is the hero**: Golaly is where a group plans *where*
 and *in what order*, so routes, numbered stops and the distances between them carry the screen.
 Warm paper keeps the coziness of the earlier "Slow Roast" theme; deep jade and a vermilion route
 line make it feel precise and confident rather than decorative.

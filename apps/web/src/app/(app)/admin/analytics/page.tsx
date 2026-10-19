@@ -27,7 +27,7 @@ const KPI: Record<AnalyticsKpi["key"], { label: string; hint: string; rate?: boo
   tripsCreated: { label: "Trips created", hint: "New trips, including remixes" },
   collabRate: { label: "Planned together", hint: "Share of new trips with two or more travelers", rate: true },
   tripsHappened: { label: "Trips that started", hint: "Trips whose first day fell in the period" },
-  onTripUse: { label: "Used on the trip", hint: "Group trips under way in the period where 2+ travelers used TRIPLY during the trip", rate: true },
+  onTripUse: { label: "Used on the trip", hint: "Group trips under way in the period where 2+ travelers used Golaly during the trip", rate: true },
 };
 
 const STEPS: Record<AnalyticsFunnelStep, string> = {
@@ -61,7 +61,7 @@ function Analytics() {
     <div className="space-y-6">
       <AdminHeader
         title="Analytics"
-        body="How people use TRIPLY: growth, activation and collaboration, the catalog's health and security signals. Counts only, never who. Days are UTC; numbers refresh every 5 minutes."
+        body="How people use Golaly: growth, activation and collaboration, the catalog's health and security signals. Counts only, never who. Days are UTC; numbers refresh every 5 minutes."
       />
 
       {/* One filter row, above everything it scopes. */}

@@ -9,7 +9,7 @@ For each partition (a province or a destination box):
 3. **Fetch** photos for the matched subjects only (`fetch_photos`), with licence and credits.
 4. **Choose and save** — one licence filter for every source (CC0, public domain, CC BY, CC BY-SA); best-scored
    photos per place; rows in `place_photos` with `remote_url` and credits. The API's ingester downloads them into
-   TRIPLY's own media (3 WebP sizes) — the pipeline never writes image files itself. Sources whose terms don't
+   Golaly's own media (3 WebP sizes) — the pipeline never writes image files itself. Sources whose terms don't
    allow storing content (`storage` ≠ "store") get their content stripped here, at the save layer.
 
 Re-runs refresh credits, keep moderators' decisions, and hide files whose licence is no longer usable.

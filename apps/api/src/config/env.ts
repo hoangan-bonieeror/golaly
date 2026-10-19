@@ -78,7 +78,7 @@ const schema = z.object({
   MAIL_OUTBOX_DIR: z.string().default("./storage/outbox"),
   /** smtps://user:password@host:465 (TLS) or smtp://user:password@host:587 (STARTTLS); URL-encode special characters. */
   SMTP_URL: z.string().optional().transform((v) => v?.trim() || undefined),
-  /** Sender, e.g. `TRIPLY <you@gmail.com>` — must be an address the SMTP account may send as. */
+  /** Sender, e.g. `Golaly <you@gmail.com>` — must be an address the SMTP account may send as. */
   MAIL_FROM: z.string().optional().transform((v) => v?.trim() || undefined),
   /** Google sign-in (optional). Leave empty to hide the Google button. */
   GOOGLE_CLIENT_ID: z.string().optional().transform((v) => v || undefined),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Run TRIPLY in dev mode so you can open it on a phone.
+ * Run Golaly in dev mode so you can open it on a phone.
  *
  *   node scripts/dev-phone.mjs            # same Wi-Fi: http://<this computer's IP>:3100
  *   node scripts/dev-phone.mjs --tunnel   # anywhere, over HTTPS (Cloudflare quick tunnel)
@@ -73,7 +73,7 @@ function startProxy() {
     });
     up.on("error", () => {
       if (!res.headersSent) res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
-      res.end("TRIPLY dev server isn't answering yet — wait a few seconds and reload.");
+      res.end("Golaly dev server isn't answering yet — wait a few seconds and reload.");
     });
     req.pipe(up);
   });
@@ -187,7 +187,7 @@ children.push(dev);
 dev.on("exit", (code) => shutdown(code ?? 0));
 
 console.log(`
-${c.green(c.bold("TRIPLY on your phone"))}  ${c.dim("(the dev servers start below; the first page load compiles for a few seconds)")}
+${c.green(c.bold("Golaly on your phone"))}  ${c.dim("(the dev servers start below; the first page load compiles for a few seconds)")}
 ${lanUrl ? `  Same Wi-Fi:  ${c.bold(lanUrl)}` : ""}${tunnelUrl ? `\n  Anywhere:   ${c.bold(tunnelUrl)}  ${c.dim("(HTTPS — location features work)")}` : ""}
   This computer: http://localhost:${WEB}
 

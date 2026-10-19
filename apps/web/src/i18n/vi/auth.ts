@@ -23,7 +23,7 @@ export const auth: Messages["auth"] = {
     subtitle: "Đăng nhập để tiếp tục lên kế hoạch.",
     forgot: "Quên mật khẩu?",
     loggingIn: "Đang đăng nhập…",
-    newHere: "Bạn mới dùng TRIPLY?",
+    newHere: "Bạn mới dùng Golaly?",
     createAccount: "Tạo tài khoản",
     welcomeBack: (name) => `Chào mừng trở lại, ${name}`,
   },
@@ -60,7 +60,7 @@ export const auth: Messages["auth"] = {
     errorTitle: "Không thể xác nhận liên kết này",
     doneBody: "Xong rồi — các lời mời gửi tới địa chỉ này giờ đã dùng được.",
     errorBody: (message) => `${message} Bạn có thể gửi liên kết mới từ thanh thông báo trong ứng dụng.`,
-    continue: "Tiếp tục vào TRIPLY",
+    continue: "Tiếp tục vào Golaly",
   },
   onboarding: {
     step: (n, total) => `Bước ${n}/${total}`,

@@ -29,7 +29,7 @@ const PROVIDERS = ["osm", "overture", "fsq"] as const;
 type View = "unmapped" | "maps" | "categories";
 
 /**
- * Source categories → TRIPLY categories. Records whose category has no mapping are kept but never published;
+ * Source categories → Golaly categories. Records whose category has no mapping are kept but never published;
  * mapping one here publishes them on the area's next sync.
  */
 export default function CategoriesPage() {
@@ -45,7 +45,7 @@ export default function CategoriesPage() {
     <div className="space-y-5">
       <AdminHeader
         title="Categories"
-        body="Map what each source calls a place (amenity=cafe, coffee_shop…) to a TRIPLY category. Changes apply on each area's next sync."
+        body="Map what each source calls a place (amenity=cafe, coffee_shop…) to a Golaly category. Changes apply on each area's next sync."
       />
       <Tabs
         id="cats"
@@ -55,7 +55,7 @@ export default function CategoriesPage() {
         tabs={[
           { value: "unmapped", label: "Unmapped" },
           { value: "maps", label: "Mappings" },
-          { value: "categories", label: "TRIPLY categories" },
+          { value: "categories", label: "Golaly categories" },
         ]}
       />
       {view !== "categories" && (
@@ -197,7 +197,7 @@ function Unmapped({
           title={data.refreshedAt ? "Everything is mapped" : "Not counted yet"}
           body={
             data.refreshedAt
-              ? "Every category this source sent has a TRIPLY category."
+              ? "Every category this source sent has a Golaly category."
               : "Press Recount, or wait for the next sync."
           }
         />

@@ -41,7 +41,7 @@ export async function createApp() {
 async function bootstrap() {
   const app = await createApp();
   await app.listen(env.PORT);
-  new Logger("TRIPLY").log(`API ready on http://localhost:${env.PORT}/api/v1`);
+  new Logger("Golaly").log(`API ready on http://localhost:${env.PORT}/api/v1`);
 }
 
 if (require.main === module) void bootstrap();

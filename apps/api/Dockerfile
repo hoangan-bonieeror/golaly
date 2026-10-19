@@ -1,4 +1,4 @@
-# Production image for the TRIPLY API. Build from the repo root:
+# Production image for the Golaly API. Build from the repo root:
 #   docker build -f apps/api/Dockerfile -t triply-api .
 #   docker build -f apps/api/Dockerfile --target migrate -t triply-api-migrate .   # one-off migration job
 

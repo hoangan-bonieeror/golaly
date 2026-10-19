@@ -1,6 +1,6 @@
 import type { NotificationMessage } from "./i18n";
 /**
- * TRIPLY shared domain types.
+ * Golaly shared domain types.
  * These mirror the planned PostgreSQL/Prisma schema (spec §24–26) so the
  * prototype's mock layer and the future NestJS API speak the same language.
  * Public identifiers are UUID-like strings — never sequential IDs.

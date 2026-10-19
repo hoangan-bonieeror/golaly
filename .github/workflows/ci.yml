@@ -1,4 +1,4 @@
-# TRIPLY — CI/CD
+# Golaly — CI/CD
 #
 #   pull_request / push to any branch → CI: lint + typecheck, API tests (PostGIS), build (+ API Docker image), pipelines (pytest)
 #   push to main, CI green           → CD: Neon migrations → Render (API) → Vercel (web) → smoke test

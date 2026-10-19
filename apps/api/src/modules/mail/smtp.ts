@@ -22,7 +22,7 @@ export interface SmtpConfig {
 }
 
 export interface SmtpMessage {
-  /** "TRIPLY <noreply@example.com>" or a bare address. */
+  /** "Golaly <noreply@example.com>" or a bare address. */
   from: string;
   to: string;
   subject: string;

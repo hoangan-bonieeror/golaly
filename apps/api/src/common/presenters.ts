@@ -109,16 +109,16 @@ export const photoOrder = [{ score: "desc" }, { createdAt: "asc" }] satisfies Pr
 export const placePhotoInclude = { media: true, uploadedBy: { select: userSummarySelect } } satisfies Prisma.PlacePhotoInclude;
 export type PlacePhotoRow = Prisma.PlacePhotoGetPayload<{ include: typeof placePhotoInclude }>;
 
-const SOURCE_NAME: Record<string, string> = { wikimedia: "Wikimedia Commons", mapillary: "Mapillary", user: "TRIPLY" };
+const SOURCE_NAME: Record<string, string> = { wikimedia: "Wikimedia Commons", mapillary: "Mapillary", user: "Golaly" };
 
 /**
  * The attribution the licence asks for (title, author, source, licence — "TASL" for Creative Commons),
- * or the uploader for photos shared on TRIPLY.
+ * or the uploader for photos shared on Golaly.
  */
 export function photoCredit(p: Pick<PlacePhotoRow, "source" | "title" | "author" | "authorUrl" | "license" | "licenseUrl" | "pageUrl" | "uploadedBy">): PlacePhotoView["credit"] {
   const sourceName = SOURCE_NAME[p.source] ?? p.source;
   if (p.source === "user") {
-    const by = p.uploadedBy ? toUserSummary(p.uploadedBy).displayName : "a TRIPLY traveler";
+    const by = p.uploadedBy ? toUserSummary(p.uploadedBy).displayName : "a Golaly traveler";
     return { text: `Photo by ${by}`, title: null, author: by, authorUrl: p.uploadedBy ? `/u/${p.uploadedBy.username}` : null, license: null, licenseUrl: null, sourceName, sourceUrl: null };
   }
   const parts = [p.author ? `Photo: ${p.author}` : "Photo", p.license, `via ${sourceName}`].filter(Boolean);

@@ -1,4 +1,4 @@
-"""TRIPLY place catalog DAGs.
+"""Golaly place catalog DAGs.
 
 catalog_sync       start → plan → extract_load (one mapped task per provider × partition) → finalize → finish
 catalog_bootstrap  taxonomy + adopt seed places → country/province boundaries
@@ -83,7 +83,7 @@ def _ids(values: Any) -> list[Any]:
         ),
         "sync_run_id": Param(None, type=["null", "string"], description="existing sync_runs.id (set by the admin API); created if empty"),
         "photos": Param(True, type="boolean", description="afterwards, look for photos of the places that need it (catalog_photos)"),
-        "category_keys": Param([], type="array", items={"type": "string"}, description="only these TRIPLY groups/categories (empty = all)"),
+        "category_keys": Param([], type="array", items={"type": "string"}, description="only these Golaly groups/categories (empty = all)"),
     },
     render_template_as_native_obj=True,
 )

@@ -11,10 +11,10 @@ export const nav = {
   settings: "Settings",
   admin: "Admin",
   create: "Create",
-  homeLink: "TRIPLY home",
+  homeLink: "Golaly home",
   mainNav: "Main",
   tabBar: "Tab bar",
-  searchLabel: "Search TRIPLY",
+  searchLabel: "Search Golaly",
   searchPlaceholder: "Search places, trips and people",
   suggest: {
     label: "Suggestions",

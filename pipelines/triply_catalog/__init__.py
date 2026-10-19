@@ -1,4 +1,4 @@
-"""TRIPLY place catalog pipeline.
+"""Golaly place catalog pipeline.
 
 Extract open place data (Overture Maps, OpenStreetMap) for an area, load it into
 `place_sources` (staging), normalise it, and publish canonical rows into `places`.

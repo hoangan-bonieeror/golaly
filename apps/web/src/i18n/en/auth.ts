@@ -22,7 +22,7 @@ export const auth = {
     subtitle: "Log in to keep planning.",
     forgot: "Forgot password?",
     loggingIn: "Logging in…",
-    newHere: "New to TRIPLY?",
+    newHere: "New to Golaly?",
     createAccount: "Create account",
     welcomeBack: (name: string) => `Welcome back, ${name}`,
   },
@@ -59,7 +59,7 @@ export const auth = {
     errorTitle: "We couldn't confirm that link",
     doneBody: "You're all set — invitations sent to this address will now work.",
     errorBody: (message: string) => `${message} You can send a new link from the banner in the app.`,
-    continue: "Continue to TRIPLY",
+    continue: "Continue to Golaly",
   },
   onboarding: {
     step: (n: number, total: number) => `Step ${n} of ${total}`,

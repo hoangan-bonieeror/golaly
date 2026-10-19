@@ -1,6 +1,6 @@
 # Interface languages (English / Tiếng Việt)
 
-TRIPLY's interface is available in English and Vietnamese. No i18n library: the catalogs are plain
+Golaly's interface is available in English and Vietnamese. No i18n library: the catalogs are plain
 typed TypeScript objects, so a missing or misspelt key is a type error, not a blank label at runtime.
 
 ## How the language is chosen

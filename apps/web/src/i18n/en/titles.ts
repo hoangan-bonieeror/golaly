@@ -1,6 +1,6 @@
-/** <title> of each route (the root template adds "· TRIPLY"). */
+/** <title> of each route (the root template adds "· Golaly"). */
 export const titles = {
-  default: "TRIPLY — Plan together. Discover together. Travel together.",
+  default: "Golaly — Plan together. Discover together. Travel together.",
   description: "A social travel planning platform that turns real travelers' trips into reusable, collaborative travel plans.",
   home: "Home",
   explore: "Explore",

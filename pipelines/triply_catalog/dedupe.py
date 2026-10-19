@@ -311,7 +311,7 @@ def score_places(conn: psycopg.Connection, settings: Settings, ids: list[str]) -
 
 
 def pick_winner(a: P, b: P) -> tuple[P, P]:
-    """The place more of TRIPLY points at survives (itinerary items, saves, approved photos), then the one with more
+    """The place more of Golaly points at survives (itinerary items, saves, approved photos), then the one with more
     sources, a curated (manual) one, the older one. Same order as the database's catalog_pick_winner()."""
     ka = (-a.links, -a.sources, not a.manual, a.created_at, a.id)
     kb = (-b.links, -b.sources, not b.manual, b.created_at, b.id)
