@@ -70,8 +70,16 @@ const schema = z.object({
    */
   CATALOG_CONTACT: z.string().optional().transform((v) => v?.trim() || undefined),
   PHOTO_USER_AGENT: z.string().optional().transform((v) => v?.trim() || undefined),
-  MAIL_DRIVER: z.enum(["dev-outbox", "disabled"]).default("dev-outbox"),
+  /**
+   * "dev-outbox" writes mails to files (development), "smtp" sends them through SMTP_URL from MAIL_FROM, "disabled"
+   * drops them (sign-up verification and password reset then can't work).
+   */
+  MAIL_DRIVER: z.enum(["dev-outbox", "smtp", "disabled"]).default("dev-outbox"),
   MAIL_OUTBOX_DIR: z.string().default("./storage/outbox"),
+  /** smtps://user:password@host:465 (TLS) or smtp://user:password@host:587 (STARTTLS); URL-encode special characters. */
+  SMTP_URL: z.string().optional().transform((v) => v?.trim() || undefined),
+  /** Sender, e.g. `TRIPLY <you@gmail.com>` — must be an address the SMTP account may send as. */
+  MAIL_FROM: z.string().optional().transform((v) => v?.trim() || undefined),
   /** Google sign-in (optional). Leave empty to hide the Google button. */
   GOOGLE_CLIENT_ID: z.string().optional().transform((v) => v || undefined),
   GOOGLE_CLIENT_SECRET: z.string().optional().transform((v) => v || undefined),
@@ -151,6 +159,10 @@ function load(): Env {
     throw new Error("Set COOKIE_SECURE=true in production (serve over HTTPS). For a local HTTP-only demo set ALLOW_INSECURE_COOKIES=1.");
   }
   if (parsed.data.TRUST_PROXY === "true") throw new Error('TRUST_PROXY=true lets clients spoof their IP. Use a subnet like "loopback" or a hop count.');
+  if (parsed.data.MAIL_DRIVER === "smtp") {
+    if (!parsed.data.SMTP_URL || !parsed.data.MAIL_FROM) throw new Error("MAIL_DRIVER=smtp needs SMTP_URL and MAIL_FROM. See README → Email");
+    if (!/^smtps?:\/\//.test(parsed.data.SMTP_URL)) throw new Error("SMTP_URL must start with smtp:// or smtps://");
+  }
   if (parsed.data.MEDIA_DRIVER === "s3") {
     const d = parsed.data;
     const missing = (["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "MEDIA_PUBLIC_URL"] as const).filter((k) => !d[k]);

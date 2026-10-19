@@ -39,6 +39,7 @@ export class TripsService {
 
   async detail(tripId: string, viewerId: string | null): Promise<TripDetail> {
     const trip = await this.access.require("trip.view", tripId, viewerId);
+    this.events.openedOnTrip(viewerId, trip);
     const isOwner = trip.ownerId === viewerId;
     const [t, days, pool, members, invitations] = await Promise.all([
       this.prisma.trip.findUniqueOrThrow({

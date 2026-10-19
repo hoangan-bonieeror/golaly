@@ -6,6 +6,7 @@ import { fromDate } from "../../common/dates";
 import { ZodPipe } from "../../common/http";
 import { listablePlace, placeInclude, toPlaceView, type PlaceRow } from "../../common/presenters";
 import { PrismaService } from "../../prisma/prisma.service";
+import { ProductEventsService } from "../activity/product-events";
 import { TripAccessService } from "../trips/trip-access.service";
 import { TripsModule } from "../trips/trips.controller";
 
@@ -27,10 +28,12 @@ export class NextService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: TripAccessService,
+    private readonly events: ProductEventsService,
   ) {}
 
   async next(tripId: string, viewerId: string | null, q: NextQuery): Promise<NextSuggestions> {
-    await this.access.require("itinerary.view", tripId, viewerId);
+    const trip = await this.access.require("itinerary.view", tripId, viewerId);
+    this.events.openedOnTrip(viewerId, trip);
     const here = q.near ? { lat: q.near[0], lng: q.near[1] } : null;
     const slot = slotForTime(q.time);
 

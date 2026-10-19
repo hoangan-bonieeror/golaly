@@ -294,7 +294,11 @@ export interface AdminCategoryView {
 export const ANALYTICS_RANGES = [7, 30, 90] as const;
 export type AnalyticsRange = (typeof ANALYTICS_RANGES)[number];
 
-export type AnalyticsKpiKey = "newUsers" | "activeUsers" | "tripsCreated" | "collabRate" | "tripsHappened";
+/**
+ * `onTripUse` = of the group trips (2+ travelers) under way during the period, the share where at least two of them
+ * used TRIPLY while it was under way (opened it, or changed or marked something).
+ */
+export type AnalyticsKpiKey = "newUsers" | "activeUsers" | "tripsCreated" | "collabRate" | "tripsHappened" | "onTripUse";
 
 /** One headline number for the period, the same number for the period before, and a per-day trend (oldest first). */
 export interface AnalyticsKpi {
@@ -314,7 +318,8 @@ export interface AnalyticsDay {
   trips: number;
 }
 
-export type AnalyticsFunnelStep = "registered" | "createdTrip" | "plannedStop" | "collaborated" | "tripHappened" | "markedStop" | "shared";
+/** `usedOnTrip` = opened or changed one of their trips while it was under way. */
+export type AnalyticsFunnelStep = "registered" | "createdTrip" | "plannedStop" | "collaborated" | "tripHappened" | "usedOnTrip" | "markedStop" | "shared";
 
 /** People who signed up in the period, and how many of them reached each step since. */
 export interface AnalyticsFunnelRow {
@@ -380,6 +385,6 @@ export interface AnalyticsCohorts {
     size: number;
     /** Joined less than 30 days ago: still growing. */
     maturing: boolean;
-    steps: Record<Exclude<AnalyticsFunnelStep, "registered">, number>;
+    steps: Record<Exclude<AnalyticsFunnelStep, "registered" | "usedOnTrip">, number>;
   }[];
 }

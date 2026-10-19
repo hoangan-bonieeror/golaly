@@ -7,7 +7,7 @@ import { useI18n } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction } from "@/lib/api/queries";
 import { firstName, nameList } from "@/lib/plan";
-import { Avatar, Button, Sheet, cx } from "../ui";
+import { Avatar, Button, Sheet, SheetActions, cx } from "../ui";
 
 /**
  * Splitting up (roadmap phase 2): a stop can be for some of the group ("Who's going?"); when a part of the
@@ -132,9 +132,11 @@ function AssignBody({ trip, item, onDone }: { trip: TripDetail; item: ItemView; 
           );
         })}
       </ul>
-      <Button type="submit" size="lg" className="w-full" disabled={save.isPending || who.length === 0}>
-        {t.save}
-      </Button>
+      <SheetActions>
+        <Button type="submit" size="lg" className="w-full" disabled={save.isPending || who.length === 0}>
+          {t.save}
+        </Button>
+      </SheetActions>
     </form>
   );
 }

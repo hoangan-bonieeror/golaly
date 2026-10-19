@@ -65,6 +65,40 @@ describe("admin analytics", () => {
     expect(await t.prisma.auditLog.count({ where: { action: "admin.analytics.viewed", actorId: me.id } })).toBeGreaterThanOrEqual(2);
   });
 
+  it("measures use during the trip: opened by members while it's under way, once a day", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const before = await overview(7);
+    const owner = await t.register("otu1", { verified: true });
+    const friend = await t.register("otu2", { verified: true });
+    const outsider = await t.register("otu3", { verified: true });
+    const trip = (await owner.post("/trips", { title: "Under way", startDate: today, endDate: today })).body;
+    await owner.patch(`/trips/${trip.id}`, { visibility: "PUBLIC" });
+    const later = (await owner.post("/trips", { title: "Next year", startDate: "2027-09-01", endDate: "2027-09-03" })).body;
+    const inv = (await owner.post(`/trips/${trip.id}/invitations`, { role: "VIEWER" })).body;
+    await friend.post(`/invitations/${inv.token}/accept`);
+
+    await owner.get(`/trips/${trip.id}`);
+    await owner.get(`/trips/${trip.id}`); // same day: not counted twice
+    await outsider.get(`/trips/${trip.id}`); // public, but not a member
+    await owner.get(`/trips/${later.id}`); // not under way
+    await new Promise((r) => setTimeout(r, 200));
+    const opened = () => t.prisma.productEvent.findMany({ where: { type: "trip.opened_on_trip", tripId: { in: [trip.id, later.id] } } });
+    expect(await opened()).toHaveLength(1);
+
+    let o = await overview(7);
+    expect(step(o, "usedOnTrip")).toBe(step(before, "usedOnTrip") + 1);
+    expect(kpi(o, "onTripUse").value).toBeLessThan(100); // one traveler of two so far
+
+    // The friend asks "where to now?" during the trip: two travelers used it.
+    expect((await friend.get(`/trips/${trip.id}/next?date=${today}&time=10:00`)).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await opened()).toHaveLength(2);
+    o = await overview(7);
+    expect(step(o, "usedOnTrip")).toBe(step(before, "usedOnTrip") + 2);
+    expect(kpi(o, "onTripUse").value).toBeGreaterThan(0);
+    expect(kpi(o, "onTripUse").series).toBeNull();
+  });
+
   it("records product events: facts only, after the change commits", async () => {
     const since = new Date();
     const owner = await t.register("pev1", { verified: true });

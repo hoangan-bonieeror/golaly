@@ -178,7 +178,7 @@ Migrations live in `apps/api/prisma/migrations`. `npm test` rebuilds the test DB
 | Social | `GET /feed?mode&cursor` · `POST /posts` · `GET /posts/saved` · `GET/PATCH/DELETE /posts/:id` · `POST/DELETE /posts/:id/like` · `POST/DELETE /posts/:id/save` · `GET/POST /posts/:id/comments` · `DELETE /comments/:id` · `POST /reports` |
 | Notifications | `GET /notifications?cursor` · `GET /notifications/unread-count` · `PATCH /notifications/:id/read` · `PATCH /notifications/read-all` |
 | Media | `POST /media` (multipart `file`) · `DELETE /media/:id` · files served at `/media/<key>` |
-| Health | `GET /health` |
+| Health | `GET /health` (process up, no database query) · `GET /health/db` (also checks the database) |
 
 Errors always look like `{ statusCode, message, fields? }`, and `message` is always safe to show users. Status codes: 401, 403, 404, 409, 413, 415, 422, 429, 500.
 
@@ -217,7 +217,9 @@ Two layers behind `/admin/analytics` (admins only; every view is written to `aud
 
 - **Live** — `GET /admin/analytics/overview?days=7|30|90` (`apps/api/src/modules/admin/analytics.ts`): headline numbers
   for the period and the one before, per-day sign-ups / active people / trips, the activation funnel of the period's
-  sign-ups, top destinations, catalog health, security signals. Computed from the app tables in a few aggregate
+  sign-ups, **use during the trip** (share of group trips under way in the period where 2+ travelers opened or changed
+  them while under way — product event `trip.opened_on_trip`, recorded once a day per member from the trip page and
+  "where to now?"), top destinations, catalog health, security signals. Computed from the app tables in a few aggregate
   queries (UTC days), cached 5 minutes per range.
 - **Nightly** — `GET /admin/analytics/cohorts`: reads the dbt marts in schema `analytics` (`analytics/`, see its
   README): `fct_daily_activity` (DAU/WAU/MAU), `fct_retention_weekly`, `fct_activation_weekly`,

@@ -101,9 +101,10 @@ export class AnalyticsService {
     const from = iso(new Date(today.getTime() - (days - 1) * DAY_MS));
     const prevFrom = iso(new Date(today.getTime() - (2 * days - 1) * DAY_MS));
 
-    const [daily, distinct, funnel, destinations, catalog, ops] = await Promise.all([
+    const [daily, distinct, onTrip, funnel, destinations, catalog, ops] = await Promise.all([
       this.daily(prevFrom, to),
       this.distinctActive(prevFrom, from, to),
+      this.onTripUse(prevFrom, from, to),
       this.funnel(from, to),
       this.destinations(from, to),
       this.catalog(),
@@ -123,6 +124,7 @@ export class AnalyticsService {
       { key: "tripsCreated", value: sum(cur, "trips"), previous: sum(prev, "trips"), series: cur.map((d) => d.trips) },
       { key: "collabRate", value: rate(cur), previous: rate(prev), series: null },
       { key: "tripsHappened", value: sum(cur, "happened"), previous: sum(prev, "happened"), series: cur.map((d) => d.happened) },
+      { key: "onTripUse", value: onTrip.current, previous: onTrip.previous, series: null },
     ];
 
     return {
@@ -171,6 +173,35 @@ export class AnalyticsService {
     return r ?? { current: 0, previous: 0 };
   }
 
+  /**
+   * Group trips (2+ members) under way at some point in each period, and the share (%) where at least two members
+   * used TRIPLY during the trip.
+   */
+  private async onTripUse(start: string, from: string, end: string) {
+    const [r] = await this.prisma.$queryRaw<{ cur_total: number; cur_used: number; prev_total: number; prev_used: number }[]>`
+      WITH t AS (
+        SELECT tr.id, tr.start_date, coalesce(tr.end_date, tr.start_date) AS end_date FROM trips tr
+        WHERE tr.deleted_at IS NULL AND tr.start_date IS NOT NULL
+          AND tr.start_date <= ${end}::date AND coalesce(tr.end_date, tr.start_date) >= ${start}::date
+          AND (SELECT count(*) FROM trip_members m WHERE m.trip_id = tr.id) >= 2
+      ),
+      used AS (
+        SELECT u.trip_id, count(DISTINCT u.uid)::int AS people FROM (${sqlOnTripUse()}) u
+        WHERE u.trip_id IN (SELECT id FROM t) GROUP BY u.trip_id
+      ),
+      x AS (
+        SELECT t.*, coalesce(used.people, 0) >= 2 AS used,
+          (t.end_date >= ${from}::date) AS in_cur,
+          (t.start_date < ${from}::date) AS in_prev
+        FROM t LEFT JOIN used ON used.trip_id = t.id
+      )
+      SELECT count(*) FILTER (WHERE in_cur)::int AS cur_total, count(*) FILTER (WHERE in_cur AND used)::int AS cur_used,
+             count(*) FILTER (WHERE in_prev)::int AS prev_total, count(*) FILTER (WHERE in_prev AND used)::int AS prev_used
+      FROM x`;
+    const pct = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
+    return { current: pct(r?.cur_used ?? 0, r?.cur_total ?? 0), previous: pct(r?.prev_used ?? 0, r?.prev_total ?? 0) };
+  }
+
   /** People who signed up in the period, and how many of them got to each step (at any time since). */
   private async funnel(from: string, to: string): Promise<AnalyticsFunnelRow[]> {
     const [r] = await this.prisma.$queryRaw<Record<string, number>[]>`
@@ -186,11 +217,13 @@ export class AnalyticsService {
           SELECT 1 FROM trip_members m JOIN trips t ON t.id = m.trip_id
           WHERE m.user_id = u.id AND t.deleted_at IS NULL AND t.start_date <= current_date))::int AS "tripHappened",
         (SELECT count(*) FROM u WHERE EXISTS (
+          SELECT 1 FROM (${sqlOnTripUse()}) o WHERE o.uid = u.id))::int AS "usedOnTrip",
+        (SELECT count(*) FROM u WHERE EXISTS (
           SELECT 1 FROM trip_events e WHERE e.actor_id = u.id AND e.type = 'item.status'))::int AS "markedStop",
         (SELECT count(*) FROM u WHERE
           EXISTS (SELECT 1 FROM posts p WHERE p.user_id = u.id AND p.deleted_at IS NULL)
           OR EXISTS (SELECT 1 FROM trips t WHERE t.owner_id = u.id AND t.visibility = 'PUBLIC' AND t.deleted_at IS NULL))::int AS shared`;
-    const steps = ["registered", "createdTrip", "plannedStop", "collaborated", "tripHappened", "markedStop", "shared"] as const;
+    const steps = ["registered", "createdTrip", "plannedStop", "collaborated", "tripHappened", "usedOnTrip", "markedStop", "shared"] as const;
     return steps.map((step) => ({ step, users: Number(r?.[step] ?? 0) }));
   }
 
@@ -237,6 +270,19 @@ export class AnalyticsService {
         (SELECT count(*) FROM reports WHERE created_at >= ${from}::date AND created_at < ${to}::date + 1)::int AS reports`;
     return r ?? { lockedNow: 0, loginLocks: 0, tokenReuse: 0, revokedSessions: 0, reports: 0 };
   }
+}
+
+/**
+ * (uid, trip_id) for each time a member used a trip while it was under way: opened it (product event) or changed it
+ * (trip event) between the day before it starts and the day after it ends (trip dates carry no time zone).
+ */
+function sqlOnTripUse() {
+  return Prisma.sql`
+    SELECT pe.user_id AS uid, pe.trip_id FROM product_events pe WHERE pe.type = 'trip.opened_on_trip' AND pe.user_id IS NOT NULL
+    UNION ALL
+    SELECT te.actor_id, te.trip_id FROM trip_events te JOIN trips tr ON tr.id = te.trip_id
+    WHERE te.actor_id IS NOT NULL AND tr.start_date IS NOT NULL
+      AND te.at::date BETWEEN tr.start_date - 1 AND coalesce(tr.end_date, tr.start_date) + 1`;
 }
 
 /** One row per action someone took since `start`: (uid, day). */

@@ -35,6 +35,7 @@ export const nav = {
   verifyBanner: {
     before: "Confirm",
     after: "to accept trip invitations sent to it. Check your inbox for our link.",
+    dismiss: "Hide this reminder",
     resend: "Resend email",
     sent: "Sent — check your inbox",
     success: "Confirmation email sent",

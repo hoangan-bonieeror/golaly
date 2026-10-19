@@ -28,15 +28,26 @@ import { SocialModule } from "./modules/social/social.controller";
 import { TripsModule } from "./modules/trips/trips.controller";
 import { UsersModule } from "./modules/users/users.controller";
 
+/**
+ * `GET /health` — the process is up. No database query: the host's health checks (every few seconds) and uptime
+ * pings would otherwise keep a serverless database from ever scaling to zero, using up its free compute hours.
+ * `GET /health/db` — also checks the database (after a deploy, or by hand).
+ */
 @Controller("health")
 class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Public()
   @Get()
-  async health() {
-    await this.prisma.$queryRaw`SELECT 1`;
+  health() {
     return { status: "ok" };
+  }
+
+  @Public()
+  @Get("db")
+  async db() {
+    await this.prisma.$queryRaw`SELECT 1`;
+    return { status: "ok", db: "ok" };
   }
 }
 

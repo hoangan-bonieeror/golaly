@@ -320,7 +320,7 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 2. **Web**: set `API_ORIGIN=https://your-api-domain` **at build time** (Next rewrites are compiled in) and `NEXT_PUBLIC_REALTIME_URL=https://your-api-domain`.
 3. The web app and the API can live on different domains (e.g. `*.vercel.app` and `*.onrender.com`): HTTP goes through the web app's rewrites with the cookie, and the realtime socket authenticates with a one-minute token fetched the same way (see `docs/ARCHITECTURE.md` → WebSocket). Serving both under one parent domain (`app.example.com` + `api.example.com`) or behind one reverse proxy like `deploy/nginx.conf` also works.
 4. **Client IPs:** set the same random `EDGE_SECRET` (32+ characters, e.g. `openssl rand -hex 32`) on the API and on the web app's runtime env (Vercel → Settings → Environment Variables, Production). The web proxy then hands the API each visitor's real address with that secret, so per-IP limits apply per visitor instead of per web server; anything without the secret is ignored. Check it as an admin at `/api/v1/admin/diagnostics/request` (`viaEdge: true`). Behind your own nginx, also overwrite `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $remote_addr`). In plain `npm run dev` there's no edge — per-account login lockout still applies.
-5. **Media on a host without a disk** (Render Free, Fly without a volume): use an S3-compatible bucket — see [Media in a bucket](#media-in-a-bucket-cloudflare-r2) below. Swap the dev-outbox mail driver for SMTP/Resend/SES (a small interface in `apps/api/src/modules/mail`).
+5. **Media on a host without a disk** (Render Free, Fly without a volume): use an S3-compatible bucket — see [Media in a bucket](#media-in-a-bucket-cloudflare-r2) below. Send real mail with `MAIL_DRIVER=smtp` — see [Email](#email) below.
 6. Never run `db:seed` in production. It refuses when `NODE_ENV=production`.
 
 > The Compose file and nginx config were validated (`docker compose config`, `nginx -t`, and the edge was exercised against the running stack), but the images themselves couldn't be built where this was developed (no Docker Hub access). Run `docker compose --profile full up --build` once on your machine.
@@ -335,6 +335,14 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 4. **Web** env: `MEDIA_ORIGIN` = the same public URL, then redeploy (rewrites are build-time). Next.js then proxies `/media/*` straight to the bucket, skipping the API.
 5. **Existing files** (e.g. after `npm run data:import`): put the S3 variables in `apps/api/.env` and run `npm run build -w @triply/api && npm run media:push -w @triply/api -- --dry-run`, then without `--dry-run`. Keys are kept; objects already in the bucket are skipped.
 6. With a durable bucket you can turn the catalog photo worker back on (`PHOTO_INGEST=on`, `CATALOG_CONTACT=<url or email>`).
+
+### Email
+
+Sign-up verification, password reset and trip invitations need real mail in production. `MAIL_DRIVER=smtp` sends through any SMTP provider with a dependency-free client (`apps/api/src/modules/mail/smtp.ts`: implicit TLS or STARTTLS, AUTH PLAIN, UTF-8 subjects; tested against an in-process server in `smtp.spec.ts`). Mail goes out after the request has answered, one at a time, with retries on temporary failures — a slow or broken mail server never blocks sign-up. Recipients and bodies are never logged.
+
+1. **Pick a sender.** Without a domain of your own, a Gmail account works: turn on 2-Step Verification, then create an *App password* (Google Account → Security → App passwords). Gmail limits how many messages an account sends per day; for more volume or your own domain use a provider such as Brevo, Amazon SES or Resend (each documents its SMTP host and credentials).
+2. **API** env: `MAIL_DRIVER=smtp`, `SMTP_URL=smtps://you%40gmail.com:<app password without spaces>@smtp.gmail.com:465` (URL-encode `@` and other special characters in the user name and password), `MAIL_FROM=TRIPLY <you@gmail.com>`. The API refuses to start if one is missing.
+3. **The host must allow outgoing SMTP.** Render's Free web services block ports 25, 465 and 587; a paid instance doesn't. Check your host's policy if mail never arrives (the API logs `"<subject>" not sent: …`).
 
 ---
 

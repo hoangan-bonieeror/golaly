@@ -7,7 +7,7 @@ import { useI18n } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, usePlaceSearch } from "@/lib/api/queries";
 import { useDebounced } from "@/lib/hooks";
-import { Button, Field, Sheet, cx, inputCls } from "../ui";
+import { Button, Field, Sheet, SheetActions, cx, inputCls } from "../ui";
 import { ItemTypeIcon, TYPE_META } from "./ItemTypeIcon";
 
 const TYPES: ItineraryItemType[] = ["PLACE", "RESTAURANT", "HOTEL", "ACTIVITY", "FLIGHT", "TRANSPORTATION", "NOTE"];
@@ -231,9 +231,11 @@ function ItemSheetBody({ open, onClose, trip, defaultDayId, defaultSlot, pool, i
             {error}
           </p>
         )}
-        <Button type="submit" size="lg" className="w-full" disabled={create.isPending || update.isPending}>
-          {item ? t.common.saveChanges : tx.add}
-        </Button>
+        <SheetActions>
+          <Button type="submit" size="lg" className="w-full" disabled={create.isPending || update.isPending}>
+            {item ? t.common.saveChanges : tx.add}
+          </Button>
+        </SheetActions>
       </form>
     </Sheet>
   );

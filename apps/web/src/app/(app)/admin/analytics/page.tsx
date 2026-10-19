@@ -27,6 +27,7 @@ const KPI: Record<AnalyticsKpi["key"], { label: string; hint: string; rate?: boo
   tripsCreated: { label: "Trips created", hint: "New trips, including remixes" },
   collabRate: { label: "Planned together", hint: "Share of new trips with two or more travelers", rate: true },
   tripsHappened: { label: "Trips that started", hint: "Trips whose first day fell in the period" },
+  onTripUse: { label: "Used on the trip", hint: "Group trips under way in the period where 2+ travelers used TRIPLY during the trip", rate: true },
 };
 
 const STEPS: Record<AnalyticsFunnelStep, string> = {
@@ -35,6 +36,7 @@ const STEPS: Record<AnalyticsFunnelStep, string> = {
   plannedStop: "Planned a stop",
   collaborated: "Planned with others",
   tripHappened: "Trip started",
+  usedOnTrip: "Used it during the trip",
   markedStop: "Marked where they went",
   shared: "Shared (post or public trip)",
 };
@@ -92,7 +94,7 @@ function Analytics() {
       ) : (
         // Refetching keeps the frame (dimmed), no skeleton flash.
         <div className={cx("space-y-6 transition-opacity", q.isPlaceholderData && "opacity-60")} aria-busy={q.isFetching}>
-          <section aria-label="Headline numbers" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section aria-label="Headline numbers" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {o.kpis.map((k) => (
               <StatTile key={k.key} kpi={k} days={days} />
             ))}

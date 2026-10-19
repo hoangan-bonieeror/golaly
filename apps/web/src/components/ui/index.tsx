@@ -197,6 +197,18 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
   );
 }
 
+/**
+ * The submit row of a long form inside a <Sheet>: on phones it stays pinned to the bottom of the sheet while the
+ * fields scroll, so the main action never sits below the fold. From md up (a centered dialog) it's a normal row.
+ */
+export function SheetActions({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cx("sticky bottom-0 z-10 -mx-5 -mb-8 border-t border-line bg-surface px-5 pb-8 pt-3 md:static md:m-0 md:border-0 md:p-0", className)}>
+      {children}
+    </div>
+  );
+}
+
 // ── Form fields ──────────────────────────────────────────────────────────
 /**
  * Label + control + hint/error. The error/hint is linked to the control with aria-describedby and

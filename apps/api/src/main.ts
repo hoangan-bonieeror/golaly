@@ -24,7 +24,7 @@ export async function createApp() {
   app.use(cookieParser());
   app.use(localeMiddleware);
   app.enableCors({ origin: corsOrigins, credentials: true, allowedHeaders: ["Content-Type", "X-Requested-With", "Accept-Language", "X-Triply-Locale"] });
-  app.setGlobalPrefix("api/v1", { exclude: ["health"] });
+  app.setGlobalPrefix("api/v1", { exclude: ["health", "health/db"] });
   if (env.S3) {
     // Bucket storage: the web normally rewrites /media/* straight to the bucket (MEDIA_ORIGIN); anything that
     // still reaches the API (old links, a web without MEDIA_ORIGIN) is sent there permanently.

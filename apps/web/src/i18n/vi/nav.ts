@@ -34,8 +34,9 @@ export const nav: Messages["nav"] = {
     postHint: "Biến chuyến đi thành câu chuyện người khác có thể dùng lại.",
   },
   verifyBanner: {
-    before: "Hãy xác nhận",
-    after: "để chấp nhận lời mời chuyến đi gửi tới địa chỉ này. Liên kết xác nhận đang chờ trong hộp thư của bạn.",
+    before: "Xác nhận",
+    after: "để nhận lời mời chuyến đi qua email — kiểm tra hộp thư của bạn.",
+    dismiss: "Ẩn nhắc nhở",
     resend: "Gửi lại email",
     sent: "Đã gửi — hãy kiểm tra hộp thư",
     success: "Đã gửi email xác nhận",
