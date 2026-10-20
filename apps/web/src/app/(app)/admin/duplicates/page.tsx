@@ -1,6 +1,6 @@
 "use client";
 
-import type { MergeCandidateView, MergePlaceSide } from "@triply/shared";
+import type { MergeCandidateView, MergePlaceSide } from "@golaly/shared";
 import { Check, Copy, Undo2, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

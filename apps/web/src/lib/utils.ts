@@ -1,5 +1,5 @@
 /** Pure helpers — safe on server and client. Formatting follows the interface language (setFormatLocale). */
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 import { CATALOGS, INTL_LOCALE } from "@/i18n/catalog";
 
 /**
@@ -60,7 +60,7 @@ export function formatDateRange(start?: string, end?: string, l: Locale = fmt) {
 }
 
 /** Only same-site paths after login (no open redirects) — shared with the API's Google sign-in. */
-export { safeNext } from "@triply/shared";
+export { safeNext } from "@golaly/shared";
 
 /**
  * An outside link that's safe to put in an href: http(s) only. Place websites and photo credits come from users,

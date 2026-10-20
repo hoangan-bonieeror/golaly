@@ -1,5 +1,5 @@
 /** Catalog admin (phase 3B): jobs, runs (Airflow mocked), duplicate review, place curation, category maps, realtime. */
-import type { AdminAreaView, UnmappedCategoriesView, AdminPlaceDetail, MergeCandidateView, Paged, SyncJobView, SyncRunDetail, SyncRunSummary } from "@triply/shared";
+import type { AdminAreaView, UnmappedCategoriesView, AdminPlaceDetail, MergeCandidateView, Paged, SyncJobView, SyncRunDetail, SyncRunSummary } from "@golaly/shared";
 import { AirflowClient } from "../src/modules/admin/airflow";
 import { SyncRunListener } from "../src/modules/admin/admin.module";
 import { RealtimeService } from "../src/modules/realtime/realtime";

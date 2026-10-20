@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripSummary } from "@triply/shared";
+import type { TripSummary } from "@golaly/shared";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useT } from "@/i18n/client";
 

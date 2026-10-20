@@ -1,6 +1,6 @@
 "use client";
 
-import type { Me } from "@triply/shared";
+import type { Me } from "@golaly/shared";
 import { Bell, Bookmark, ChevronDown, Compass, Home, LogOut, Luggage, PlusCircle, Search, Settings, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";

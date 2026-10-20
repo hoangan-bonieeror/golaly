@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripSummary } from "@triply/shared";
+import type { TripSummary } from "@golaly/shared";
 import { Bookmark, Check, GitFork, Link2, Lock, MapPin } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";

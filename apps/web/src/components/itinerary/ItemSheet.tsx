@@ -1,6 +1,6 @@
 "use client";
 
-import { createItemSchema, ITEM_SLOTS, localizeMessage, slotForTime, type ItemSlot, type ItemView, type ItineraryItemType, type PlaceView, type TripDetail } from "@triply/shared";
+import { createItemSchema, ITEM_SLOTS, localizeMessage, slotForTime, type ItemSlot, type ItemView, type ItineraryItemType, type PlaceView, type TripDetail } from "@golaly/shared";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";

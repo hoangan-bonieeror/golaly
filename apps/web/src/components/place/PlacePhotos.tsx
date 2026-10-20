@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageView, MediaView, PlaceDetail, PlacePhotoView } from "@triply/shared";
+import type { ImageView, MediaView, PlaceDetail, PlacePhotoView } from "@golaly/shared";
 import { ChevronLeft, ChevronRight, Clock, EyeOff, Flag, ImagePlus, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

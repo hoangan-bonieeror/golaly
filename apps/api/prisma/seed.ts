@@ -11,7 +11,7 @@ import { hash } from "@node-rs/argon2";
 import { createHash, randomBytes } from "node:crypto";
 import { PrismaClient, type ItemType, type NotificationType, type Prisma } from "../src/generated/prisma/client";
 import { createSeed } from "./seed-data/data";
-import { normalizeSearch, notificationText, orderBySlot, slotForTime, type ItemSlot } from "@triply/shared";
+import { normalizeSearch, notificationText, orderBySlot, slotForTime, type ItemSlot } from "@golaly/shared";
 
 const DEMO_PASSWORD = "demo1234";
 

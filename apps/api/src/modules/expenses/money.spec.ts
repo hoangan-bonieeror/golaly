@@ -1,4 +1,4 @@
-import { balances, currencyDigits, isCurrency, parseAmount, settleUp, splitEqually } from "@triply/shared";
+import { balances, currencyDigits, isCurrency, parseAmount, settleUp, splitEqually } from "@golaly/shared";
 
 describe("currencies", () => {
   it("knows each currency's smallest unit", () => {

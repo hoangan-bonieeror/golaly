@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { AdminPlaceDetail, AdminPlacePatch, LockableField } from "@triply/shared";
+import type { AdminPlaceDetail, AdminPlacePatch, LockableField } from "@golaly/shared";
 import { ChevronLeft, ExternalLink, Lock, Undo2, Unlock } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";

@@ -1,5 +1,5 @@
 /** Admin analytics (phase 1): live aggregates, admin-only, with an audit trail. */
-import type { AnalyticsOverview } from "@triply/shared";
+import type { AnalyticsOverview } from "@golaly/shared";
 import { AnalyticsService } from "../src/modules/admin/analytics";
 import { createTestContext, type Agent, type TestContext } from "./helpers";
 

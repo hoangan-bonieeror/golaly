@@ -5,7 +5,7 @@
  * Real tiles via MapLibre; without WebGL/tiles it falls back to an offline equirectangular sketch on a graticule.
  * Each pin is a link to the destination page.
  */
-import type { DestinationView } from "@triply/shared";
+import type { DestinationView } from "@golaly/shared";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useRouter } from "next/navigation";

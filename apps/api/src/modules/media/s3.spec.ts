@@ -38,7 +38,7 @@ describe("signV4", () => {
 });
 
 describe("S3StorageDriver", () => {
-  const cfg = { endpoint: "https://acct.r2.cloudflarestorage.com/", region: "auto", bucket: "triply-media", accessKeyId: "AK", secretAccessKey: "SK" };
+  const cfg = { endpoint: "https://acct.r2.cloudflarestorage.com/", region: "auto", bucket: "golaly-media", accessKeyId: "AK", secretAccessKey: "SK" };
   const now = () => new Date("2026-10-15T00:00:00Z");
   type Call = { url: string; method: string; headers: Record<string, string>; body?: Uint8Array };
 
@@ -59,7 +59,7 @@ describe("S3StorageDriver", () => {
     expect(calls).toHaveLength(1);
     const c = calls[0];
     expect(c.method).toBe("PUT");
-    expect(c.url).toBe("https://acct.r2.cloudflarestorage.com/triply-media/ab12cd34/tok%20en.webp");
+    expect(c.url).toBe("https://acct.r2.cloudflarestorage.com/golaly-media/ab12cd34/tok%20en.webp");
     expect(c.headers["content-type"]).toBe("image/webp");
     expect(c.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
     expect(c.headers["x-amz-content-sha256"]).toBe(sha(body));

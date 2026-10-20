@@ -16,14 +16,14 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4-alpine
         env:
-          POSTGRES_USER: triply
-          POSTGRES_PASSWORD: triply
-          POSTGRES_DB: triply
+          POSTGRES_USER: golaly
+          POSTGRES_PASSWORD: golaly
+          POSTGRES_DB: golaly
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U triply" --health-interval 5s --health-timeout 3s --health-retries 10
+          --health-cmd "pg_isready -U golaly" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgresql://triply:triply@localhost:5432/triply
+      DATABASE_URL: postgresql://golaly:golaly@localhost:5432/golaly
       JWT_SECRET: ci-only-secret-ci-only-secret-0123456789
       WEB_ORIGIN: http://localhost:3000
       API_ORIGIN: http://localhost:4000

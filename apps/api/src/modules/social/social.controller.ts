@@ -7,7 +7,7 @@ import {
   pageQuerySchema,
   updatePostSchema,
   type CreateReportInput,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";

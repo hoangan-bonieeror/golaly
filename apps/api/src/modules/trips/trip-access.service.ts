@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { can, type TripAction } from "@triply/shared";
+import { can, type TripAction } from "@golaly/shared";
 import { AppError, Errors } from "../../common/http";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 

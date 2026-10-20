@@ -3,10 +3,10 @@
  * screenshots. Adds people who signed up over the last N days, with logins that fade over time (retention),
  * trips (some planned together, some public), stops, marked visits and posts. Nothing existing is touched.
  *
- *   npm run db:analytics-demo -w @triply/api                 # 90 days of history
- *   npm run db:analytics-demo -w @triply/api -- --days 60
- *   npm run db:analytics-demo -w @triply/api -- --reset      # remove the generated data and make it again
- *   npm run db:analytics-demo -w @triply/api -- --remove     # only remove it
+ *   npm run db:analytics-demo -w @golaly/api                 # 90 days of history
+ *   npm run db:analytics-demo -w @golaly/api -- --days 60
+ *   npm run db:analytics-demo -w @golaly/api -- --reset      # remove the generated data and make it again
+ *   npm run db:analytics-demo -w @golaly/api -- --remove     # only remove it
  *
  * Generated accounts use `@demo.golaly.invalid` addresses, are flagged `is_demo`, and can't log in (no password).
  * Deterministic (seeded random), so two runs on the same day give the same shape. Refuses NODE_ENV=production.

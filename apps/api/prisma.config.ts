@@ -9,6 +9,6 @@ export default defineConfig({
   },
   datasource: {
     // Fallback lets `prisma generate` run during `npm install`, before .env exists.
-    url: process.env.DATABASE_URL ?? "postgresql://triply:triply@localhost:5432/triply",
+    url: process.env.DATABASE_URL ?? "postgresql://golaly:golaly@localhost:5432/golaly",
   },
 });

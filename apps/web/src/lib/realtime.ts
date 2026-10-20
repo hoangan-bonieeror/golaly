@@ -5,7 +5,7 @@
  * affected queries from the REST API, which stays the single source of truth.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import type { NotificationView, TripEvent, TripPresence } from "@triply/shared";
+import type { NotificationView, TripEvent, TripPresence } from "@golaly/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { api, ApiError, refreshSession } from "./api/client";

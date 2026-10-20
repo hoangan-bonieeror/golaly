@@ -1,6 +1,6 @@
 "use client";
 
-import type { Destination } from "@triply/shared";
+import type { Destination } from "@golaly/shared";
 import Link from "next/link";
 import { useT } from "@/i18n/client";
 import { cx } from "@/lib/utils";

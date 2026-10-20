@@ -1,6 +1,6 @@
 "use client";
 
-import type { PlaceView } from "@triply/shared";
+import type { PlaceView } from "@golaly/shared";
 import { Bookmark, Star } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";

@@ -1,6 +1,6 @@
 /**
  * Pure ordering rules for itinerary items — unit tested in isolation. Day ordering by part of the
- * day (`orderBySlot`) and the other flexible-planning rules live in @triply/shared (plan.ts), so the
+ * day (`orderBySlot`) and the other flexible-planning rules live in @golaly/shared (plan.ts), so the
  * web app applies exactly the same rules to its optimistic updates.
  */
 

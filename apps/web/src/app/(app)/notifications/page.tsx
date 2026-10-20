@@ -1,6 +1,6 @@
 "use client";
 
-import type { NotificationView } from "@triply/shared";
+import type { NotificationView } from "@golaly/shared";
 import { Bell, Bookmark, GitFork, Heart, MessageCircle, PencilLine, Plus, ShieldCheck, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Avatar, Button, EmptyState, ErrorState, Skeleton, cx } from "@/components/ui";

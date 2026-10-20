@@ -1,6 +1,6 @@
 "use client";
 
-import { ITEM_SLOTS, type ItemView, type TripDetail, type TripSummary } from "@triply/shared";
+import { ITEM_SLOTS, type ItemView, type TripDetail, type TripSummary } from "@golaly/shared";
 import { ArrowRight, Check, Compass, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

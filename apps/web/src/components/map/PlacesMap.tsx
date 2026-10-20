@@ -5,7 +5,7 @@
  * and the centre. Real tiles via MapLibre; if WebGL/tiles are unavailable it falls back to a small
  * offline SVG projection, like the trip map, so the page never shows a blank box.
  */
-import type { PlaceView } from "@triply/shared";
+import type { PlaceView } from "@golaly/shared";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useRouter } from "next/navigation";

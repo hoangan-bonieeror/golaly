@@ -1,7 +1,7 @@
 "use client";
 
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
-import type { CommentView } from "@triply/shared";
+import type { CommentView } from "@golaly/shared";
 import { ArrowLeft, Bookmark, Flag, GitFork, Heart, MapPin, MessageCircle, Send, Share2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -15,7 +15,7 @@ import { Avatar, Button, cx, ErrorState, IconButton, inputCls, LoadMore, PageLoa
 import { useFormat, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";
 import { keys, useAction, useComments, useMe, usePost } from "@/lib/api/queries";
-import type { PostView } from "@triply/shared";
+import type { PostView } from "@golaly/shared";
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();

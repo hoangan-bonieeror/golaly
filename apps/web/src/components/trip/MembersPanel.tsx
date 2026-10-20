@@ -1,6 +1,6 @@
 "use client";
 
-import { localizeMessage, memberDatesSchema, type MemberView, type TripDetail, type TripRole } from "@triply/shared";
+import { localizeMessage, memberDatesSchema, type MemberView, type TripDetail, type TripRole } from "@golaly/shared";
 import { CalendarRange, Clock, Link2, LogOut, Mail, UserMinus, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

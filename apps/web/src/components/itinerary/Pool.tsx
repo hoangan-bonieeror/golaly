@@ -1,6 +1,6 @@
 "use client";
 
-import { clusterByArea, groupScore, type ItemSlot, type ItemView, type TripDetail, type VoteLevel } from "@triply/shared";
+import { clusterByArea, groupScore, type ItemSlot, type ItemView, type TripDetail, type VoteLevel } from "@golaly/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CalendarPlus, ChevronDown, GripVertical, Heart, Lightbulb, MapPinned, Pencil, Plus, ThumbsUp, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";

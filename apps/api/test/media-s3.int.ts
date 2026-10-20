@@ -6,11 +6,11 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import sharp from "sharp";
-import type { MediaView } from "@triply/shared";
+import type { MediaView } from "@golaly/shared";
 import { signV4 } from "../src/modules/media/s3";
 import type { TestContext } from "./helpers";
 
-const BUCKET = "triply-media";
+const BUCKET = "golaly-media";
 const PUBLIC = "https://pub-test.r2.dev";
 const objects = new Map<string, { body: Buffer; type: string; cache: string }>();
 const rejected: string[] = [];

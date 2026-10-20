@@ -1,6 +1,6 @@
 "use client";
 
-import { emailSchema, type CreatedInvitation, type TripRole } from "@triply/shared";
+import { emailSchema, type CreatedInvitation, type TripRole } from "@golaly/shared";
 import { Check, Copy, Link2, Mail } from "lucide-react";
 import { useState } from "react";
 import { useT } from "@/i18n/client";

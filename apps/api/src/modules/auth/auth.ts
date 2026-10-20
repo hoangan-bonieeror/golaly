@@ -14,7 +14,7 @@ import {
   type LoginInput,
   type Me,
   type RegisterInput,
-} from "@triply/shared";
+} from "@golaly/shared";
 import type { Request, Response } from "express";
 import { CurrentUser, DEVICE_COOKIE, Public, REFRESH_COOKIE, type AuthUser, type DeviceTokenPayload, type JwtPayload } from "../../common/auth";
 import { clearAuthCookies, setAuthCookies, setDeviceCookie } from "../../common/cookies";

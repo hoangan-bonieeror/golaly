@@ -2,8 +2,8 @@
  * Copies files from the local media folder (MEDIA_DIR) to the S3/R2 bucket, keeping their keys, so rows
  * moved to another database (e.g. `npm run data:import` to Neon) find their images in the bucket.
  *
- *   npm run build -w @triply/api
- *   npm run media:push -w @triply/api -- [--dir ./storage/media] [--dry-run]
+ *   npm run build -w @golaly/api
+ *   npm run media:push -w @golaly/api -- [--dir ./storage/media] [--dry-run]
  *
  * Needs the S3_* variables and MEDIA_PUBLIC_URL in the environment (MEDIA_DRIVER may stay "local").
  * Objects that already exist are skipped, so it is safe to re-run.

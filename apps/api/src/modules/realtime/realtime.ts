@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from "@nestjs/websockets";
-import { can, type NotificationView, type TripEvent, type TripEventName, type TripPresence } from "@triply/shared";
+import { can, type NotificationView, type TripEvent, type TripEventName, type TripPresence } from "@golaly/shared";
 import type { Server, Socket } from "socket.io";
 import { ACCESS_COOKIE, verifyAccess } from "../../common/auth";
 import { corsOrigins } from "../../config/env";

@@ -1,5 +1,5 @@
 -- Synthetic catalog at production scale, for measuring queries (not for any real database).
---   psql -d triply_perf -v places=1800000 -f perf/synthetic.sql
+--   psql -d golaly_perf -v places=1800000 -f perf/synthetic.sql
 -- Shape: 3 countries (VN 34 provinces, CN 31, MX 32), places skewed towards a few big cities, Vietnamese names with
 -- diacritics, almost no ratings (open data has none), one source record per place plus unmapped records, and a
 -- duplicate review queue. Deterministic (setseed), so runs are comparable.

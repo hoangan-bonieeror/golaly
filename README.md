@@ -39,7 +39,7 @@ Golaly is a full-stack MVP. You can discover public trips, remix one into your o
 | Ops | Docker Compose, Dockerfiles, GitHub Actions CI/CD (Neon → Render → Vercel) |
 
 ```
-triply/
+golaly/
 ├── apps/
 │   ├── api/                  NestJS REST API + WebSocket gateway
 │   │   ├── prisma/           schema.prisma · migrations/ · seed.ts (dev demo data)
@@ -77,21 +77,21 @@ npm run setup          # creates apps/api/.env (with a random JWT secret) and ap
 
 **Option A, Docker (easiest):**
 ```bash
-docker compose up -d db      # PostgreSQL + PostGIS; creates the `triply` and `triply_test` databases
+docker compose up -d db      # PostgreSQL + PostGIS; creates the `golaly` and `golaly_test` databases
 ```
 
 **Option B, native Postgres** (Windows installer from postgresql.org with the **PostGIS** add-on from Stack Builder, or Homebrew/apt `postgis`). Then create a user and both databases, for example with `psql -U postgres`:
 ```sql
-CREATE ROLE triply WITH LOGIN PASSWORD 'triply' CREATEDB;
-CREATE DATABASE triply OWNER triply;
-CREATE DATABASE triply_test OWNER triply;
+CREATE ROLE golaly WITH LOGIN PASSWORD 'golaly' CREATEDB;
+CREATE DATABASE golaly OWNER golaly;
+CREATE DATABASE golaly_test OWNER golaly;
 -- PostGIS can only be enabled by a superuser; enabling it in template1 covers every database created later
 -- (including the ones the test suites recreate).
 \c template1
 CREATE EXTENSION IF NOT EXISTS postgis;
-\c triply
+\c golaly
 CREATE EXTENSION IF NOT EXISTS postgis;
-\c triply_test
+\c golaly_test
 CREATE EXTENSION IF NOT EXISTS postgis;
 ```
 If you use different credentials, edit `DATABASE_URL` / `TEST_DATABASE_URL` in `apps/api/.env`.
@@ -114,9 +114,9 @@ expenses in đồng, remix evidence). It touches nothing else, reuses catalog pl
 re-run (only those two trips are replaced; Saigon's dates move to today):
 
 ```bash
-npm run db:demo-trip -w @triply/api                             # both, owner an@golaly.dev
-npm run db:demo-trip -w @triply/api -- --owner you@example.com  # owned by your own account
-npm run db:demo-trip -w @triply/api -- --trip hoian             # just one: saigon | hoian
+npm run db:demo-trip -w @golaly/api                             # both, owner an@golaly.dev
+npm run db:demo-trip -w @golaly/api -- --owner you@example.com  # owned by your own account
+npm run db:demo-trip -w @golaly/api -- --trip hoian             # just one: saigon | hoian
 ```
 
 Open **http://localhost:3000** and log in with a demo account (password `demo1234`):
@@ -206,7 +206,7 @@ addresses; open the same one on the computer too, or keep using `http://localhos
 | `npm test` | API unit + integration tests (uses `TEST_DATABASE_URL`, rebuilt each run) |
 | `npm run test:unit` | Unit tests only (no database needed) |
 | `npm run e2e` | Playwright Definition-of-Done journey against a running stack |
-| `npm run perf -w @triply/api` | Times ~40 API calls against a running API with parameters from your own data; fails on a call over budget (300 ms, admin 800 ms) |
+| `npm run perf -w @golaly/api` | Times ~40 API calls against a running API with parameters from your own data; fails on a call over budget (300 ms, admin 800 ms) |
 | `npm run typecheck` | TypeScript, strict, all packages |
 | `npm run lint` | ESLint (typescript-eslint, React Hooks, Next.js rules) |
 | `npm run build` / `npm start` | Production build / serve |
@@ -290,7 +290,7 @@ every row).
 ## Testing
 
 - **Unit** (`src/**/*.spec.ts`): the permission matrix and `TripAccessService`, itinerary ordering logic (parts of the day, anchors, area grouping, group scores, members' dates), crypto, dates and the shared Zod schemas.
-- **Integration** (`test/*.int.ts`): boots the real Nest app against `triply_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads. `during-trip.int.ts` covers phase 2: "Where to now?" ranking (open before closed, today's plan by part of the day, nearest first), nearby suggestions (rated, open, not in the trip), access and input checks, who's going (members only, everyone = nobody singled out, cleared when someone leaves, not copied by a remix) and the meet-up point; `opening-hours.spec.ts` covers the opening-hours evaluator. `after-trip.int.ts` covers phase 3: batch statuses and the trip's outcome, stop photos and who may remove them, remix evidence (hidden once the original goes private), and expenses — equal and by-amount splits, balances and settle-up, members-only access, edit rules, the currency lock and Vietnamese errors. `plans.int.ts` covers flexible plans: the ideas pool, parts of the day and anchors, moves between pool and days, votes (viewers included), members' dates, forks copying ideas without votes, and the activity log (facts only, consent opt-in). `hardening.int.ts` covers the security/concurrency fixes: immediate logout, lockout, email confirmation, Google takeover of a squatted account, refresh-token theft detection, concurrent comment deletes / likes / reorders, socket handshake and eviction, pagination and input validation.
+- **Integration** (`test/*.int.ts`): boots the real Nest app against `golaly_test`, rebuilt from the committed migrations and seeded. Covers auth (cookies, rotation, CSRF, reset, deletion), trip and itinerary services, invitations (link, email-bound, expiry, revoke), roles, fork rules, realtime events over a real socket, social, privacy, reports and media uploads. `during-trip.int.ts` covers phase 2: "Where to now?" ranking (open before closed, today's plan by part of the day, nearest first), nearby suggestions (rated, open, not in the trip), access and input checks, who's going (members only, everyone = nobody singled out, cleared when someone leaves, not copied by a remix) and the meet-up point; `opening-hours.spec.ts` covers the opening-hours evaluator. `after-trip.int.ts` covers phase 3: batch statuses and the trip's outcome, stop photos and who may remove them, remix evidence (hidden once the original goes private), and expenses — equal and by-amount splits, balances and settle-up, members-only access, edit rules, the currency lock and Vietnamese errors. `plans.int.ts` covers flexible plans: the ideas pool, parts of the day and anchors, moves between pool and days, votes (viewers included), members' dates, forks copying ideas without votes, and the activity log (facts only, consent opt-in). `hardening.int.ts` covers the security/concurrency fixes: immediate logout, lockout, email confirmation, Google takeover of a squatted account, refresh-token theft detection, concurrent comment deletes / likes / reorders, socket handshake and eviction, pagination and input validation.
 - **E2E** (`apps/web/e2e/definition-of-done.cjs`): runs the spec §51 journey in three separate browser sessions: register → create trip → 3 items → invite → accept → promote to Editor → editor edits → owner sees it live → make public → another user discovers, saves and forks → fork is independent → original unchanged → attribution kept → explores food around Tokyo, opens a place and adds it to Day 2 of the trip → another traveler adds a photo to that place → an admin creates, pauses and deletes a sync job and every admin screen passes axe, plus a privacy check, an **axe-core accessibility gate** (11 screens incl. Explore places, a destination and a place page, at desktop and mobile widths; also fails on sideways scrolling) and cleanup of the trips it created.
 
 Also `npm run lint` (ESLint 9 with typescript-eslint, React Hooks and Next rules) runs in CI.
@@ -329,11 +329,11 @@ For a real deployment (for example Render, Railway or Fly for the API, Vercel fo
 
 `MEDIA_DRIVER=s3` stores uploads (and imported catalog photos) in any S3-compatible bucket — Cloudflare R2, Backblaze B2, MinIO or AWS S3 — through a dependency-free Signature V4 client (`apps/api/src/modules/media/s3.ts`, checked against AWS's published test vector and an in-process S3 stand-in in `test/media-s3.int.ts`). Image URLs don't change: they stay `/media/<key>` on the web's origin, so the offline service worker can still cache them.
 
-1. **Cloudflare → R2 → Create bucket** (e.g. `triply-media`). Under **Settings → Public access** enable the `r2.dev` subdomain (or connect a custom domain) — that URL is `MEDIA_PUBLIC_URL`.
+1. **Cloudflare → R2 → Create bucket** (e.g. `golaly-media`). Under **Settings → Public access** enable the `r2.dev` subdomain (or connect a custom domain) — that URL is `MEDIA_PUBLIC_URL`.
 2. **R2 → Manage API tokens → Create token** with *Object Read & Write* on that bucket. Note the access key ID, secret, and the S3 endpoint `https://<account id>.r2.cloudflarestorage.com`.
 3. **API** env: `MEDIA_DRIVER=s3`, `S3_ENDPOINT`, `S3_REGION=auto`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `MEDIA_PUBLIC_URL`. The API refuses to start if one is missing. `/media/*` requests that reach the API are 301-redirected to the bucket.
 4. **Web** env: `MEDIA_ORIGIN` = the same public URL, then redeploy (rewrites are build-time). Next.js then proxies `/media/*` straight to the bucket, skipping the API.
-5. **Existing files** (e.g. after `npm run data:import`): put the S3 variables in `apps/api/.env` and run `npm run build -w @triply/api && npm run media:push -w @triply/api -- --dry-run`, then without `--dry-run`. Keys are kept; objects already in the bucket are skipped.
+5. **Existing files** (e.g. after `npm run data:import`): put the S3 variables in `apps/api/.env` and run `npm run build -w @golaly/api && npm run media:push -w @golaly/api -- --dry-run`, then without `--dry-run`. Keys are kept; objects already in the bucket are skipped.
 6. With a durable bucket you can turn the catalog photo worker back on (`PHOTO_INGEST=on`, `CATALOG_CONTACT=<url or email>`).
 
 ### Email
@@ -352,7 +352,7 @@ Sign-up verification, password reset and trip invitations need real mail in prod
 - **Show authorization as a feature:** put `packages/shared/src/permissions.ts` and `TripAccessService` next to Owner, Editor and Viewer screenshots. Every write is re-checked server-side with roles from the database.
 - **Show one schema, two runtimes:** the same Zod schemas validate the forms and the API.
 - **Show the data platform:** `pipelines/` is a small, real ETL: Overture GeoParquet read straight from S3 with DuckDB, OSM streamed with pyosmium, PostGIS, idempotent upserts by content hash, cross-source entity matching, field-level survivorship with provenance, and an Airflow DAG with one mapped task per province.
-- **Show the analytics engineering:** `analytics/` is a dbt project on the app's own Postgres: server-side product events → staging views → ephemeral per-person intermediates → aggregate marts (DAU/WAU/MAU, weekly retention cohorts, activation within 30 days), with data tests that also enforce privacy (no person-level columns in marts, no cohort under 5). It runs nightly from GitHub Actions and Airflow, is checked in CI, and feeds `/admin/analytics`. Seed it with `npm run db:analytics-demo -w @triply/api` for screenshots and the lineage graph (`dbt docs`).
+- **Show the analytics engineering:** `analytics/` is a dbt project on the app's own Postgres: server-side product events → staging views → ephemeral per-person intermediates → aggregate marts (DAU/WAU/MAU, weekly retention cohorts, activation within 30 days), with data tests that also enforce privacy (no person-level columns in marts, no cohort under 5). It runs nightly from GitHub Actions and Airflow, is checked in CI, and feeds `/admin/analytics`. Seed it with `npm run db:analytics-demo -w @golaly/api` for screenshots and the lineage graph (`dbt docs`).
 - **Show the operator side:** the admin console turns the pipeline into a product: schedule a country, watch its run progress live, review duplicates side by side, fix a place by hand and see the field stay locked through the next import.
 - **Show the performance work:** the before/after table above, made reproducible by `perf/synthetic.sql` + `npm run perf`. It's a measured story: a 31-second typo search down to 170 ms, and why (EXPLAIN plans, Prisma's enum casts vs partial indexes, `_count` aggregating a 2M-row table).
 - **Show Explore as a product loop:** *"near me" → coffee → open a café → Add to trip → Day 2* in 15 seconds, then the same place appearing on the trip map. The category facets and PostGIS radius query sit behind it.

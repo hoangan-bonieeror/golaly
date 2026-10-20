@@ -1,5 +1,5 @@
 /** Explore → Places: taxonomy, browsing around a destination or a point, place detail and "Add to trip". */
-import type { DestinationPage, DestinationView, GeoAreaOption, PlaceBrowse, PlaceDetail, PlaceView, TripTarget } from "@triply/shared";
+import type { DestinationPage, DestinationView, GeoAreaOption, PlaceBrowse, PlaceDetail, PlaceView, TripTarget } from "@golaly/shared";
 import { PlacesService } from "../src/modules/places/places";
 import { seedId } from "../prisma/seed-data/ids";
 import { createTestContext, demoTrip, type TestContext } from "./helpers";

@@ -5,7 +5,7 @@ import type {
   AdminCategoryView,
   CategoryMapView,
   UnmappedCategoriesView,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { RotateCw, Tags, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { AdminHeader } from "@/components/admin/AdminShell";

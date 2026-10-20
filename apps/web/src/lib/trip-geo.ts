@@ -1,4 +1,4 @@
-import type { DayView, ItemView, Locale, PlaceView } from "@triply/shared";
+import type { DayView, ItemView, Locale, PlaceView } from "@golaly/shared";
 import { INTL_LOCALE, type Messages } from "@/i18n/catalog";
 
 /**

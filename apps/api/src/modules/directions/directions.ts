@@ -1,6 +1,6 @@
 import { Controller, Get, Injectable, Logger, Module, Query } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-import { directionsQuerySchema, type DirectionsMode, type DirectionsQuery, type DirectionsView } from "@triply/shared";
+import { directionsQuerySchema, type DirectionsMode, type DirectionsQuery, type DirectionsView } from "@golaly/shared";
 import { requireUser, ViewerId } from "../../common/auth";
 import { AppError, ZodPipe } from "../../common/http";
 import { env } from "../../config/env";

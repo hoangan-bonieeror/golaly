@@ -1,6 +1,6 @@
 "use client";
 
-import { INTERESTS, TRAVELER_TYPES, type Interest, type TravelerType } from "@triply/shared";
+import { INTERESTS, TRAVELER_TYPES, type Interest, type TravelerType } from "@golaly/shared";
 import { Baby, Camera, Heart, Landmark, Mountain, ShoppingBag, Sparkles, Sun, Tent, User, Users, UtensilsCrossed, Building2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

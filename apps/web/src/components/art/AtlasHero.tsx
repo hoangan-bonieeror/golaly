@@ -1,4 +1,4 @@
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 
 /**
  * The sign-in / sign-up hero: a hand-drawn paper map that inks itself in. Contours and a coastline

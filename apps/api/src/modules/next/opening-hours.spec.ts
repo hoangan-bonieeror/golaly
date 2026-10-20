@@ -1,4 +1,4 @@
-import { localNowAt, openStateAt, parseOpeningHours, timeZoneAt, weekdayOf } from "@triply/shared";
+import { localNowAt, openStateAt, parseOpeningHours, timeZoneAt, weekdayOf } from "@golaly/shared";
 
 // 2026-10-12 is a Monday.
 const MON = "2026-10-12";

@@ -2,7 +2,7 @@ import { applyDecorators, Injectable, SetMetadata, UseInterceptors, type CallHan
 import { Reflector } from "@nestjs/core";
 import type { NextFunction, Request, Response } from "express";
 import { of, tap, type Observable } from "rxjs";
-import { LOCALE_HEADER } from "@triply/shared";
+import { LOCALE_HEADER } from "@golaly/shared";
 import { env } from "../config/env";
 import type { AuthUser } from "./auth";
 

@@ -1,5 +1,5 @@
 import { dehydrate, QueryClient, type DehydratedState, type QueryKey } from "@tanstack/react-query";
-import { LOCALE_HEADER } from "@triply/shared";
+import { LOCALE_HEADER } from "@golaly/shared";
 import { cookies, headers } from "next/headers";
 import { getLocale } from "@/i18n/server";
 import { PLACE_NAMES_COOKIE } from "../placeLanguage";

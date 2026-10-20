@@ -8,7 +8,7 @@ import {
   type AnalyticsKpi,
   type AnalyticsOverview,
   type AnalyticsRange,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { ViewerId } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { Prisma } from "../../generated/prisma/client";

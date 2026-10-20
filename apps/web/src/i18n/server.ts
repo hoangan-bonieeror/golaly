@@ -1,4 +1,4 @@
-import { isLocale, LOCALE_COOKIE, localeFromAcceptLanguage, type Locale } from "@triply/shared";
+import { isLocale, LOCALE_COOKIE, localeFromAcceptLanguage, type Locale } from "@golaly/shared";
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { CATALOGS } from "./catalog";

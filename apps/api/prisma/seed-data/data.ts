@@ -16,7 +16,7 @@ import type {
   TripInvitation,
   TripMember,
   User,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { seedId } from "./ids";
 
 export interface DB {

@@ -1,6 +1,6 @@
 "use client";
 
-import type { DirectionsMode, ItemView, PlaceView, TripDetail } from "@triply/shared";
+import type { DirectionsMode, ItemView, PlaceView, TripDetail } from "@golaly/shared";
 import { Lightbulb, Navigation, Star, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";

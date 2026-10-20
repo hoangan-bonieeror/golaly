@@ -1,6 +1,6 @@
 "use client";
 
-import type { AdminPlaceView } from "@triply/shared";
+import type { AdminPlaceView } from "@golaly/shared";
 import { Lock, MapPin } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Injectable, Logger, Param, ParseUUIDPipe, Patch, Post, Query, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
 import { Throttle } from "@nestjs/throttler";
-import { addPlacePhotoSchema, moderatePhotoSchema, type AddPlacePhotoInput, type ModerationPhoto, type Paged, type PlacePhotoView } from "@triply/shared";
+import { addPlacePhotoSchema, moderatePhotoSchema, type AddPlacePhotoInput, type ModerationPhoto, type Paged, type PlacePhotoView } from "@golaly/shared";
 import { z } from "zod";
 import { ViewerId, requireUser } from "../../common/auth";
 import { AppError, Errors, ZodPipe } from "../../common/http";

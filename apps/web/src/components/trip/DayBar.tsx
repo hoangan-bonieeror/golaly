@@ -1,6 +1,6 @@
 "use client";
 
-import type { DayView } from "@triply/shared";
+import type { DayView } from "@golaly/shared";
 import { Users } from "lucide-react";
 import { cx } from "@/components/ui";
 import { useT } from "@/i18n/client";

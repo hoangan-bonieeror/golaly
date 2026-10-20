@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ANALYTICS_RANGES, type AnalyticsCohorts, type AnalyticsFunnelStep, type AnalyticsKpi, type AnalyticsOverview, type AnalyticsRange } from "@triply/shared";
+import { ANALYTICS_RANGES, type AnalyticsCohorts, type AnalyticsFunnelStep, type AnalyticsKpi, type AnalyticsOverview, type AnalyticsRange } from "@golaly/shared";
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Minus, Workflow } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";

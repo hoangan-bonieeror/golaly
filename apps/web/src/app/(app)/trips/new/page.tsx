@@ -1,6 +1,6 @@
 "use client";
 
-import { createTripSchema, localizeMessage, type TripSummary } from "@triply/shared";
+import { createTripSchema, localizeMessage, type TripSummary } from "@golaly/shared";
 import { Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

@@ -1,4 +1,4 @@
-import type { Paged } from "@triply/shared";
+import type { Paged } from "@golaly/shared";
 
 /** Rows were fetched with `take: limit + 1`; the extra row only tells us whether there's a next page. */
 export function pageOf<R extends { id: string }, T>(rows: R[], limit: number, map: (r: R) => T): Paged<T> {

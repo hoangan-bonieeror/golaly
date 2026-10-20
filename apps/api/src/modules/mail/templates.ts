@@ -1,4 +1,4 @@
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 
 /**
  * Transactional email copy, in the recipient's interface language (their saved choice, else the

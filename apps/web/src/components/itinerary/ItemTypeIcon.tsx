@@ -1,4 +1,4 @@
-import type { ItineraryItemType } from "@triply/shared";
+import type { ItineraryItemType } from "@golaly/shared";
 import { BedDouble, Bus, Flag, MapPin, Plane, StickyNote, UtensilsCrossed } from "lucide-react";
 import { cx } from "../ui";
 

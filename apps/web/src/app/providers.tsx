@@ -1,7 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 import { Suspense, useEffect, useState } from "react";
 import { I18nProvider, useI18n } from "@/i18n/client";
 import { ApiError } from "@/lib/api/client";

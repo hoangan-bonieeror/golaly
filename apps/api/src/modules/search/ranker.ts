@@ -1,4 +1,4 @@
-import { accentSearch, normalizeSearch } from "@triply/shared";
+import { accentSearch, normalizeSearch } from "@golaly/shared";
 import { Prisma } from "../../generated/prisma/client";
 import type { PrismaService } from "../../prisma/prisma.service";
 

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CreateTripInput, Paged, TripDetail, TripSummary, UpdateTripInput } from "@triply/shared";
+import type { CreateTripInput, Paged, TripDetail, TripSummary, UpdateTripInput } from "@golaly/shared";
 import { addDays, dayCount, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
 import { requestLocale } from "../../common/locale";

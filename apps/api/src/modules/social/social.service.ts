@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CommentView, CreatePostInput, CreateReportInput, HomeFeed, Paged, PostView } from "@triply/shared";
+import type { CommentView, CreatePostInput, CreateReportInput, HomeFeed, Paged, PostView } from "@golaly/shared";
 import { AppError, Errors } from "../../common/http";
 import { commentInclude, postInclude, roleOf, toCommentView, toPostView } from "../../common/presenters";
 import type { Prisma } from "../../generated/prisma/client";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItemView, MemberView, TripDetail } from "@triply/shared";
+import type { ItemView, MemberView, TripDetail } from "@golaly/shared";
 import { Flag, Users } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "@/i18n/client";

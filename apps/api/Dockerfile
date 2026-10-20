@@ -11,10 +11,10 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY apps/api/prisma apps/api/prisma
 COPY apps/api/prisma.config.ts apps/api/
-RUN npm ci --workspace @triply/api --workspace @triply/shared --include-workspace-root --ignore-scripts
+RUN npm ci --workspace @golaly/api --workspace @golaly/shared --include-workspace-root --ignore-scripts
 COPY packages/shared packages/shared
 COPY apps/api apps/api
-RUN npm run build -w @triply/shared && npm run db:generate -w @triply/api && npm run build -w @triply/api
+RUN npm run build -w @golaly/shared && npm run db:generate -w @golaly/api && npm run build -w @golaly/api
 
 # ── migrate: runs `prisma migrate deploy` once, then exits (compose: the `migrate` service) ──
 FROM build AS migrate
@@ -29,7 +29,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
-RUN npm ci --omit=dev --workspace @triply/api --workspace @triply/shared --include-workspace-root --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --workspace @golaly/api --workspace @golaly/shared --include-workspace-root --ignore-scripts && npm cache clean --force
 
 # ── runtime: compiled code + production deps, unprivileged user ────────────────
 FROM node:22-bookworm-slim

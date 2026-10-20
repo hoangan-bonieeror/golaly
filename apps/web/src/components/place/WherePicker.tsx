@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeSearch, type DestinationView, type GeoAreaOption } from "@triply/shared";
+import { normalizeSearch, type DestinationView, type GeoAreaOption } from "@golaly/shared";
 import { ChevronDown, ChevronLeft, ChevronRight, Globe2, LocateFixed, MapPin, Search, Sparkles, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Sheet, cx } from "@/components/ui";

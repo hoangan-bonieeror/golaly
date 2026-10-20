@@ -1,8 +1,8 @@
-import { isLocale } from "@triply/shared";
+import { isLocale } from "@golaly/shared";
 import { requestLocale } from "../../common/locale";
 import { mails } from "../mail/templates";
 import { Injectable } from "@nestjs/common";
-import type { CreatedInvitation, CreateInvitationInput, InvitationLookup, MemberDatesInput, MemberView, TripRole } from "@triply/shared";
+import type { CreatedInvitation, CreateInvitationInput, InvitationLookup, MemberDatesInput, MemberView, TripRole } from "@golaly/shared";
 import { randomToken, sha256 } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import { mediaUrl, toUserSummary, userSummarySelect } from "../../common/presenters";

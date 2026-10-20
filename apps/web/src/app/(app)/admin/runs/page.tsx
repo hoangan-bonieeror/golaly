@@ -1,6 +1,6 @@
 "use client";
 
-import type { SyncRunSummary } from "@triply/shared";
+import type { SyncRunSummary } from "@golaly/shared";
 import { Boxes, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

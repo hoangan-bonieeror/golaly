@@ -1,4 +1,4 @@
-import { safeNext } from "@triply/shared";
+import { safeNext } from "@golaly/shared";
 
 describe("safeNext (where to go after signing in)", () => {
   it.each([

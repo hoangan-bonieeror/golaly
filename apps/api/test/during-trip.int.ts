@@ -1,5 +1,5 @@
 /** During the trip (roadmap phase 2): "Where to now?", splitting the group up, the meet-up point. */
-import type { ItemView, NextSuggestions, TripDetail } from "@triply/shared";
+import type { ItemView, NextSuggestions, TripDetail } from "@golaly/shared";
 import { createTestContext, type TestContext } from "./helpers";
 
 let t: TestContext;

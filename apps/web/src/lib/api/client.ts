@@ -4,7 +4,7 @@
  * - On 401, refreshes the session once and retries (rotating refresh tokens).
  * - Errors carry the API's friendly message — raw backend errors are never shown (spec §40).
  */
-import { LOCALE_HEADER, localizeMessage, type ApiErrorBody, type Locale } from "@triply/shared";
+import { LOCALE_HEADER, localizeMessage, type ApiErrorBody, type Locale } from "@golaly/shared";
 import { placeNameHeader } from "../placeLanguage";
 
 export class ApiError extends Error {

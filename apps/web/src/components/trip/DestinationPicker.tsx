@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeSearch } from "@triply/shared";
+import { normalizeSearch } from "@golaly/shared";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
 import { useT } from "@/i18n/client";

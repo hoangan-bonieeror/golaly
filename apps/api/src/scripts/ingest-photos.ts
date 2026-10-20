@@ -1,7 +1,7 @@
 /**
  * Drains the imported-photo queue now instead of waiting for the background worker:
  *
- *   npm run build -w @triply/api && npm run photos:ingest -w @triply/api
+ *   npm run build -w @golaly/api && npm run photos:ingest -w @golaly/api
  *
  * Useful right after `golaly-catalog photos --area …`. Safe to run while the API is up.
  */

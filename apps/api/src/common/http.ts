@@ -8,7 +8,7 @@ import {
   PipeTransform,
   BadRequestException,
 } from "@nestjs/common";
-import { localizeMessage, type ApiErrorBody } from "@triply/shared";
+import { localizeMessage, type ApiErrorBody } from "@golaly/shared";
 import { requestLocale } from "./locale";
 import type { Response } from "express";
 import { ZodError, type ZodType } from "zod";

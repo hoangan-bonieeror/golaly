@@ -11,7 +11,7 @@ import {
   type PlaceDetail,
   type PlaceView,
   type TripTarget,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { fromDate } from "../../common/dates";

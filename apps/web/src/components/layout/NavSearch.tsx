@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import type { DestinationView, PlaceView } from "@triply/shared";
+import type { DestinationView, PlaceView } from "@golaly/shared";
 import { MapPin, Search } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";

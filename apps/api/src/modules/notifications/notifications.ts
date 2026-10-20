@@ -1,5 +1,5 @@
 import { Controller, Get, Global, Injectable, Module, Param, ParseUUIDPipe, Patch, Query } from "@nestjs/common";
-import { notificationText, pageQuerySchema, type NotificationMessage, type NotificationType, type NotificationView, type Paged } from "@triply/shared";
+import { notificationText, pageQuerySchema, type NotificationMessage, type NotificationType, type NotificationView, type Paged } from "@golaly/shared";
 import { ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { notificationInclude, toNotificationView } from "../../common/presenters";

@@ -1,6 +1,6 @@
 "use client";
 
-import { createPostSchema, localizeMessage, type MediaView, type PlacePhotoView, type PlaceView, type PostView } from "@triply/shared";
+import { createPostSchema, localizeMessage, type MediaView, type PlacePhotoView, type PlaceView, type PostView } from "@golaly/shared";
 import { ImagePlus, Lock, MapPin, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";

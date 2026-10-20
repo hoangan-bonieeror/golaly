@@ -50,7 +50,7 @@ import {
   type SyncRunErrorView,
   type SyncRunSummary,
   type UnmappedCategoriesView,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { z } from "zod";
 import { ViewerId, requireUser } from "../../common/auth";
 import { AppError, Errors, ZodPipe } from "../../common/http";

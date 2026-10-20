@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { clearOfflineData } from "./offline";
-import type { LoginInput, Me, RegisterInput } from "@triply/shared";
+import type { LoginInput, Me, RegisterInput } from "@golaly/shared";
 import { useCallback } from "react";
 import { api } from "./api/client";
 import { keys, useMe } from "./api/queries";

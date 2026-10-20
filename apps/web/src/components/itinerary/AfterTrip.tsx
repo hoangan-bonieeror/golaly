@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItemEvidence, ItemStatus, ItemView, MediaView, TripDetail } from "@triply/shared";
+import type { ItemEvidence, ItemStatus, ItemView, MediaView, TripDetail } from "@golaly/shared";
 import { Check, GitFork, Heart, ImagePlus, Loader2, Trash2, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";

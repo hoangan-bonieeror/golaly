@@ -2,7 +2,7 @@ import { Throttle } from "@nestjs/throttler";
 import { Controller, Delete, Global, HttpCode, Inject, Injectable, Logger, Module, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from "@nestjs/common";
 import type { OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import type { MediaView } from "@triply/shared";
+import type { MediaView } from "@golaly/shared";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";

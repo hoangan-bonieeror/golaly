@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripSummary } from "@triply/shared";
+import type { TripSummary } from "@golaly/shared";
 import { GitFork, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";

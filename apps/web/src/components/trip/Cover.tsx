@@ -6,7 +6,7 @@
  * trip/post keeps its own look. When a photo was uploaded, it's layered on top.
  */
 import { useId } from "react";
-import type { ImageView } from "@triply/shared";
+import type { ImageView } from "@golaly/shared";
 import { cx } from "@/lib/utils";
 
 function rng(seed: string) {

@@ -7,19 +7,19 @@ services:
     # Same data directory format as postgres:16-alpine, so an existing volume keeps working.
     image: postgis/postgis:16-3.4-alpine
     environment:
-      POSTGRES_USER: triply
-      POSTGRES_PASSWORD: triply
-      POSTGRES_DB: triply
+      POSTGRES_USER: golaly
+      POSTGRES_PASSWORD: golaly
+      POSTGRES_DB: golaly
     ports:
-      # Host port is configurable (e.g. GOLALY_DB_PORT=5433 in a .env next to this file; TRIPLY_DB_PORT still works
+      # Host port is configurable (e.g. GOLALY_DB_PORT=5433 in a .env next to this file
       # when another PostgreSQL already uses 5432). Update DATABASE_URL to match.
       # Bound to localhost only: the demo credentials must never be reachable from the network.
-      - "127.0.0.1:${GOLALY_DB_PORT:-${TRIPLY_DB_PORT:-5432}}:5432"
+      - "127.0.0.1:${GOLALY_DB_PORT:-5432}:5432"
     volumes:
-      - triply-db:/var/lib/postgresql/data
+      - golaly-db:/var/lib/postgresql/data
       - ./scripts/db-init.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U triply -d triply"]
+      test: ["CMD-SHELL", "pg_isready -U golaly -d golaly"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -31,7 +31,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     environment:
-      DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      DATABASE_URL: postgresql://golaly:golaly@db:5432/golaly
 
   api:
     profiles: ["full"]
@@ -40,7 +40,7 @@ services:
       migrate: { condition: service_completed_successfully }
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      DATABASE_URL: postgresql://golaly:golaly@db:5432/golaly
       # Only used by the optional "full" profile. The API refuses to start if this is empty or too short.
       JWT_SECRET: ${JWT_SECRET:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
@@ -55,7 +55,7 @@ services:
       # Needed to download imported place photos from Wikimedia (see pipelines/README.md).
       CATALOG_CONTACT: ${CATALOG_CONTACT:-}
     volumes:
-      - triply-media:/data/media
+      - golaly-media:/data/media
     # Not published: browsers reach it only through the edge (REST via web, Socket.IO via nginx).
 
   web:
@@ -86,11 +86,11 @@ services:
     image: postgis/postgis:16-3.4-alpine
     depends_on:
       db: { condition: service_healthy }
-    environment: { PGPASSWORD: triply }
+    environment: { PGPASSWORD: golaly }
     entrypoint: ["sh", "-c"]
     command:
-      - psql -h db -U triply -d triply -tAc "SELECT 1 FROM pg_database WHERE datname = 'airflow'" | grep -q 1
-        || psql -h db -U triply -d triply -c "CREATE DATABASE airflow"
+      - psql -h db -U golaly -d golaly -tAc "SELECT 1 FROM pg_database WHERE datname = 'airflow'" | grep -q 1
+        || psql -h db -U golaly -d golaly -c "CREATE DATABASE airflow"
     restart: "no"
 
   airflow:
@@ -100,7 +100,7 @@ services:
     depends_on:
       airflow-db: { condition: service_completed_successfully }
     environment: &catalog-env
-      DATABASE_URL: postgresql://triply:triply@db:5432/triply
+      DATABASE_URL: postgresql://golaly:golaly@db:5432/golaly
       # The package is also mounted from ./pipelines (below) and put first on the path, so code changes
       # apply without rebuilding the image. Rebuild only when pyproject.toml dependencies change.
       PYTHONPATH: /opt/golaly/src
@@ -108,7 +108,7 @@ services:
       OVERTURE_RELEASE: ${OVERTURE_RELEASE:-}
       HF_TOKEN: ${HF_TOKEN:-}
       FSQ_RELEASE: ${FSQ_RELEASE:-}
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://triply:triply@db:5432/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://golaly:golaly@db:5432/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
       # Local development only: everyone is admin, no login. Never expose this port publicly.
@@ -118,7 +118,7 @@ services:
       - ./pipelines/golaly_catalog:/opt/golaly/src/golaly_catalog:ro
       # dbt models apply without a rebuild too (target/ and logs/ stay in the container).
       - ./analytics/models:/opt/golaly/analytics/models:ro
-      - triply-catalog:/data/catalog
+      - golaly-catalog:/data/catalog
     ports:
       - "127.0.0.1:8080:8080"
 
@@ -133,9 +133,9 @@ services:
     environment: *catalog-env
     volumes:
       - ./pipelines/golaly_catalog:/opt/golaly/src/golaly_catalog:ro
-      - triply-catalog:/data/catalog
+      - golaly-catalog:/data/catalog
 
 volumes:
-  triply-db:
-  triply-media:
-  triply-catalog:
+  golaly-db:
+  golaly-media:
+  golaly-catalog:

@@ -7,7 +7,7 @@
  * is dropped). The planner shows the queued marks on top of the saved trip, so nothing jumps back.
  */
 import { useQueryClient } from "@tanstack/react-query";
-import type { ItemStatus, TripDetail } from "@triply/shared";
+import type { ItemStatus, TripDetail } from "@golaly/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 

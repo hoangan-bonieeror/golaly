@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { SyncRunDetail, SyncRunErrorView } from "@triply/shared";
+import type { SyncRunDetail, SyncRunErrorView } from "@golaly/shared";
 import { ChevronLeft, CircleStop, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { use } from "react";

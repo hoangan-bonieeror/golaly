@@ -1,5 +1,5 @@
 /** Place photos: user uploads (trust + review), sharing from posts, reports, moderation, and the import ingester. */
-import type { ModerationPhoto, Paged, PlaceBrowse, PlaceDetail, PlacePhotoView } from "@triply/shared";
+import type { ModerationPhoto, Paged, PlaceBrowse, PlaceDetail, PlacePhotoView } from "@golaly/shared";
 import sharp from "sharp";
 import { seedId } from "../prisma/seed-data/ids";
 import { PhotoIngestService } from "../src/modules/places/photos";

@@ -51,7 +51,7 @@ Generic: `unique` / `not_null` on keys, `dbt_unique_combination` (cohort × week
 ```bash
 cd analytics
 uv sync                                     # dbt-core 1.12 + dbt-postgres 1.11 in .venv
-DATABASE_URL=postgresql://triply:triply@localhost:5433/triply uv run python run.py build
+DATABASE_URL=postgresql://golaly:golaly@localhost:5433/golaly uv run python run.py build
 uv run python run.py docs generate && uv run python run.py docs serve   # lineage graph
 ```
 
@@ -63,5 +63,5 @@ uv run python run.py docs generate && uv run python run.py docs serve   # lineag
 - **Local Airflow:** DAG `analytics_daily` (`pipelines/dags/analytics_daily.py`); dbt lives in its own virtualenv
   in the image (`/opt/dbt`) so it never conflicts with Airflow's pins.
 
-Need data to look at? `npm run db:analytics-demo -w @triply/api` adds ~550 synthetic people over 90 days
+Need data to look at? `npm run db:analytics-demo -w @golaly/api` adds ~550 synthetic people over 90 days
 (`@demo.golaly.invalid`, `is_demo`; `--reset` / `--remove`), then run the build.

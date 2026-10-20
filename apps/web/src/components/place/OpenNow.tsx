@@ -1,6 +1,6 @@
 "use client";
 
-import { localNowAt, openStateAt, parseOpeningHours, weekdayOf, type OpenState } from "@triply/shared";
+import { localNowAt, openStateAt, parseOpeningHours, weekdayOf, type OpenState } from "@golaly/shared";
 import { Clock } from "lucide-react";
 import { useI18n } from "@/i18n/client";
 import { INTL_LOCALE } from "@/i18n/catalog";

@@ -1,5 +1,5 @@
 /** After the trip (roadmap phase 3): what happened, photos of stops, forks with evidence, and the group's expenses. */
-import type { ExpensesView, TripDetail } from "@triply/shared";
+import type { ExpensesView, TripDetail } from "@golaly/shared";
 import sharp from "sharp";
 import { createTestContext, type Agent, type TestContext } from "./helpers";
 

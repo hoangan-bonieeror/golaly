@@ -1,6 +1,6 @@
 "use client";
 
-import { localizeMessage, updateTripSchema, type MediaView, type TripDetail, type TripSummary, type TripVisibility } from "@triply/shared";
+import { localizeMessage, updateTripSchema, type MediaView, type TripDetail, type TripSummary, type TripVisibility } from "@golaly/shared";
 import { ArrowLeft, Globe2, ImagePlus, Link2, Lock, ShieldAlert, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";

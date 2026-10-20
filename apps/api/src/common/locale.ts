@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { isLocale, LOCALE_HEADER, localeFromAcceptLanguage, type Locale } from "@triply/shared";
+import { isLocale, LOCALE_HEADER, localeFromAcceptLanguage, type Locale } from "@golaly/shared";
 import type { NextFunction, Request, Response } from "express";
 
 /**

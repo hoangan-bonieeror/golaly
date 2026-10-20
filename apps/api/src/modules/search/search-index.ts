@@ -1,5 +1,5 @@
 import { Global, Injectable, Logger, Module, OnApplicationBootstrap } from "@nestjs/common";
-import { accentSearch, normalizeSearch, splitAreaName } from "@triply/shared";
+import { accentSearch, normalizeSearch, splitAreaName } from "@golaly/shared";
 import { env } from "../../config/env";
 import { PrismaService, type Tx } from "../../prisma/prisma.service";
 

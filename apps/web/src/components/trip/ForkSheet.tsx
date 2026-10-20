@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripSummary } from "@triply/shared";
+import type { TripSummary } from "@golaly/shared";
 import { Check, GitFork, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";

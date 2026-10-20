@@ -1,6 +1,6 @@
 "use client";
 
-import { localizeMessage, passwordSchema } from "@triply/shared";
+import { localizeMessage, passwordSchema } from "@golaly/shared";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Button, Field, inputCls } from "@/components/ui";

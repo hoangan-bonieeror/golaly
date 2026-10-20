@@ -1,6 +1,6 @@
 "use client";
 
-import type { PostView } from "@triply/shared";
+import type { PostView } from "@golaly/shared";
 import { Bookmark, CalendarDays, Heart, MapPin, MessageCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

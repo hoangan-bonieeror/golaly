@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { cronProblem, type SyncJobInput, type SyncJobView, type SyncRunDetail } from "@triply/shared";
+import { cronProblem, type SyncJobInput, type SyncJobView, type SyncRunDetail } from "@golaly/shared";
 import { CalendarClock, FlaskConical, Pencil, Play, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

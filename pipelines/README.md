@@ -61,7 +61,7 @@ npm run db:deploy
 
 cd pipelines
 uv sync --extra dev
-export DATABASE_URL=postgresql://triply:triply@localhost:5432/triply   # same as apps/api/.env
+export DATABASE_URL=postgresql://golaly:golaly@localhost:5432/golaly   # same as apps/api/.env
 
 uv run golaly-catalog bootstrap              # taxonomy + adopt the app's existing places (source "manual")
 uv run golaly-catalog boundaries --country VN   # country + 34 provinces from Overture divisions
@@ -116,7 +116,7 @@ uv run golaly-catalog photos --area hoi-an --dry-run   # what would be queued
 uv run golaly-catalog photos --area hoi-an             # queue them (then the API downloads them)
 uv run golaly-catalog photos --area hoi-an --only-due  # only places never checked, renamed, moved or checked > 30 days ago
 uv run golaly-catalog sync --area hoi-an --photos      # sync, then photos for the places that need them (like Airflow)
-npm run build -w @triply/api && npm run photos:ingest -w @triply/api   # optional: download now instead of waiting
+npm run build -w @golaly/api && npm run photos:ingest -w @golaly/api   # optional: download now instead of waiting
 ```
 
 `CATALOG_CONTACT` is required by [Wikimedia's User-Agent policy](https://foundation.wikimedia.org/wiki/Policy:Wikimedia_Foundation_User-Agent_Policy):
@@ -320,7 +320,7 @@ Category mapping lives in `golaly_catalog/data/taxonomy.json` (Golaly's categori
 
 ```bash
 uv run pytest            # unit + end-to-end (needs PostgreSQL with PostGIS and Node.js for the app seed)
-TEST_DATABASE_URL=postgresql://triply:triply@localhost:5432/triply_catalog_test uv run pytest
+TEST_DATABASE_URL=postgresql://golaly:golaly@localhost:5432/golaly_catalog_test uv run pytest
 uv run ruff check . && uv run ruff format --check .
 ```
 

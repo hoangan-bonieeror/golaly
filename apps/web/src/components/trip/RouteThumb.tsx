@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripDetail } from "@triply/shared";
+import type { TripDetail } from "@golaly/shared";
 import { useT } from "@/i18n/client";
 import { dayColor } from "@/lib/trip-geo";
 import { SkyLayer, useSky } from "./Sky";

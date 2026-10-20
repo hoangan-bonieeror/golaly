@@ -1,6 +1,6 @@
 import { MediaService } from "../media/media";
 import { Injectable } from "@nestjs/common";
-import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type ItemAssigneesInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@triply/shared";
+import { orderBySlot, slotForTime, type CreateItemInput, type ItemStatusBatchInput, type ItemAssigneesInput, type DayView, type ItemSlot, type ItemView, type ReorderItemInput, type UpdateItemInput, type VoteLevel } from "@golaly/shared";
 import { addDays, fromDate, MAX_TRIP_DAYS, toDate } from "../../common/dates";
 import { Errors } from "../../common/http";
 import { lockTrip, writeSortOrder } from "../../common/locks";

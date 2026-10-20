@@ -1,4 +1,4 @@
-import { clusterByArea, groupScore, orderBySlot, presentOn, slotForTime, type ItemSlot } from "@triply/shared";
+import { clusterByArea, groupScore, orderBySlot, presentOn, slotForTime, type ItemSlot } from "@golaly/shared";
 import { insertAt } from "./itinerary.logic";
 
 const item = (id: string, sortOrder: number, startTime: string | null = null, slot: ItemSlot = startTime ? slotForTime(startTime) : "ANY") => ({ id, sortOrder, startTime, slot });

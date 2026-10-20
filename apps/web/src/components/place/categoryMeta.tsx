@@ -1,5 +1,5 @@
 import { BedDouble, Bus, Coffee, Flag, Landmark, MapPin, Martini, Mountain, ShoppingBag, Sparkles, UtensilsCrossed } from "lucide-react";
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 import { CATALOGS, INTL_LOCALE } from "@/i18n/catalog";
 import { cx } from "../ui";
 

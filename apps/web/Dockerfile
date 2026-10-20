@@ -12,10 +12,10 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/web/package.json apps/web/
 COPY apps/api/package.json apps/api/
-RUN npm ci --workspace @triply/web --workspace @triply/shared --include-workspace-root --ignore-scripts
+RUN npm ci --workspace @golaly/web --workspace @golaly/shared --include-workspace-root --ignore-scripts
 COPY packages/shared packages/shared
 COPY apps/web apps/web
-RUN npm run build -w @triply/shared && npm run build -w @triply/web
+RUN npm run build -w @golaly/shared && npm run build -w @golaly/web
 
 # Standalone output: a minimal server.js plus only the node_modules it actually uses.
 FROM node:22-bookworm-slim

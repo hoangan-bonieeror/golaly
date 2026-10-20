@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItemView } from "@triply/shared";
+import type { ItemView } from "@golaly/shared";
 import { ArrowLeft, CalendarDays, CheckCheck, Heart, ImageIcon, MapPin, PenSquare, Route, Users, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

@@ -50,7 +50,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - run: npm ci # postinstall builds @triply/shared and generates the Prisma client
+      - run: npm ci # postinstall builds @golaly/shared and generates the Prisma client
       - run: npm run lint
       - run: npm run typecheck
       # Known vulnerabilities in what ships (dev tooling excluded): critical fails the build, the rest is
@@ -68,16 +68,16 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4-alpine
         env:
-          POSTGRES_USER: triply
-          POSTGRES_PASSWORD: triply
-          POSTGRES_DB: triply
+          POSTGRES_USER: golaly
+          POSTGRES_PASSWORD: golaly
+          POSTGRES_DB: golaly
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U triply" --health-interval 5s --health-timeout 3s --health-retries 10
+          --health-cmd "pg_isready -U golaly" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgresql://triply:triply@localhost:5432/triply
+      DATABASE_URL: postgresql://golaly:golaly@localhost:5432/golaly
       # Rebuilt from the migrations and seeded by test/global-setup.ts
-      TEST_DATABASE_URL: postgresql://triply:triply@localhost:5432/triply_test
+      TEST_DATABASE_URL: postgresql://golaly:golaly@localhost:5432/golaly_test
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -86,7 +86,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Create test database
-        run: PGPASSWORD=triply psql -h localhost -U triply -c "CREATE DATABASE triply_test;"
+        run: PGPASSWORD=golaly psql -h localhost -U golaly -c "CREATE DATABASE golaly_test;"
       # Same command CD runs against Neon — a migration that fails here never reaches production.
       - name: prisma migrate deploy on an empty database
         run: npm run db:deploy
@@ -143,14 +143,14 @@ jobs:
       postgres:
         image: postgis/postgis:16-3.4-alpine
         env:
-          POSTGRES_USER: triply
-          POSTGRES_PASSWORD: triply
-          POSTGRES_DB: triply
+          POSTGRES_USER: golaly
+          POSTGRES_PASSWORD: golaly
+          POSTGRES_DB: golaly
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U triply" --health-interval 5s --health-timeout 3s --health-retries 10
+          --health-cmd "pg_isready -U golaly" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      TEST_DATABASE_URL: postgresql://triply:triply@localhost:5432/triply_catalog_test
+      TEST_DATABASE_URL: postgresql://golaly:golaly@localhost:5432/golaly_catalog_test
     defaults:
       run:
         working-directory: pipelines
@@ -192,7 +192,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - name: Install API toolchain only
-        run: npm ci --workspace @triply/api --workspace @triply/shared --include-workspace-root --ignore-scripts
+        run: npm ci --workspace @golaly/api --workspace @golaly/shared --include-workspace-root --ignore-scripts
       - name: prisma migrate deploy → Neon (production branch)
         env:
           # Neon DIRECT endpoint (host without "-pooler"), ?sslmode=require

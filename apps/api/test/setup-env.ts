@@ -5,7 +5,7 @@
 import "dotenv/config";
 
 process.env.NODE_ENV = "test";
-process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgresql://triply:triply@localhost:5432/triply_test";
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgresql://golaly:golaly@localhost:5432/golaly_test";
 process.env.JWT_SECRET ??= "test-secret-test-secret-test-secret";
 process.env.AUTH_RATE_LIMIT_PER_MIN = "10000";
 process.env.RATE_LIMIT_PER_MIN = "100000";

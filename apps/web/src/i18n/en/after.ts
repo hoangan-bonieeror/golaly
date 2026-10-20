@@ -1,4 +1,4 @@
-import type { ExpenseCategory, ItemStatus } from "@triply/shared";
+import type { ExpenseCategory, ItemStatus } from "@golaly/shared";
 
 /** After the trip (roadmap phase 3): what the group did, the recap, photos of stops, remix evidence, shared expenses. */
 export const after = {

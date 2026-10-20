@@ -2,7 +2,7 @@
  * Permission service (spec §43 unit): the shared Owner/Editor/Viewer matrix and the
  * TripAccessService that enforces it with friendly errors.
  */
-import { can, type PermissionMember, type PermissionTrip, type TripAction } from "@triply/shared";
+import { can, type PermissionMember, type PermissionTrip, type TripAction } from "@golaly/shared";
 import { AppError } from "../../common/http";
 import { TripAccessService } from "./trip-access.service";
 

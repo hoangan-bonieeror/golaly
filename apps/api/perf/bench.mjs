@@ -4,8 +4,8 @@
  * Times the API calls the app makes against a running API, with parameters taken from your own data
  * (the busiest province, a real place, a real destination…). Read-only.
  *
- *   npm run perf -w @triply/api                 # API on http://localhost:4000
- *   API_URL=https://api.example.com PERF_EMAIL=you@x PERF_PASSWORD=… npm run perf -w @triply/api
+ *   npm run perf -w @golaly/api                 # API on http://localhost:4000
+ *   API_URL=https://api.example.com PERF_EMAIL=you@x PERF_PASSWORD=… npm run perf -w @golaly/api
  *
  * Each call runs 1 + RUNS times; the first (cold) run is shown separately and the budget applies to the median
  * of the rest. Exit code 1 when a call is over budget, so it can gate CI or a deploy.

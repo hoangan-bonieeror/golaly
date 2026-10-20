@@ -6,7 +6,7 @@
  * If WebGL or the tile server is unavailable, `onFail` lets the caller fall back to the
  * offline SVG map, so the trip page never shows a blank box.
  */
-import type { ItemView } from "@triply/shared";
+import type { ItemView } from "@golaly/shared";
 import type { GeoJSONSource, Map as MapLibreMap, Marker } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";

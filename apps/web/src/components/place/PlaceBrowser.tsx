@@ -1,6 +1,6 @@
 "use client";
 
-import { localNowAt, openStateAt, type CategoryView } from "@triply/shared";
+import { localNowAt, openStateAt, type CategoryView } from "@golaly/shared";
 import { Clock, List, LocateFixed, Map as MapIcon, MapPinned } from "lucide-react";
 import { BinocularsArt } from "../art/EmptyArt";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";

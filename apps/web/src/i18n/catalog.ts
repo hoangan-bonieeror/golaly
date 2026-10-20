@@ -1,4 +1,4 @@
-import type { Locale } from "@triply/shared";
+import type { Locale } from "@golaly/shared";
 import { en } from "./en";
 import type { Messages } from "./types";
 import { vi } from "./vi";

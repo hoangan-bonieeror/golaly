@@ -1,12 +1,12 @@
 /**
- * Regression tests for the 2026-10 security review (claude/triply-security-review.md). Each one reproduces the
+ * Regression tests for the 2026-10 security review (claude/golaly-security-review.md). Each one reproduces the
  * problem as it was, so a regression fails here. S1 (open redirect) is covered by safe-next.spec.ts.
  */
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import sharp from "sharp";
-import type { ExpensesView, TripDetail } from "@triply/shared";
+import type { ExpensesView, TripDetail } from "@golaly/shared";
 import { io, type Socket } from "socket.io-client";
 import { env } from "../src/config/env";
 import { BreachedPasswords } from "../src/modules/auth/breached";

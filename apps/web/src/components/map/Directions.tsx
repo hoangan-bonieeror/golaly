@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { DirectionsMode, DirectionsView } from "@triply/shared";
+import type { DirectionsMode, DirectionsView } from "@golaly/shared";
 import { ApiError, api } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
 import { useI18n } from "@/i18n/client";

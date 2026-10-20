@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import type { SyncProgress, SyncRunDetail, SyncRunSummary } from "@triply/shared";
+import type { SyncProgress, SyncRunDetail, SyncRunSummary } from "@golaly/shared";
 import { FlaskConical, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, cx, timeAgo } from "@/components/ui";

@@ -14,7 +14,7 @@ import {
   type ReorderItemInput,
   type UpdateItemInput,
   type VoteInput,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";
 import { TripsModule } from "../trips/trips.controller";

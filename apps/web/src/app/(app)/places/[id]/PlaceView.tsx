@@ -1,6 +1,6 @@
 "use client";
 
-import type { Locale, PlaceView } from "@triply/shared";
+import type { Locale, PlaceView } from "@golaly/shared";
 import { ArrowLeft, Bookmark, Check, ExternalLink, Globe, MapPin, Navigation, Phone, Share2, Star } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

@@ -15,7 +15,7 @@ def _env(name: str, default: str | None = None) -> str | None:
 @dataclass(frozen=True)
 class Settings:
     #: The app database (the pipeline writes the catalog tables only).
-    database_url: str = field(default_factory=lambda: _env("DATABASE_URL", "postgresql://triply:triply@localhost:5432/triply"))  # type: ignore[arg-type]
+    database_url: str = field(default_factory=lambda: _env("DATABASE_URL", "postgresql://golaly:golaly@localhost:5432/golaly"))  # type: ignore[arg-type]
     #: Overture release folder, e.g. "2026-09-23.1". Leave empty to use the newest one listed.
     overture_release: str | None = field(default_factory=lambda: _env("OVERTURE_RELEASE"))
     #: Where Overture parquet lives. Tests point this at local fixture files.

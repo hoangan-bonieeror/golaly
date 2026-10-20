@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { NextCandidate, NextSuggestions, OpenState, TripDetail } from "@triply/shared";
+import type { NextCandidate, NextSuggestions, OpenState, TripDetail } from "@golaly/shared";
 import { Clock, Lightbulb, LocateFixed, MapPin, Navigation, Plus, RefreshCw, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n/client";

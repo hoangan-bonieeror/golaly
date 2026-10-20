@@ -8,7 +8,7 @@ import path from "node:path";
 import { Client } from "pg";
 
 export default async function globalSetup() {
-  const url = process.env.TEST_DATABASE_URL ?? "postgresql://triply:triply@localhost:5432/triply_test";
+  const url = process.env.TEST_DATABASE_URL ?? "postgresql://golaly:golaly@localhost:5432/golaly_test";
   if (process.env.DATABASE_URL && url === process.env.DATABASE_URL && !/test/i.test(url))
     throw new Error("TEST_DATABASE_URL must point at a separate test database.");
   const client = new Client({ connectionString: url });

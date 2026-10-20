@@ -1,5 +1,5 @@
 """Test setup. Integration tests need PostgreSQL with PostGIS (TEST_DATABASE_URL, default
-postgresql://triply:triply@localhost:5432/triply_catalog_test — recreated from the Prisma migrations
+postgresql://golaly:golaly@localhost:5432/golaly_catalog_test — recreated from the Prisma migrations
 on every session) and Node.js to load the app's demo seed."""
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from golaly_catalog.config import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures"
-TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql://triply:triply@localhost:5432/triply_catalog_test")
+TEST_DB = os.environ.get("TEST_DATABASE_URL", "postgresql://golaly:golaly@localhost:5432/golaly_catalog_test")
 
 
 @pytest.fixture(scope="session")

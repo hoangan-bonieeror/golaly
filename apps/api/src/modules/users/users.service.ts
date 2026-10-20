@@ -1,6 +1,6 @@
 import { MediaService } from "../media/media";
 import { Injectable } from "@nestjs/common";
-import { isLocale, type FollowListItem, type Me, type PostView, type ProfileView, type TripSummary, type UpdateProfileInput } from "@triply/shared";
+import { isLocale, type FollowListItem, type Me, type PostView, type ProfileView, type TripSummary, type UpdateProfileInput } from "@golaly/shared";
 import { verifyPassword } from "../../common/crypto";
 import { AppError, Errors } from "../../common/http";
 import {

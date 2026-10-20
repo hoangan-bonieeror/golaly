@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReportReason, ReportTarget } from "@triply/shared";
+import type { ReportReason, ReportTarget } from "@golaly/shared";
 import { useState } from "react";
 import { api } from "@/lib/api/client";
 import { useT } from "@/i18n/client";

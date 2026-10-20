@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
-import { createTripSchema, pageQuerySchema, updateTripSchema, type UpdateTripInput } from "@triply/shared";
+import { createTripSchema, pageQuerySchema, updateTripSchema, type UpdateTripInput } from "@golaly/shared";
 import { z } from "zod";
 import { Public, ViewerId, requireUser } from "../../common/auth";
 import { ZodPipe } from "../../common/http";

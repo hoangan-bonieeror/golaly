@@ -1,6 +1,6 @@
 import { Controller, Get, Injectable, Module, Param, ParseUUIDPipe, Query } from "@nestjs/common";
 import { Prisma } from "../../generated/prisma/client";
-import { km, nextQuerySchema, openStateAt, slotForTime, SLOT_RANK, type ItemSlot, type NextCandidate, type NextQuery, type NextSuggestions } from "@triply/shared";
+import { km, nextQuerySchema, openStateAt, slotForTime, SLOT_RANK, type ItemSlot, type NextCandidate, type NextQuery, type NextSuggestions } from "@golaly/shared";
 import { ViewerId } from "../../common/auth";
 import { fromDate } from "../../common/dates";
 import { ZodPipe } from "../../common/http";

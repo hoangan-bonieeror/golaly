@@ -1,4 +1,4 @@
-import { createInvitationSchema, createItemSchema, createTripSchema, registerSchema } from "@triply/shared";
+import { createInvitationSchema, createItemSchema, createTripSchema, registerSchema } from "@golaly/shared";
 import { hashPassword, randomToken, sha256, verifyPassword } from "./crypto";
 import { addDays, dayCount } from "./dates";
 import { parseAcceptLanguage, pickPlaceName } from "./locale";
@@ -55,7 +55,7 @@ describe("shared validation (same schemas the web forms use)", () => {
 
 describe("search normalisation", () => {
   it("strips accents (incl. Vietnamese đ) and splits words safely", () => {
-    const { normalizeSearch } = jest.requireActual("@triply/shared");
+    const { normalizeSearch } = jest.requireActual("@golaly/shared");
     const { queryWords } = jest.requireActual("../modules/search/ranker");
     expect(normalizeSearch("  Đà Lạt — Hội An  ")).toBe("da lat — hoi an");
     const plain = (q: string) => queryWords(q).map((w: { plain: string }) => w.plain);
@@ -71,7 +71,7 @@ describe("search normalisation", () => {
   });
 
   it("matches the Python pipeline's normalize_search on the shared cases", () => {
-    const { normalizeSearch } = jest.requireActual("@triply/shared");
+    const { normalizeSearch } = jest.requireActual("@golaly/shared");
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { cases } = require("../../../../packages/shared/fixtures/normalize-cases.json") as { cases: [string, string][] };
     for (const [input, expected] of cases) expect([input, normalizeSearch(input)]).toEqual([input, expected]);

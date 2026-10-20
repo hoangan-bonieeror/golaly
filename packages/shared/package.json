@@ -1,5 +1,5 @@
 {
-  "name": "@triply/shared",
+  "name": "@golaly/shared",
   "version": "0.2.0",
   "private": true,
   "description": "Domain types, permission matrix, validation schemas and API contract shared by apps/api and apps/web.",

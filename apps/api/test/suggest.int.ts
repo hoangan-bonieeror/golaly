@@ -1,5 +1,5 @@
 /** Type-ahead under the navbar search (GET /search/suggest): places and destinations only, a few of each. */
-import type { SearchSuggestions } from "@triply/shared";
+import type { SearchSuggestions } from "@golaly/shared";
 import { createTestContext, type TestContext } from "./helpers";
 
 let t: TestContext;

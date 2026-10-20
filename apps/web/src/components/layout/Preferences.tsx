@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LOCALE_NAMES, LOCALES, type Locale, type Me } from "@triply/shared";
+import { LOCALE_NAMES, LOCALES, type Locale, type Me } from "@golaly/shared";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useI18n, useT } from "@/i18n/client";
 import { api } from "@/lib/api/client";

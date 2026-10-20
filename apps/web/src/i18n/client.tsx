@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { LOCALE_COOKIE, type Locale } from "@triply/shared";
+import { LOCALE_COOKIE, type Locale } from "@golaly/shared";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { setRequestLocale } from "@/lib/api/client";
 import { formatCount, formatDateRange, formatDay, setFormatLocale, timeAgo } from "@/lib/utils";

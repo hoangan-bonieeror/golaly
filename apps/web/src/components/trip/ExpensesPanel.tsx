@@ -1,6 +1,6 @@
 "use client";
 
-import { EXPENSE_CATEGORIES, currencyDigits, parseAmount, splitEqually, type ExpenseCategory, type ExpenseView, type ExpensesView, type TripDetail, type UserSummary } from "@triply/shared";
+import { EXPENSE_CATEGORIES, currencyDigits, parseAmount, splitEqually, type ExpenseCategory, type ExpenseView, type ExpensesView, type TripDetail, type UserSummary } from "@golaly/shared";
 import { ArrowRight, BedDouble, Check, ChevronLeft, Plus, Receipt, ShoppingBag, Ticket, TramFront, Undo2, UtensilsCrossed } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";

@@ -1,4 +1,4 @@
-import { ITEM_TYPE_LABEL_VI, notificationText, type NotificationMessage } from "@triply/shared";
+import { ITEM_TYPE_LABEL_VI, notificationText, type NotificationMessage } from "@golaly/shared";
 import { requestLocale } from "./locale";
 /**
  * Maps database rows → API view models (packages/shared/src/api-types.ts).
@@ -19,9 +19,9 @@ import type {
   TripRole,
   TripSummary,
   UserSummary,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { pickPlaceName } from "./locale";
-import { ITEM_TYPE_LABEL } from "@triply/shared";
+import { ITEM_TYPE_LABEL } from "@golaly/shared";
 import type { Prisma } from "../generated/prisma/client";
 import { fromDate } from "./dates";
 

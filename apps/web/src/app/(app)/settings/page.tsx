@@ -1,6 +1,6 @@
 "use client";
 
-import { localizeMessage, passwordSchema, updateProfileSchema, type MediaView, type Me } from "@triply/shared";
+import { localizeMessage, passwordSchema, updateProfileSchema, type MediaView, type Me } from "@golaly/shared";
 import { Camera, LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";

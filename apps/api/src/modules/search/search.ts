@@ -8,7 +8,7 @@ import {
   type SearchResults,
   type SearchSuggestions,
   type TripSummary,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { z } from "zod";
 import { Public, ViewerId } from "../../common/auth";
 import { Errors, ZodPipe } from "../../common/http";

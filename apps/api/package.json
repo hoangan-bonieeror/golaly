@@ -1,5 +1,5 @@
 {
-  "name": "@triply/api",
+  "name": "@golaly/api",
   "version": "0.2.0",
   "private": true,
   "scripts": {
@@ -52,7 +52,7 @@
     "@node-rs/argon2": "^2.2.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
-    "@triply/shared": "*",
+    "@golaly/shared": "*",
     "cookie-parser": "^1.4.7",
     "dotenv": "^18.0.5",
     "google-auth-library": "^11.1.0",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { AdminAreaView } from "@triply/shared";
+import type { AdminAreaView } from "@golaly/shared";
 import { ChevronLeft, ChevronRight, Globe2 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";

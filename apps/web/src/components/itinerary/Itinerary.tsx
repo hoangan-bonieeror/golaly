@@ -1,6 +1,6 @@
 "use client";
 
-import type { ItemSlot, ItemView, TripDetail } from "@triply/shared";
+import type { ItemSlot, ItemView, TripDetail } from "@golaly/shared";
 import { AlertTriangle, ArrowDown, ArrowUp, CalendarPlus, Check, CircleDashed, Copy, Flag, GripVertical, Heart, Lightbulb, Moon, Pencil, Plus, Shuffle, Sun, Sunrise, Trash2, Users, Wallet, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";

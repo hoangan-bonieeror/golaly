@@ -2,7 +2,7 @@
  * Money on screen. The API sends whole minor units (đồng, cents, yen); the currency decides how many
  * decimals they have (`currencyDigits`), and Intl formats them in the interface language.
  */
-import { currencyDigits } from "@triply/shared";
+import { currencyDigits } from "@golaly/shared";
 
 const tag = (locale: string) => (locale === "vi" ? "vi-VN" : "en-US");
 

@@ -10,7 +10,7 @@ const TIMEOUT_MS = 2_500;
  * Refuses passwords that appear in known breaches (security review S20), using Have I Been Pwned's k-anonymity
  * range API: only the first 5 hex characters of the password's SHA-1 leave the server, and the reply is padded so
  * its size says nothing either. Fails open — if the service is slow or down, the password is accepted (the local
- * common-password rules in @triply/shared still apply). Off in tests (PASSWORD_BREACH_CHECK).
+ * common-password rules in @golaly/shared still apply). Off in tests (PASSWORD_BREACH_CHECK).
  */
 @Injectable()
 export class BreachedPasswords {

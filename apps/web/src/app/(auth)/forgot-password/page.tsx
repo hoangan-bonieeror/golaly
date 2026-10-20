@@ -1,6 +1,6 @@
 "use client";
 
-import { emailSchema } from "@triply/shared";
+import { emailSchema } from "@golaly/shared";
 import { MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

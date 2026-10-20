@@ -1,9 +1,9 @@
 /**
  * Adds the demo trips for roadmap phases 2 and 3 to an EXISTING database — nothing else is touched.
  *
- *   npm run db:demo-trip -w @triply/api                           # both trips, owner an@golaly.dev
- *   npm run db:demo-trip -w @triply/api -- --owner you@mail.com   # owned by your own account
- *   npm run db:demo-trip -w @triply/api -- --trip hoian           # only one: saigon | hoian
+ *   npm run db:demo-trip -w @golaly/api                           # both trips, owner an@golaly.dev
+ *   npm run db:demo-trip -w @golaly/api -- --owner you@mail.com   # owned by your own account
+ *   npm run db:demo-trip -w @golaly/api -- --trip hoian           # only one: saigon | hoian
  *
  * - "Saigon long weekend" (phase 2): dates yesterday → tomorrow on this computer, so it is always under way
  *   ("Today", "Where to now?", swipe to mark, the split afternoon and meet-up point).
@@ -19,7 +19,7 @@
  */
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { normalizeSearch, orderBySlot, slotForTime, splitEqually, type ItemSlot } from "@triply/shared";
+import { normalizeSearch, orderBySlot, slotForTime, splitEqually, type ItemSlot } from "@golaly/shared";
 import { PrismaClient, type ItemType } from "../src/generated/prisma/client";
 import { createSeed, type DB } from "./seed-data/data";
 import { seedId } from "./seed-data/ids";

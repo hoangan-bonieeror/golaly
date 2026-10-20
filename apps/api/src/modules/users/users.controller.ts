@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, Res } from "@nestjs/common";
-import { updateProfileSchema, type UpdateProfileInput } from "@triply/shared";
+import { updateProfileSchema, type UpdateProfileInput } from "@golaly/shared";
 import type { Response } from "express";
 import { z } from "zod";
 import { CurrentUser, Public, ViewerId, requireUser, type AuthUser } from "../../common/auth";

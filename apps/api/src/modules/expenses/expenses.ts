@@ -14,7 +14,7 @@ import {
   type SettlementInput,
   type SettlementView,
   type UserSummary,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { ViewerId, requireUser } from "../../common/auth";
 import { fromDate, toDate } from "../../common/dates";
 import { AppError, Errors, ZodPipe } from "../../common/http";

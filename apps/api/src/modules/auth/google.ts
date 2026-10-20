@@ -1,6 +1,6 @@
 import { Controller, Get, Injectable, Logger, Query, Req, Res } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { normalizeSearch, safeNext } from "@triply/shared";
+import { normalizeSearch, safeNext } from "@golaly/shared";
 import type { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 import { createHash } from "node:crypto";

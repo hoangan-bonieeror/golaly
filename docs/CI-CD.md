@@ -54,7 +54,7 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 | Variable | Example |
 |---|---|
 | `RENDER_SERVICE_ID` | `srv-…` (in the Render dashboard URL of *golaly-api*) |
-| `API_URL` | `https://triply-api.onrender.com` — **required**: the web build's `API_ORIGIN` and `NEXT_PUBLIC_REALTIME_URL` |
+| `API_URL` | `https://golaly-api.onrender.com` — **required**: the web build's `API_ORIGIN` and `NEXT_PUBLIC_REALTIME_URL` |
 | `MEDIA_ORIGIN` | the R2 bucket's public URL (optional; without it `/media` goes through the API, which redirects) |
 | `WEB_URL` | `https://golaly.vercel.app` (optional; defaults to the deployment URL) |
 
@@ -75,8 +75,8 @@ Also: Settings → Code security → turn on **Dependabot alerts** and **Dependa
 - New project → import `hoangan-bonieeror/golaly` → **Root Directory: `apps/web`**, framework Next.js
   (install/build at the repo root via npm workspaces is detected automatically).
 - Project → Settings → Environment Variables (Production *and* Preview):
-  - `API_ORIGIN` = `https://triply-api.onrender.com` — used at **build time** for the `/api/v1` and `/media` rewrites
-  - `NEXT_PUBLIC_REALTIME_URL` = `https://triply-api.onrender.com`
+  - `API_ORIGIN` = `https://golaly-api.onrender.com` — used at **build time** for the `/api/v1` and `/media` rewrites
+  - `NEXT_PUBLIC_REALTIME_URL` = `https://golaly-api.onrender.com`
   - `EDGE_SECRET` = the same value as on Render (read at **runtime** by `src/proxy.ts`, so Sensitive is fine). After the next deploy, open `/api/v1/admin/diagnostics/request` signed in as an admin: `viaEdge: true` and your own IP in `clientIp` mean it works.
 - Previews call the production API: fine for a demo; don't share preview links with test data you care about.
 

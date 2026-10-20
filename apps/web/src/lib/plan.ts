@@ -1,8 +1,8 @@
 /**
- * Flexible plans on the client: the same rules the API applies (from @triply/shared), used for
+ * Flexible plans on the client: the same rules the API applies (from @golaly/shared), used for
  * optimistic updates so a drop, a vote or a move shows at once and the server only confirms.
  */
-import { ITEM_SLOTS, orderBySlot, presentOn, SLOT_RANK, slotForTime, type ItemSlot, type ItemStatus, type ItemView, type MemberView, type TripDetail, type VoteLevel } from "@triply/shared";
+import { ITEM_SLOTS, orderBySlot, presentOn, SLOT_RANK, slotForTime, type ItemSlot, type ItemStatus, type ItemView, type MemberView, type TripDetail, type VoteLevel } from "@golaly/shared";
 import { zonedParts } from "./clock";
 
 export { ITEM_SLOTS };

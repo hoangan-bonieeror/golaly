@@ -6,7 +6,7 @@
  */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
-import { localizeMessage } from "@triply/shared";
+import { localizeMessage } from "@golaly/shared";
 import type {
   CategoryView,
   GeoAreaOption,
@@ -30,7 +30,7 @@ import type {
   TripDetail,
   TripSummary,
   TripTarget,
-} from "@triply/shared";
+} from "@golaly/shared";
 import { mightBeSignedIn, withQueued } from "../offline";
 import { useToast } from "../toast";
 import { api, ApiError, currentRequestLocale, qs } from "./client";

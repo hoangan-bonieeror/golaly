@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { presentOn, type ItemSlot, type ItemView, type TripSummary } from "@triply/shared";
+import { presentOn, type ItemSlot, type ItemView, type TripSummary } from "@golaly/shared";
 import { ArrowLeft, Bookmark, CheckCheck, Compass, Flag, Eye, GitFork, Globe2, Link2, ListChecks, Lock, Map as MapIcon, PenLine, Plus, Settings, Share2, Sparkles, UserPlus, Wallet, WifiOff } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
