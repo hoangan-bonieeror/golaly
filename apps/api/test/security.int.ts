@@ -1,5 +1,5 @@
 /**
- * Regression tests for the 2026-10 security review (claude/golaly-security-review.md). Each one reproduces the
+ * Regression tests for the 2026-10 security review (kept with the project notes, not in this public repo). Each one reproduces the
  * problem as it was, so a regression fails here. S1 (open redirect) is covered by safe-next.spec.ts.
  */
 import { existsSync } from "node:fs";
