@@ -251,6 +251,7 @@ jobs:
         if: env.API_URL != ''
         run: |
           # A sleeping Free instance can take ~1 minute to wake.
+          API_URL="${API_URL%/}"   # tolerate a trailing slash in the variable
           for i in $(seq 1 20); do
             if curl -fsS --max-time 20 "$API_URL/health/db"; then echo; exit 0; fi
             sleep 10
@@ -294,6 +295,9 @@ jobs:
           MEDIA_ORIGIN: ${{ vars.MEDIA_ORIGIN }}
         run: |
           if [ -z "$API_URL" ]; then echo "::error::Variable API_URL is not set (see docs/CI-CD.md)"; exit 1; fi
+          # Origins without a trailing slash ("https://x.onrender.com/" would make "//api/v1/…" paths).
+          API_URL="${API_URL%/}"
+          MEDIA_ORIGIN="${MEDIA_ORIGIN%/}"
           f=.vercel/.env.production.local
           touch "$f"
           put() {
@@ -318,6 +322,7 @@ jobs:
           WEB_URL: ${{ vars.WEB_URL }}
         run: |
           url="${WEB_URL:-${{ steps.deploy.outputs.url }}}"
+          url="${url%/}"   # "https://x.vercel.app/" + "/welcome" would request "//welcome"
           # A page, and the API through the web app's rewrite (a broken rewrite is a 404 here).
           for path in /welcome /api/v1/auth/providers; do
             ok=
