@@ -1,13 +1,8 @@
 import type { DayView, ItemView, Locale, PlaceView } from "@golaly/shared";
 import { INTL_LOCALE, type Messages } from "@/i18n/catalog";
 
-/**
- * Atlas day palette: each day of a trip gets one colour, used for its chip, pins and route.
- * Every colour carries white text at ≥ 5.3:1 (numbers on pins, the active day chip).
- * Trips longer than seven days cycle — neighbouring days never share a colour.
- */
-export const DAY_COLORS = ["#c23e14", "#1f5e52", "#3d4fa1", "#93601a", "#8a3b6e", "#26699a", "#5e6f26"] as const;
-export const dayColor = (dayNumber: number) => DAY_COLORS[(((dayNumber - 1) % DAY_COLORS.length) + DAY_COLORS.length) % DAY_COLORS.length];
+/** Atlas day palette (one colour per day for chips, pins and route; white text ≥ 5.3:1), shared with the app. */
+export { DAY_COLORS, dayColor } from "@golaly/tokens";
 
 /** Great-circle distance in kilometres. */
 export function haversineKm(a: Pick<PlaceView, "lat" | "lng">, b: Pick<PlaceView, "lat" | "lng">) {

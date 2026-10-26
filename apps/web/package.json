@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
+    "@golaly/client": "*",
     "@golaly/shared": "*",
+    "@golaly/tokens": "*",
     "lucide-react": "^1.49.0",
     "maplibre-gl": "^6.11.2",
     "next": "^16.3.8",

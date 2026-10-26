@@ -34,6 +34,9 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "../../packages/shared/src/**/*.ts",
+    "../../packages/client/src/**/*.ts",
+    "../../packages/client/src/**/*.tsx",
+    "../../packages/tokens/src/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [

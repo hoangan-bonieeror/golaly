@@ -1,0 +1,24 @@
+{
+  "name": "@golaly/client",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Typed client for the Golaly API, its query keys and TanStack Query hooks — shared by apps/web and apps/mobile.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@golaly/shared": "*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5",
+    "react": "^19"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

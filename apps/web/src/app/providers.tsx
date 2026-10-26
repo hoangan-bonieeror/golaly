@@ -2,12 +2,13 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Locale } from "@golaly/shared";
-import { Suspense, useEffect, useState } from "react";
+import { ClientProvider, type ClientContextValue } from "@golaly/client/react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { I18nProvider, useI18n } from "@/i18n/client";
-import { ApiError } from "@/lib/api/client";
+import { api, ApiError, currentRequestLocale } from "@/lib/api/client";
 import { useMe } from "@/lib/api/queries";
-import { registerServiceWorker } from "@/lib/offline";
-import { ToastProvider } from "@/lib/toast";
+import { mightBeSignedIn, registerServiceWorker, withQueued } from "@/lib/offline";
+import { ToastProvider, useToast } from "@/lib/toast";
 import { syncPlaceNamesCookie } from "@/lib/placeLanguage";
 import { ClockProvider } from "@/lib/clock";
 
@@ -21,6 +22,16 @@ function AccountLocale() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id, me?.locale]);
   return null;
+}
+
+/** Gives the shared hooks (@golaly/client/react) the web's API client, toasts and offline overlay. */
+function WebClientProvider({ children }: { children: React.ReactNode }) {
+  const toast = useToast();
+  const value = useMemo<ClientContextValue>(
+    () => ({ api, getLocale: currentRequestLocale, notify: toast, mightBeSignedIn, selectTrip: withQueued }),
+    [toast],
+  );
+  return <ClientProvider value={value}>{children}</ClientProvider>;
 }
 
 export function Providers({ locale, renderedAt, timeZone, children }: { locale: Locale; renderedAt: number; timeZone: string | null; children: React.ReactNode }) {
@@ -45,17 +56,19 @@ export function Providers({ locale, renderedAt, timeZone, children }: { locale: 
     <QueryClientProvider client={client}>
       <ClockProvider renderedAt={renderedAt} timeZone={timeZone}>
         <I18nProvider initial={locale}>
-          <AccountLocale />
           <ToastProvider>
-            {/*
-              A boundary around the page: the document shell (head, fonts, styles) streams at once while a page waits
-              for its server prefetch, and if a page's server HTML ever doesn't match, React re-renders just the
-              page, not <html> (which would drop the theme set before paint).
-            */}
-            <Suspense>
-              {children}
-              <HydratedMark />
-            </Suspense>
+            <WebClientProvider>
+              <AccountLocale />
+              {/*
+                A boundary around the page: the document shell (head, fonts, styles) streams at once while a page waits
+                for its server prefetch, and if a page's server HTML ever doesn't match, React re-renders just the
+                page, not <html> (which would drop the theme set before paint).
+              */}
+              <Suspense>
+                {children}
+                <HydratedMark />
+              </Suspense>
+            </WebClientProvider>
           </ToastProvider>
         </I18nProvider>
       </ClockProvider>

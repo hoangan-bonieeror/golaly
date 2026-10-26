@@ -78,7 +78,7 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@golaly/shared"],
+  transpilePackages: ["@golaly/shared", "@golaly/client", "@golaly/tokens"],
   // Dev only: hostnames other than localhost that may load the dev server (a phone on the LAN, an
   // HTTPS tunnel). Set by `node scripts/dev-phone.mjs`; comma-separated, e.g. "192.168.1.23,*.trycloudflare.com".
   allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),

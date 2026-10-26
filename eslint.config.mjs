@@ -17,7 +17,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["apps/api/**/*.ts", "packages/shared/**/*.ts"],
+    files: ["apps/api/**/*.ts", "packages/shared/**/*.ts", "packages/tokens/**/*.ts"],
     languageOptions: { globals: globals.node },
   },
   {
@@ -30,6 +30,13 @@ export default tseslint.config(
       ...nextPlugin.configs["core-web-vitals"].rules,
     },
     settings: { next: { rootDir: "apps/web" } },
+  },
+  {
+    // Shared with the web and the app (React Native): browser-ish globals (fetch, FormData), React hooks rules.
+    files: ["packages/client/**/*.{ts,tsx}"],
+    languageOptions: { globals: globals.browser },
+    plugins: { "react-hooks": reactHooks },
+    rules: reactHooks.configs.recommended.rules,
   },
   {
     files: ["**/*.spec.ts", "**/test/**/*.ts", "**/prisma/seed*.ts", "**/prisma/demo-trip.ts", "**/prisma/analytics-demo.ts", "**/prisma/seed-data/**", "**/scripts/**", "**/e2e/**"],

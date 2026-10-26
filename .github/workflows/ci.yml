@@ -121,7 +121,7 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: apps/web/.next/cache
-          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**', 'packages/shared/src/**') }}
+          key: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('apps/web/src/**', 'packages/shared/src/**', 'packages/client/src/**', 'packages/tokens/src/**') }}
           restore-keys: next-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - run: npm run build
       # The same Dockerfile Render builds — a broken image fails here, before anything is deployed.
