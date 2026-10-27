@@ -149,6 +149,26 @@ The "Continue with Google" button only appears when Google credentials are confi
 
 Google accounts are matched by Google's account id, then by **verified** email (so an existing email/password user gets Google linked to the same account). Google-only users can add a password later in **Settings**.
 
+### Optional: the mobile app's sign-in and push (API side)
+
+The app (`apps/mobile`, Expo) signs in through `/api/v1/auth/app/*`: the same accounts and rules as the web, but the
+tokens come back in the body (the app keeps them in the phone's secure storage) and requests carry
+`Authorization: Bearer …`. Refresh tokens rotate exactly like the web's.
+
+```bash
+# Native Google sign-in: the iOS client id, and the web client id Android uses (comma-separated)
+GOOGLE_APP_CLIENT_IDS=xxxx-ios.apps.googleusercontent.com,xxxx-web.apps.googleusercontent.com
+# Sign in with Apple (required by the App Store when Google sign-in is offered): the app's bundle id(s)
+APPLE_CLIENT_IDS=com.golaly.app
+# Push notifications through Expo's push service (devices register with PUT /api/v1/push/devices)
+PUSH_DRIVER=expo
+EXPO_ACCESS_TOKEN=          # only if "Enhanced push security" is on in the Expo project
+```
+
+Apple accounts link by verified email like Google's (Apple's private relay addresses count as verified). A phone
+gets pushes only while the session that registered it is live: signing out, changing the password elsewhere or
+deleting the account stops them.
+
 ### Optional: catalog admin
 
 The demo account **an@golaly.dev** is an admin; it sees **Admin** in the account menu (avatar, top right) and in Settings. To make another

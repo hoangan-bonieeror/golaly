@@ -38,6 +38,15 @@ const VI_EXACT: Record<string, string> = {
   // Generic (exception filter fallbacks)
   "That request didn't look right.": "Yêu cầu này có vẻ không hợp lệ.",
   "Please log in to continue.": "Vui lòng đăng nhập để tiếp tục.",
+  // Sign-in in the app (Google, Apple) and push notifications
+  "Your Google account doesn't share a verified email, so we can't sign you in with it.": "Tài khoản Google của bạn không có email đã xác minh nên không thể dùng để đăng nhập.",
+  "Your Apple account doesn't share a verified email, so we can't sign you in with it.": "Tài khoản Apple của bạn không chia sẻ email đã xác minh nên không thể dùng để đăng nhập.",
+  "This account has been deleted.": "Tài khoản này đã bị xóa.",
+  "We couldn't sign you in with Google. Please try again.": "Không thể đăng nhập bằng Google. Vui lòng thử lại.",
+  "We couldn't sign you in with Apple. Please try again.": "Không thể đăng nhập bằng Apple. Vui lòng thử lại.",
+  "Google sign-in isn't available right now.": "Hiện chưa thể đăng nhập bằng Google.",
+  "Sign in with Apple isn't available right now.": "Hiện chưa thể đăng nhập bằng Apple.",
+  "That isn't a push token.": "Mã thông báo đẩy không hợp lệ.",
   "You don't have permission to do that.": "Bạn không có quyền làm việc này.",
   "We couldn't find that.": "Không tìm thấy nội dung này.",
   "That conflicts with something that already exists.": "Nội dung này trùng với một mục đã có.",

@@ -5,6 +5,7 @@ import { ZodPipe } from "../../common/http";
 import { notificationInclude, toNotificationView } from "../../common/presenters";
 import type { Prisma } from "../../generated/prisma/client";
 import { afterCommit, PrismaService, type Tx } from "../../prisma/prisma.service";
+import { PushService } from "../push/push";
 import { RealtimeService } from "../realtime/realtime";
 
 /** Item edits within this window update the existing unread notification instead of stacking new ones. */
@@ -16,6 +17,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly push: PushService,
   ) {}
 
   async notify(
@@ -29,21 +31,32 @@ export class NotificationsService {
     const unique = [...new Set(recipients)].filter((r) => r !== actorId);
     const text = notificationText(message, "en");
     const params = message as unknown as Prisma.InputJsonObject;
-    const created: { userId: string; view: NotificationView }[] = [];
+    const created: { userId: string; view: NotificationView; fresh: boolean }[] = [];
     for (const userId of unique) {
       let row;
+      let fresh = true;
       if (COALESCED.includes(type)) {
         const recent = await tx.notification.findFirst({
           where: { userId, actorId, type, tripId: refs.tripId, readAt: null, createdAt: { gte: new Date(Date.now() - COALESCE_MS) } },
         });
-        if (recent)
+        if (recent) {
           row = await tx.notification.update({ where: { id: recent.id }, data: { text, params, createdAt: new Date() }, include: notificationInclude });
+          fresh = false;
+        }
       }
       row ??= await tx.notification.create({ data: { userId, actorId, type, text, params, ...refs }, include: notificationInclude });
-      created.push({ userId, view: toNotificationView(row) });
+      created.push({ userId, view: toNotificationView(row), fresh });
     }
     // Push only after the surrounding transaction commits (never for rows that were rolled back).
-    afterCommit(() => created.forEach((c) => this.realtime.notification(c.userId, c.view)));
+    afterCommit(() => {
+      created.forEach((c) => this.realtime.notification(c.userId, c.view));
+      // Phones buzz once per notification: a coalesced edit (same unread row, updated) stays quiet.
+      this.push.notify(
+        created
+          .filter((c) => c.fresh)
+          .map((c) => ({ userId: c.userId, notificationId: c.view.id, actorName: c.view.actor?.displayName ?? null, message, ...refs })),
+      );
+    });
   }
 
   async list(userId: string, cursor: string | undefined, limit: number): Promise<Paged<NotificationView>> {

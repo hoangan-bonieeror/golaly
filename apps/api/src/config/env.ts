@@ -86,6 +86,26 @@ const schema = z.object({
   /** Defaults to `${WEB_ORIGIN}/api/v1/auth/google/callback` — register exactly this URL in Google Cloud Console. */
   GOOGLE_REDIRECT_URI: z.string().url().optional().or(z.literal("").transform(() => undefined)),
   /**
+   * Native Google sign-in in the app: the OAuth client ids its ID tokens may be issued to (comma-separated: the iOS
+   * client, and the web client id that Android sign-in uses). GOOGLE_CLIENT_ID is always accepted too.
+   */
+  GOOGLE_APP_CLIENT_IDS: z
+    .string()
+    .default("")
+    .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+  /**
+   * Sign in with Apple (the iOS app): the bundle ids its identity tokens are issued to, comma-separated
+   * (e.g. `com.golaly.app`; add `host.exp.Exponent` to try it from Expo Go). Empty = Apple sign-in off.
+   */
+  APPLE_CLIENT_IDS: z
+    .string()
+    .default("")
+    .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+  /** "expo" sends notifications to the app through Expo's push service; "disabled" only stores device tokens. */
+  PUSH_DRIVER: z.enum(["expo", "disabled"]).default("disabled"),
+  /** Optional: required only when "Enhanced push security" is on in the Expo project. */
+  EXPO_ACCESS_TOKEN: z.string().optional().transform((v) => v?.trim() || undefined),
+  /**
    * Airflow's REST API, used by the catalog admin screens to start runs (catalog_sync, catalog_dry_run).
    * With docker compose's local setup (simple auth manager, everyone admin) no credentials are needed;
    * otherwise set AIRFLOW_USERNAME / AIRFLOW_PASSWORD.

@@ -49,6 +49,34 @@ export const changePasswordSchema = z.object({ currentPassword: z.string().max(1
 export const resetPasswordSchema = z.object({ token: z.string().min(20).max(200), password: passwordSchema });
 export const verifyEmailSchema = z.object({ token: z.string().min(20).max(200) });
 
+// ── Auth for the app (tokens in the body instead of cookies) ───────────
+/** "This device has signed in to this account before" (see AppSession.deviceToken): lets the owner in during a lockout. */
+const deviceToken = z.string().max(2000).optional();
+export const appLoginSchema = loginSchema.extend({ deviceToken });
+export const appRegisterSchema = registerSchema;
+export const appRefreshSchema = z.object({ refreshToken: z.string().min(20).max(200) });
+export const appLogoutSchema = z.object({ refreshToken: z.string().max(200).optional() });
+/** Native Google sign-in: the ID token Google gave the app. */
+export const appGoogleSchema = z.object({ idToken: z.string().min(20).max(8000), deviceToken });
+/**
+ * Sign in with Apple. `nonce` is the raw value the app generated; it passed its SHA-256 (hex) to Apple, which puts
+ * that in the identity token — so a token captured from another sign-in can't be replayed.
+ * Apple shares the person's name only the first time, with the app: it sends it along.
+ */
+export const appAppleSchema = z.object({
+  identityToken: z.string().min(20).max(8000),
+  nonce: z.string().min(16).max(200),
+  name: z.string().trim().max(50).optional(),
+  deviceToken,
+});
+
+// ── Push notifications (the app) ────────────────────────────────────────
+export const pushPlatformSchema = z.enum(["ios", "android"]);
+/** An Expo push token: ExponentPushToken[…] (or ExpoPushToken[…]). */
+export const pushTokenSchema = z.string().regex(/^Expo(nent)?PushToken\[[\w-]{10,200}\]$/, "That isn't a push token.");
+export const registerPushDeviceSchema = z.object({ token: pushTokenSchema, platform: pushPlatformSchema });
+export const removePushDeviceSchema = z.object({ token: pushTokenSchema });
+
 // ── Users ───────────────────────────────────────────────────────────────
 export const updateProfileSchema = z
   .object({
@@ -236,6 +264,10 @@ export const pageQuerySchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type AppLoginInput = z.infer<typeof appLoginSchema>;
+export type AppGoogleInput = z.infer<typeof appGoogleSchema>;
+export type AppAppleInput = z.infer<typeof appAppleSchema>;
+export type RegisterPushDeviceInput = z.infer<typeof registerPushDeviceSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type CreateTripInput = z.input<typeof createTripSchema>;
 export type UpdateTripInput = z.infer<typeof updateTripSchema>;

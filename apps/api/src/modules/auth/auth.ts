@@ -214,27 +214,42 @@ export class AuthService {
    *  - Replaying the previous token within a few seconds is a benign multi-tab race ("raced"):
    *    the winner already set fresh cookies, so the caller just retries its request.
    *  - Replaying it later means it was copied: the whole session is revoked (theft signal).
+   *
+   * `reissueOnRace` (the app): a phone that lost the answer to its refresh (a dropped connection) has no other tab
+   * to take the new cookies from, so a replay inside the grace window rotates the session once more and answers
+   * with fresh tokens. The pair it never received simply stops working.
    */
-  async refresh(refreshToken: string | undefined): Promise<{ access: string; refresh: string } | "raced"> {
+  async refresh(refreshToken: string | undefined, opts: { reissueOnRace?: boolean } = {}): Promise<{ access: string; refresh: string } | "raced"> {
     if (!refreshToken) throw Errors.unauthorized();
     const hash = sha256(refreshToken);
     const now = new Date();
     const session = await this.prisma.session.findUnique({ where: { tokenHash: hash }, include: { user: { select: { deletedAt: true } } } });
-    if (!session) return this.handleStaleRefresh(hash, now);
+    if (!session) return this.handleStaleRefresh(hash, now, opts.reissueOnRace);
     if (session.revokedAt || session.expiresAt < now || session.user.deletedAt) throw Errors.unauthorized();
     const next = randomToken();
     const swapped = await this.prisma.session.updateMany({
       where: { id: session.id, tokenHash: hash, revokedAt: null },
       data: { tokenHash: sha256(next), prevTokenHash: hash, rotatedAt: now, lastUsedAt: now },
     });
-    if (swapped.count === 0) return this.handleStaleRefresh(hash, now);
+    if (swapped.count === 0) return this.handleStaleRefresh(hash, now, opts.reissueOnRace);
     return { access: await this.signAccess(session.userId, session.id), refresh: next };
   }
 
-  private async handleStaleRefresh(hash: string, now: Date): Promise<"raced"> {
-    const prev = await this.prisma.session.findUnique({ where: { prevTokenHash: hash }, select: { id: true, userId: true, revokedAt: true, rotatedAt: true } });
+  private async handleStaleRefresh(hash: string, now: Date, reissue = false): Promise<{ access: string; refresh: string } | "raced"> {
+    const prev = await this.prisma.session.findUnique({
+      where: { prevTokenHash: hash },
+      select: { id: true, userId: true, revokedAt: true, rotatedAt: true, expiresAt: true, user: { select: { deletedAt: true } } },
+    });
     if (!prev || prev.revokedAt) throw Errors.unauthorized();
-    if (prev.rotatedAt && now.getTime() - prev.rotatedAt.getTime() < REFRESH_RACE_GRACE_MS) return "raced";
+    if (prev.rotatedAt && now.getTime() - prev.rotatedAt.getTime() < REFRESH_RACE_GRACE_MS) {
+      if (!reissue) return "raced";
+      if (prev.expiresAt < now || prev.user.deletedAt) throw Errors.unauthorized();
+      // Keep prevTokenHash and rotatedAt: the grace window doesn't grow with each replay.
+      const next = randomToken();
+      const swapped = await this.prisma.session.updateMany({ where: { id: prev.id, prevTokenHash: hash, revokedAt: null }, data: { tokenHash: sha256(next), lastUsedAt: now } });
+      if (swapped.count === 0) throw Errors.unauthorized();
+      return { access: await this.signAccess(prev.userId, prev.id), refresh: next };
+    }
     await this.prisma.session.update({ where: { id: prev.id }, data: { revokedAt: now } });
     await this.realtime.disconnectSessions({ sessionIds: [prev.id] });
     await this.audit.log(null, "session.reuse_detected", "user", prev.userId);
@@ -249,7 +264,11 @@ export class AuthService {
     }
     if (sessionId) ids.add(sessionId);
     if (!ids.size) return;
-    await this.prisma.session.updateMany({ where: { id: { in: [...ids] }, revokedAt: null }, data: { revokedAt: new Date() } });
+    await this.prisma.$transaction([
+      this.prisma.session.updateMany({ where: { id: { in: [...ids] }, revokedAt: null }, data: { revokedAt: new Date() } }),
+      // The phone that signed out stops getting push notifications.
+      this.prisma.pushDevice.deleteMany({ where: { sessionId: { in: [...ids] } } }),
+    ]);
     await this.realtime.disconnectSessions({ sessionIds: [...ids] });
   }
 

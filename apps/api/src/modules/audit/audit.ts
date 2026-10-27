@@ -15,6 +15,7 @@ export type AuditAction =
   | "user.password_changed"
   | "user.email_verified"
   | "user.google_linked"
+  | "user.apple_linked"
   | "user.login_locked"
   | "session.reuse_detected"
   | "place_photo.approved"

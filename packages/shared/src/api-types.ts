@@ -48,6 +48,23 @@ export interface Me extends UserSummary {
   analyticsConsent: boolean;
 }
 
+/** Tokens for the app (the web keeps them in HTTP-only cookies instead). */
+export interface AppTokens {
+  accessToken: string;
+  refreshToken: string;
+  /** Seconds until `accessToken` expires. */
+  expiresIn: number;
+}
+
+/** What the app's sign-in endpoints (/auth/app/*) answer. */
+export interface AppSession extends AppTokens {
+  user: Me;
+  /** True when this sign-in created the account (show onboarding). */
+  isNew: boolean;
+  /** Keep it (secure storage) and send it with the next sign-in: lets this device in while the account is locked. */
+  deviceToken: string;
+}
+
 export interface ProfileView {
   user: UserSummary & { bio: string; homeBase: string | null; travelerType: TravelerType | null; interests: Interest[]; joinedAt: string };
   followers: number;

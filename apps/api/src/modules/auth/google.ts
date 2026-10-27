@@ -26,6 +26,9 @@ export interface GoogleProfile {
   name?: string;
 }
 
+/** Sign-in providers whose accounts link by verified email (Google on the web and in the app, Apple in the app). */
+export type OAuthProvider = "google" | "apple";
+
 /**
  * Talks to Google. Isolated behind this small class so tests can swap in a fake —
  * the controller logic (state, PKCE, account linking) is what we test.
@@ -63,6 +66,23 @@ export class GoogleClient {
     if (!p?.sub || !p.email) throw new Error("Google profile is missing an email");
     return { sub: p.sub, email: p.email.toLowerCase(), emailVerified: !!p.email_verified, name: p.name };
   }
+
+  /** The app's client ids (plus the web one): native Google sign-in issues ID tokens to these. */
+  static appAudiences() {
+    return [...new Set([...(env.GOOGLE_CLIENT_ID ? [env.GOOGLE_CLIENT_ID] : []), ...env.GOOGLE_APP_CLIENT_IDS])];
+  }
+
+  get appConfigured() {
+    return GoogleClient.appAudiences().length > 0;
+  }
+
+  /** Native sign-in (the app): verifies the ID token Google gave it — signature, issuer, audience, expiry. */
+  async appProfile(idToken: string): Promise<GoogleProfile> {
+    const ticket = await this.client.verifyIdToken({ idToken, audience: GoogleClient.appAudiences() });
+    const p = ticket.getPayload();
+    if (!p?.sub || !p.email) throw new Error("Google profile is missing an email");
+    return { sub: p.sub, email: p.email.toLowerCase(), emailVerified: !!p.email_verified, name: p.name };
+  }
 }
 
 interface StatePayload {
@@ -84,32 +104,33 @@ export class GoogleAuthService {
   ) {}
 
   /**
-   * Account resolution:
-   *  1. Known Google account → that user.
-   *  2. Verified email matches an existing user → link Google to it.
+   * Account resolution (Google, and Apple through the same rules):
+   *  1. Known provider account → that user.
+   *  2. Verified email matches an existing user → link the provider to it.
    *  3. Otherwise create a new user (no password; they can set one later).
    */
-  async resolveUser(profile: GoogleProfile): Promise<{ id: string; isNew: boolean }> {
-    if (!profile.emailVerified) throw new Error("unverified-email");
+  async resolveUser(profile: GoogleProfile, provider: OAuthProvider = "google"): Promise<{ id: string; isNew: boolean }> {
     const p = { ...profile, email: profile.email.trim().toLowerCase() };
     const linked = await this.prisma.oAuthAccount.findUnique({
-      where: { provider_providerAccountId: { provider: "google", providerAccountId: p.sub } },
+      where: { provider_providerAccountId: { provider, providerAccountId: p.sub } },
       include: { user: { select: { id: true, deletedAt: true } } },
     });
     if (linked) {
       if (linked.user.deletedAt) throw new Error("deleted-account");
       return { id: linked.userId, isNew: false };
     }
+    // Linking or creating an account goes by the email: only one the provider has verified.
+    if (!p.email || !profile.emailVerified) throw new Error("unverified-email");
     const byEmail = await this.prisma.user.findUnique({ where: { email: p.email } });
     if (byEmail) {
       if (byEmail.deletedAt) throw new Error("deleted-account");
       const now = new Date();
-      // Google has just proven this person owns the address. If the existing account never proved
+      // The provider has just proven this person owns the address. If the existing account never proved
       // it, whoever registered it may not be them (pre-hijacking): drop that unproven password and
       // end every existing session so only the verified owner keeps access.
       const takeover = !byEmail.emailVerifiedAt;
       await this.prisma.$transaction([
-        this.prisma.oAuthAccount.create({ data: { userId: byEmail.id, provider: "google", providerAccountId: p.sub, email: p.email } }),
+        this.prisma.oAuthAccount.create({ data: { userId: byEmail.id, provider, providerAccountId: p.sub, email: p.email } }),
         this.prisma.user.update({
           where: { id: byEmail.id },
           data: takeover ? { emailVerifiedAt: now, passwordHash: null, failedLoginCount: 0, lockedUntil: null } : {},
@@ -117,7 +138,7 @@ export class GoogleAuthService {
         ...(takeover ? [this.prisma.session.updateMany({ where: { userId: byEmail.id, revokedAt: null }, data: { revokedAt: now } })] : []),
       ]);
       if (takeover) await this.realtime.disconnectSessions({ userId: byEmail.id });
-      await this.audit.log(byEmail.id, "user.google_linked", "user", byEmail.id, { verifiedBefore: !takeover });
+      await this.audit.log(byEmail.id, `user.${provider}_linked`, "user", byEmail.id, { verifiedBefore: !takeover });
       return { id: byEmail.id, isNew: false };
     }
     const username = await this.uniqueUsername(p.email.split("@")[0]);
@@ -129,10 +150,10 @@ export class GoogleAuthService {
         passwordHash: null,
         emailVerifiedAt: new Date(),
         profile: { create: { displayName, avatarHue: Math.floor(Math.random() * 360), searchText: normalizeSearch(`${displayName} ${username}`) } },
-        oauthAccounts: { create: { provider: "google", providerAccountId: p.sub, email: p.email } },
+        oauthAccounts: { create: { provider, providerAccountId: p.sub, email: p.email } },
       },
     });
-    this.log.log("Created account via Google sign-in");
+    this.log.log(`Created account via ${provider} sign-in`);
     return { id: user.id, isNew: true };
   }
 

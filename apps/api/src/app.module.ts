@@ -20,6 +20,7 @@ import { MailModule } from "./modules/mail/mail";
 import { MediaModule } from "./modules/media/media";
 import { MembersModule } from "./modules/members/members.controller";
 import { NotificationsModule } from "./modules/notifications/notifications";
+import { PushModule } from "./modules/push/push";
 import { RealtimeModule } from "./modules/realtime/realtime";
 import { PlacesModule } from "./modules/places/places";
 import { SearchModule } from "./modules/search/search";
@@ -58,6 +59,7 @@ class HealthController {
     PrismaModule,
     RealtimeModule,
     NotificationsModule,
+    PushModule,
     AuditModule,
     TripEventsModule,
     ProductEventsModule,
