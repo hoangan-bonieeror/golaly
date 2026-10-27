@@ -6,7 +6,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/generated/**", "apps/web/public/**", "**/*.cjs", "**/next-env.d.ts", "apps/web/e2e/artifacts/**", "pipelines/**", "analytics/**"],
+    ignores: ["**/dist/**", "**/.next/**", "**/node_modules/**", "**/generated/**", "apps/web/public/**", "**/*.cjs", "**/next-env.d.ts", "apps/web/e2e/artifacts/**", "pipelines/**", "analytics/**", "apps/mobile/.expo/**", "apps/mobile/.expo-export/**", "apps/mobile/android/**", "apps/mobile/ios/**", "apps/mobile/metro.config.js"],
   },
   ...tseslint.configs.recommended,
   {
@@ -32,8 +32,8 @@ export default tseslint.config(
     settings: { next: { rootDir: "apps/web" } },
   },
   {
-    // Shared with the web and the app (React Native): browser-ish globals (fetch, FormData), React hooks rules.
-    files: ["packages/client/**/*.{ts,tsx}"],
+    // The app (React Native) and the code it shares with the web: browser-ish globals (fetch, FormData), hooks rules.
+    files: ["packages/client/**/*.{ts,tsx}", "apps/mobile/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },
     plugins: { "react-hooks": reactHooks },
     rules: reactHooks.configs.recommended.rules,

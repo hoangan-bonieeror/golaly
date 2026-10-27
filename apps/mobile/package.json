@@ -1,0 +1,43 @@
+{
+  "name": "@golaly/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Golaly for iOS and Android (Expo + expo-router), sharing @golaly/client, @golaly/shared and @golaly/tokens with the web.",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit",
+    "export:check": "expo export --platform android --output-dir .expo-export --clear"
+  },
+  "dependencies": {
+    "@golaly/client": "*",
+    "@golaly/shared": "*",
+    "@golaly/tokens": "*",
+    "@react-native-google-signin/google-signin": "^16.1.5",
+    "@tanstack/react-query": "^5.104.0",
+    "expo": "~58.0.19",
+    "expo-apple-authentication": "~58.0.2",
+    "expo-constants": "~58.0.13",
+    "expo-crypto": "~58.0.7",
+    "expo-dev-client": "~58.0.15",
+    "expo-device": "~58.0.5",
+    "expo-image": "~58.0.17",
+    "expo-linking": "~58.0.14",
+    "expo-localization": "~58.0.5",
+    "expo-notifications": "~58.1.6",
+    "expo-router": "~58.0.26",
+    "expo-secure-store": "~58.0.2",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

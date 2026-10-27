@@ -9,6 +9,9 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
+COPY apps/mobile/package.json apps/mobile/
+COPY packages/client/package.json packages/client/
+COPY packages/tokens/package.json packages/tokens/
 COPY apps/api/prisma apps/api/prisma
 COPY apps/api/prisma.config.ts apps/api/
 RUN npm ci --workspace @golaly/api --workspace @golaly/shared --include-workspace-root --ignore-scripts
@@ -29,6 +32,9 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
+COPY apps/mobile/package.json apps/mobile/
+COPY packages/client/package.json packages/client/
+COPY packages/tokens/package.json packages/tokens/
 RUN npm ci --omit=dev --workspace @golaly/api --workspace @golaly/shared --include-workspace-root --ignore-scripts && npm cache clean --force
 
 # ── runtime: compiled code + production deps, unprivileged user ────────────────

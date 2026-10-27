@@ -10,10 +10,11 @@
   "scripts": {
     "setup": "node scripts/setup.mjs",
     "postinstall": "npm run build -w @golaly/shared",
+    "mobile": "npm run start -w @golaly/mobile",
     "dev": "concurrently -k -n shared,api,web -c gray,cyan,magenta \"npm run dev -w @golaly/shared\" \"npm run dev -w @golaly/api\" \"npm run dev -w @golaly/web\"",
     "build": "npm run build -w @golaly/shared && npm run db:generate -w @golaly/api && npm run build -w @golaly/api && npm run build -w @golaly/web",
     "start": "concurrently -k -n api,web \"npm run start -w @golaly/api\" \"npm run start -w @golaly/web\"",
-    "typecheck": "npm run build -w @golaly/shared && npm run typecheck -w @golaly/client -w @golaly/tokens && npm run check -w @golaly/tokens && npm run typecheck -w @golaly/api && npm run typecheck -w @golaly/web",
+    "typecheck": "npm run build -w @golaly/shared && npm run typecheck -w @golaly/client -w @golaly/tokens && npm run check -w @golaly/tokens && npm run typecheck -w @golaly/api && npm run typecheck -w @golaly/web && npm run typecheck -w @golaly/mobile",
     "test": "npm run test -w @golaly/api",
     "test:unit": "npm run test:unit -w @golaly/api",
     "test:int": "npm run test:int -w @golaly/api",

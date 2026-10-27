@@ -30,6 +30,7 @@ Golaly is a full-stack MVP. You can discover public trips, remix one into your o
 | Layer | Tech |
 |---|---|
 | Web | Next.js 16 (App Router), React 19, Tailwind CSS 4, TanStack Query, Socket.IO client |
+| Mobile | Expo SDK 58 (React Native 0.88, expo-router), the same TanStack Query hooks as the web; Sign in with Apple / Google, push via Expo |
 | API | NestJS 11 (modular), Prisma 7 (`prisma-client` generator + `pg` driver adapter), Socket.IO, argon2id, JWT in HTTP-only cookies |
 | Database | PostgreSQL 16 + PostGIS |
 | Place catalog | `pipelines/`: Python 3.12, DuckDB, pyosmium, Apache Airflow 3: imports open place data (Overture Maps, OpenStreetMap) per country/province |
@@ -47,12 +48,15 @@ golaly/
 │   │   ├── src/modules/      auth · users · trips · itinerary · members · search · social
 │   │   │                     notifications · media · realtime · mail · audit
 │   │   └── test/             integration tests (auth, trips, collaboration, social, realtime, media)
+│   ├── mobile/               Expo app for iOS + Android (see apps/mobile/README.md)
 │   └── web/                  Next.js app (proxies /api/v1 and /media to the API)
 │       ├── src/app/          (auth)/… and (app)/… routes
 │       ├── src/components/   ui · layout · trip · itinerary · map · social
 │       ├── src/lib/          api client + query hooks · realtime · session · toast
 │       └── e2e/              definition-of-done.cjs (Playwright)
 ├── packages/shared/          types · permissions · schemas · api-types · fixtures/ (cases shared with Python)
+├── packages/client/          typed API client, query keys, TanStack Query hooks (web + mobile)
+├── packages/tokens/          Atlas design tokens (web + mobile; CI checks them against the web's CSS)
 ├── pipelines/                place catalog: golaly_catalog (Python) · dags/ (Airflow) · tests/
 ├── analytics/                dbt project: staging views → ephemeral intermediates → aggregate marts (see its README)
 ├── docs/                     ARCHITECTURE.md · screenshots
