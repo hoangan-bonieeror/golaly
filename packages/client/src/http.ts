@@ -20,6 +20,11 @@ export interface ApiClientConfig {
   getPlaceLanguage?: () => string | undefined;
   /** Defaults to the global fetch. */
   fetch?: typeof fetch;
+  /**
+   * Give up on a request (except uploads) after this long and report "can't reach Golaly" instead of waiting
+   * forever — a phone pointed at an unreachable address otherwise just spins. Off by default (browsers time out).
+   */
+  timeoutMs?: number;
 }
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -65,17 +70,26 @@ export function createApiClient(config: ApiClientConfig) {
       if (token) headers.Authorization = `Bearer ${token}`;
     }
     let res: Response;
+    // Our own controller, so a timeout can abort too; the caller's signal is forwarded to it.
+    const ctl = new AbortController();
+    const forward = () => ctl.abort();
+    if (signal?.aborted) ctl.abort();
+    else signal?.addEventListener("abort", forward);
+    const timer = config.timeoutMs && !isForm ? setTimeout(forward, config.timeoutMs) : undefined;
     try {
       res = await doFetch(`${base}${path}`, {
         method,
         credentials: config.auth.kind === "cookie" ? "include" : "omit",
         headers,
         body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
-        signal,
+        signal: ctl.signal,
       });
     } catch (e) {
       if (signal?.aborted) throw e; // superseded (e.g. the next keystroke): not a connection problem
       throw new ApiError(0, localizeMessage(OFFLINE_ERROR, locale));
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", forward);
     }
 
     if (res.status === 401 && retry && !path.startsWith("/auth/")) {

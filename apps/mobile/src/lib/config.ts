@@ -1,5 +1,18 @@
+import Constants from "expo-constants";
+
+/**
+ * While developing, the phone already reaches the computer running Expo (it loads the app's code from it), so
+ * Golaly is assumed at that same address on the web dev server's port: no IP to type into .env.
+ * Tunnel mode (`expo start --tunnel`) can't reach port 3000 that way: set EXPO_PUBLIC_GOLALY_URL then.
+ */
+function devOrigin(): string | null {
+  if (!__DEV__) return null;
+  const host = Constants.expoConfig?.hostUri?.split(":")[0];
+  return host && !host.endsWith(".exp.direct") ? `http://${host}:3000` : null;
+}
+
 /** Where the app talks to. EXPO_PUBLIC_* values are inlined at build time (see .env.example). */
-const origin = (process.env.EXPO_PUBLIC_GOLALY_URL ?? "https://golaly.vercel.app").replace(/\/+$/, "");
+const origin = (process.env.EXPO_PUBLIC_GOLALY_URL || devOrigin() || "https://golaly.vercel.app").replace(/\/+$/, "");
 
 export const config = {
   /** The web app's origin: it serves /api/v1 (proxied to the API) and /media (photos). */

@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError, GENERIC_ERROR } from "@golaly/client";
 import { localizeMessage } from "@golaly/shared";
 import { availableProviders, logIn, logInWithApple, logInWithGoogle } from "@/lib/auth";
+import { config } from "@/lib/config";
 import { currentLocale, useT } from "@/lib/i18n";
 import { useSessionStatus } from "@/lib/session";
 import { useTheme } from "@/lib/theme";
@@ -81,6 +82,8 @@ export default function Login() {
           <Link href="/register" style={{ color: colors.primary, fontSize: 15, textAlign: "center", paddingVertical: 12 }}>
             {t.noAccount}
           </Link>
+          {/* Development only: which server this build talks to (the first thing to check when sign-in hangs). */}
+          {__DEV__ && <Text style={{ color: colors.muted, fontSize: 12, textAlign: "center" }}>API: {config.apiUrl}</Text>}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

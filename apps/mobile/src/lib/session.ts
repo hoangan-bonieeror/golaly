@@ -64,6 +64,7 @@ async function refresh(): Promise<boolean> {
   try {
     const res = await fetch(`${config.apiUrl}/auth/app/refresh`, {
       method: "POST",
+      signal: AbortSignal.timeout?.(20_000),
       headers: { "Content-Type": "application/json", Accept: "application/json", ...CSRF_HEADER },
       body: JSON.stringify({ refreshToken }),
     });
@@ -83,6 +84,7 @@ export const client = createApiClient({
   baseUrl: config.apiUrl,
   auth: { kind: "bearer", getAccessToken: () => tokens?.accessToken ?? null, refresh },
   getLocale: currentLocale,
+  timeoutMs: 20_000,
 });
 export const api = client.api;
 
